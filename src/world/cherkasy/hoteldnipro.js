@@ -9,13 +9,13 @@
 // where a lower storey with its own windows shows under the hotel. Windows light up at night.
 //   HOTEL_SKIP: the OSM id replaced here (buildings.js skips it)
 //   buildHotelDnipro({ root, map, solids, zips, heightAt }) -> { update(dt), clear(x, z), footprints } | null
-// Walls are laid per ring edge in a face frame (blockkit.js): s along the edge, y up, o outward.
+// Walls are laid per ring edge in a face frame (slabkit.js): s along the edge, y up, o outward.
 import * as THREE from 'three';
 import { MB } from '../../kit/mesh.js';
 import { nightK } from '../../render/daylight.js';
 import { ringPts, rng, bboxOf } from './geo.js';
 import { canvasTex } from './sculpt.js';
-import { ringFaces, at, rect, box, skin, hole, solid, finish, speckle, quad, label } from './blockkit.js';
+import { ringFaces, at, rect, box, skin, hole, solid, finish, speckle, quad, label } from './slabkit.js';
 
 const OSM_ID = 402917283;
 export const HOTEL_SKIP = new Set([OSM_ID]);

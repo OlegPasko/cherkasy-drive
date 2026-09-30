@@ -8,13 +8,13 @@
 // plain panels with service doors. The cubes, stripes, ribbon windows and shop line light up at night.
 //   DEPOT_SKIP: the OSM id replaced here (buildings.js skips it)
 //   buildDepot({ root, map, solids, zips, heightAt }) -> { update(dt), clear(x, z), footprints } | null
-// Walls are laid per ring edge in a face frame (blockkit.js): s along the edge, y up, o outward.
+// Walls are laid per ring edge in a face frame (slabkit.js): s along the edge, y up, o outward.
 import * as THREE from 'three';
 import { MB } from '../../kit/mesh.js';
 import { nightK } from '../../render/daylight.js';
 import { ringPts, rng, bboxOf } from './geo.js';
 import { canvasTex } from './sculpt.js';
-import { ringFaces, face, at, rect, box, skin, hole, solid, finish, label } from './blockkit.js';
+import { ringFaces, face, at, rect, box, skin, hole, solid, finish, label } from './slabkit.js';
 
 const OSM_ID = 398694732;
 export const DEPOT_SKIP = new Set([OSM_ID]);

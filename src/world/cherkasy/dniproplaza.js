@@ -9,13 +9,13 @@
 //   DP_SKIP: the OSM id replaced here (buildings.js skips it)
 //   shapeDniproPlaza(hf, map) -> level | null   levels the lot and the forecourt (before the ground is built)
 //   buildDniproPlaza({ root, map, solids, zips, heightAt }) -> { update(dt), clear(x, z), footprints } | null
-// Walls are laid per ring edge in a face frame (blockkit.js): s along the edge, y up, o outward.
+// Walls are laid per ring edge in a face frame (slabkit.js): s along the edge, y up, o outward.
 import * as THREE from 'three';
 import { MB } from '../../kit/mesh.js';
 import { nightK } from '../../render/daylight.js';
 import { ringPts, rng, hull, centroid, bboxOf } from './geo.js';
 import { canvasTex } from './sculpt.js';
-import { ringFaces, at, rect, box, skin, hole, solid, finish, label, UP } from './blockkit.js';
+import { ringFaces, at, rect, box, skin, hole, solid, finish, label, UP } from './slabkit.js';
 
 const OSM_ID = 94983922;
 export const DP_SKIP = new Set([OSM_ID]);

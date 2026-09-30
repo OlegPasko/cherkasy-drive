@@ -8,13 +8,13 @@
 // at night.
 //   POLITEKH_SKIP: the OSM id replaced here (buildings.js skips it)
 //   buildPolitekh({ root, map, solids, zips, heightAt }) -> { update(dt), clear(x, z), footprints } | null
-// Walls are laid per ring edge in a face frame (blockkit.js): s along the edge, y up, o outward; brick uv in metres.
+// Walls are laid per ring edge in a face frame (slabkit.js): s along the edge, y up, o outward; brick uv in metres.
 import * as THREE from 'three';
 import { MB } from '../../kit/mesh.js';
 import { nightK } from '../../render/daylight.js';
 import { ringPts, rng, obb, bboxOf } from './geo.js';
 import { canvasTex } from './sculpt.js';
-import { ringFaces, face, at, rect, box, skin, hole, solid, finish, quad, UP } from './blockkit.js';
+import { ringFaces, face, at, rect, box, skin, hole, solid, finish, quad, UP } from './slabkit.js';
 
 const OSM_ID = 155200995;
 export const POLITEKH_SKIP = new Set([OSM_ID]);
