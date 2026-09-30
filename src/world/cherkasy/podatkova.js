@@ -264,6 +264,10 @@ export function buildPodatkova({ root, map, solids: S, zips: Z, heightAt }) {
     fsolid(S, ef, 0, ef.L, 0, 0.01, Y(4.6), Y(EH), 'wall');
   }
 
+  // ---- the roof: a flat deck over the ring of wings, just under both cornices so their lips hide its edges
+  D.setColor('#9c9d9a');
+  D.fill([[X0, Z0], [X1, Z0], [X1, Z1], [X0, Z1]], [[[HX0, HZ0], [HX1, HZ0], [HX1, HZ1], [HX0, HZ1]]], Y(TOP + 0.4), true);
+
   // ---- podium: the lot, the plaza on the street side and the courtyard, all at the floor; steps down to the street
   const PX0 = X0 - PLAZA;
   B.pave.setColor('#ffffff');
