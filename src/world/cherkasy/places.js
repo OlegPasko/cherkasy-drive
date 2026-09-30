@@ -30,6 +30,7 @@ export const PLACES = [
   { id: 'khimikiv44', kind: 'improved', name: 'Покращений об’єкт', note: 'просп. Хіміків, 44', issue: 1, bld: [108980190] },
   { id: 'khrcity', kind: 'improved', name: 'Покращений об’єкт', note: 'ТРЦ «Хрещатик-Сіті», вул. Остафія Дашковича, 19', bld: [6287196] },
   { id: 'budivelnyk', kind: 'improved', name: 'Покращений об’єкт', note: 'просп. Хіміків, 50/1', bld: [132429678] },
+  { id: 'grandmarket', kind: 'improved', name: 'Покращений об’єкт', note: 'вул. Володимира Великого, 55/1', bld: [94984022, 998351799] },
   // sights
   { id: 'mykhailo', kind: 'sight', name: 'Свято-Михайлівський собор', icon: '⛪', bld: [242469769] },
   { id: 'troitsky', kind: 'sight', name: 'Свято-Троїцький собор', icon: '⛪', bld: [157432721] },
