@@ -34,8 +34,12 @@
 /* mission panel (top centre), money (top right), banner, toast, hint */
 .hud-panel { position: absolute; left: 50%; top: 2.4vh; transform: translateX(-50%); min-width: 300px; max-width: min(520px, 92vw);
   padding: 10px 18px 12px; border-radius: 8px; box-sizing: border-box; text-align: center;
-  background: linear-gradient(180deg, rgba(14, 16, 26, .78), rgba(14, 16, 26, .55)); border-top: 3px solid var(--c, #f5c52e); transition: opacity .3s; }
+  background: linear-gradient(180deg, rgba(14, 16, 26, .78), rgba(14, 16, 26, .55)); border-top: 3px solid var(--c, #f5c52e);
+  transform-origin: right top; transition: opacity .3s, left .7s ease-in-out, top .7s ease-in-out, transform .7s ease-in-out; }
 .hud-panel.off { opacity: 0; }
+/* docked: right edge under the money and the sights counter, a bit smaller */
+.hud-panel.side { left: calc(100% - 2.4vw); top: calc(2.4vh + 72px); transform: translateX(-100%) scale(.78); }
+.hud-panel.side ~ .hud-toast { left: calc(100% - 2.4vw - 150px); top: calc(2.4vh + 190px); }
 .hud-panel .ttl { color: var(--c, #f5c52e); font-weight: 700; font-size: 13px; text-transform: uppercase; letter-spacing: .18em; }
 .hud-panel .obj { font-size: 21px; font-weight: 600; line-height: 1.15; margin-top: 3px; text-wrap: balance; }
 .hud-panel .row { display: flex; gap: 14px; align-items: center; justify-content: center; margin-top: 7px; font-size: 15px; font-variant-numeric: tabular-nums; }
@@ -147,6 +151,7 @@
 @media (max-width: 720px) {
   .hud-help { width: 88vw; font-size: 11px; } .hud-help .cols { column-count: 1; }
   .hud-panel { min-width: 0; top: 1.2vh; }
+  .hud-panel.side { top: 1.2vh; }
   .hud-panel .obj { font-size: 16px; }
   .hud-money { font-size: 20px; top: auto; bottom: calc(3vh + 175px); }
   .hud-explore { top: auto; bottom: calc(3vh + 145px); }

@@ -1,7 +1,7 @@
 // Screen-space HUD: chase-view speed readout, rotating minimap + compass strip, the objective indicator (diamond on
 // screen, pinned to the left / right edge with an arrow and the distance when off screen or behind), the mission panel
-// (title, objective text, labelled condition bar with hit shake and "−N%" toasts, timer, banners, money with a flash,
-// hint line), the controls card (every key the game knows, grouped; toggled by H or the always-visible "H" chip, which
+// (title, objective text, labelled condition bar with hit shake and "−N%" toasts, timer; centred at the top for 5 s on a
+// new mission or step, then docked on the right), banners, money with a flash, hint line), the controls card (every key the game knows, grouped; toggled by H or the always-visible "H" chip, which
 // stays on screen even with the HUD hidden; the "Бот" chip next to it opens the game's Telegram bot, the "B – На старт"
 // chip after it calls hud.onHome (a stuck car goes back to the start), the "🔔 Новини" chip opens the bot's daily news
 // subscription (t.me/…?start=sub), the "Q – Радіо" chip after that calls hud.onRadio and
@@ -340,12 +340,23 @@ export function createHud({ player, world, camera, container = globalThis.docume
 
   // ---------------------------------------------------------------- mission panel
   let banT = 0, toastT = 0, barLast = null, hitFlip = false, moneyFlip = false;
+  // the panel opens centred at the top, then after SIDE_AFTER s docks on the right under the money so it stops covering
+  // the view; a new mission or a new step brings it back (a changing number – distance, count – is not a new step)
+  const SIDE_AFTER = 5;
+  let sideT = -1, panelOn = false, stepKey = '';
+  const toCentre = () => { setClass(el.panel, 'side', false); sideT = SIDE_AFTER; };
   const mission = {
     setPanel(on, color, title) {
       setClass(el.panel, 'off', !on);
+      if (on && !panelOn) toCentre();
+      panelOn = !!on;
       if (on) { if (color) el.panel.style.setProperty('--c', color); if (title != null) setText(el.ttl, title); }
     },
-    setText(t) { setText(el.obj, t || ''); },
+    setText(t) {
+      setText(el.obj, t || '');
+      const key = (t || '').replace(/\([^)]*\)/g, '').replace(/\d[\d.,]*\s*(км|м)?/g, '#').trim();
+      if (key !== stepKey) { stepKey = key; if (key) toCentre(); }
+    },
     setBar(f, label = '', dmg = false) {
       if (f == null || !Number.isFinite(f)) { el.bar.style.display = 'none'; setText(el.bl, ''); barLast = null; return; }
       el.bar.style.display = '';
@@ -439,6 +450,7 @@ export function createHud({ player, world, camera, container = globalThis.docume
       dt = Math.min(Math.max(dt || 0, 0), 0.1);
       if ((banT -= dt) <= 0 && banT > -1) { el.banner.classList.remove('on'); banT = -1; }
       if ((toastT -= dt) <= 0 && toastT > -1) { el.toast.classList.remove('on'); toastT = -1; }
+      if (sideT > 0 && (sideT -= dt) <= 0) setClass(el.panel, 'side', true);
       if (bigmap.isOpen) { bigmap.update(dt); mapAcc = 1; return; }
       if (!helpForced && helpOn && (helpT -= dt) <= 0) { helpOn = false; applyHelp(); }
       if (!visible) return;
