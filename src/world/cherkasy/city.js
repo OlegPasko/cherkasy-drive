@@ -56,7 +56,8 @@ const SITE_MODULES = import.meta.glob(['./landmarks.js', './frame.js', './restin
   './simeinyi.js', './fitness34.js', './torhivli.js', './chnu.js', './chdtu.js', './bankinst.js', './khrcity.js',
   './podatkova.js',
   './school17.js',
-  './kinoukraina.js']);
+  './kinoukraina.js',
+  './chnu3.js']);
 async function loadSites() {
   const out = {};
   await Promise.all(Object.entries(SITE_MODULES).map(async ([path, load]) => {
@@ -126,7 +127,8 @@ export async function buildCherkasy({ scene, renderer, onProgress = null, params
     ['simeinyi', 'SIMEINYI_SKIP'], ['fitness34', 'FIT34_SKIP'], ['torhivli', 'TORHIVLI_SKIP'], ['chnu', 'CHNU_SKIP'], ['chdtu', 'CHDTU_SKIP'], ['bankinst', 'BANK_SKIP'], ['khrcity', 'KHRCITY_SKIP'],
     ['podatkova', 'PODATKOVA_SKIP'],
     ['school17', 'SCHOOL17_SKIP'],
-    ['kinoukraina', 'KINO_SKIP']]) for (const id of S[mod]?.[key] ?? []) skip.add(id);
+    ['kinoukraina', 'KINO_SKIP'],
+    ['chnu3', 'CHNU3_SKIP']]) for (const id of S[mod]?.[key] ?? []) skip.add(id);
   let groundDone = false, bldF = 0;
   const report = () => onProgress?.(0.15 + 0.55 * (0.3 * (groundDone ? 1 : 0) + 0.7 * bldF), `Рельєф, вулиці, будинки… ${Math.round(100 * (0.3 * (groundDone ? 1 : 0) + 0.7 * bldF))}%`);
   const groundP = buildGroundAsync({ scene: root, T, map, hf, strip, renderer, mapUrl: url('map.json') }).then((g) => { groundDone = true; report(); return g; });
@@ -149,7 +151,8 @@ export async function buildCherkasy({ scene, renderer, onProgress = null, params
     ['Khreshchatyk City', 'khrcity', 'buildKhrCity'],
     ['Tax office', 'podatkova', 'buildPodatkova'],
     ['School 17', 'school17', 'buildSchool17'],
-    ['Kino Ukraina', 'kinoukraina', 'buildKinoUkraina']];
+    ['Kino Ukraina', 'kinoukraina', 'buildKinoUkraina'],
+    ['ChNU building 3', 'chnu3', 'buildChnu3']];
   const built = list.map(() => null);
   const runSites = async (late) => {
     for (const [i, [label, mod, fn]] of list.entries()) {
