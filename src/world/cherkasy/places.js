@@ -28,7 +28,7 @@ export const PLACES = [
       'Від ідеї до робочого прототипу за лічені дні', 'AI-інструменти × досвідчена команда', '13+ років, понад 100 запущених проєктів', 'Рейтинг 5.0 на Clutch'] },
   // rebuilt on request, not landmarks (a landmark goes with the sights below)
   { id: 'khimikiv44', kind: 'improved', name: 'Покращений об’єкт', note: 'просп. Хіміків, 44', issue: 1, bld: [108980190] },
-  { id: 'khrcity', kind: 'improved', name: 'Покращений об’єкт', note: 'ТРЦ «Хрещатик-Сіті», вул. Остафія Дашковича, 19', bld: [6287196] },
+  { id: 'khrcity', kind: 'improved', name: 'Покращений об’єкт', note: 'вул. Остафія Дашковича, 19', bld: [6287196] },
   { id: 'spartak', kind: 'improved', name: 'Покращений об’єкт', note: 'вул. Остафія Дашковича, 23', bld: [156926550] },
   { id: 'pioner', kind: 'improved', name: 'Покращений об’єкт', note: 'вул. Митницька, 13 / бульв. Шевченка, 274', bld: [411245074] },
   { id: 'slavutych', kind: 'improved', name: 'Покращений об’єкт', note: 'вул. Небесної Сотні, 105', bld: [161603694] },
@@ -45,6 +45,7 @@ export const PLACES = [
   { id: 'school17', kind: 'improved', name: 'Покращений об’єкт', note: 'вул. Хрещатик, 218', bld: [104299469] },
   { id: 'kinoukraina', kind: 'improved', name: 'Покращений об’єкт', note: 'вул. Смілянська, 21', bld: [405324710, 104299465] },
   { id: 'chnu3', kind: 'improved', name: 'Покращений об’єкт', note: 'бульв. Шевченка, 79', bld: [103576791] },
+  { id: 'pixel', kind: 'improved', name: 'Покращений об’єкт', note: 'вул. Сержанта Жужоми, 4', bld: [1303243021] },
   // sights
   { id: 'mykhailo', kind: 'sight', name: 'Свято-Михайлівський собор', icon: '⛪', bld: [242469769] },
   { id: 'troitsky', kind: 'sight', name: 'Свято-Троїцький собор', icon: '⛪', bld: [157432721] },
@@ -61,7 +62,6 @@ export const PLACES = [
   { id: 'yalynka', kind: 'sight', name: 'Головна ялинка', note: 'Соборна площа', icon: '🎄', bld: [1011542999] },
   { id: 'hyperboloid', kind: 'sight', name: 'Гіперболоїдна вежа', note: 'Водонапірна вежа Шухова', icon: '🗼', xz: [-1499.9, 1193] },
   { id: 'embankment', kind: 'sight', name: 'Митницька набережна', icon: '🌊', ll: [49.4421357, 32.0980605] },
-  { id: 'pixel', kind: 'sight', name: 'Піксельна вежа', note: 'вул. Сержанта Жужоми, 4', icon: '🏙️', bld: [1303243021] },
   { id: 'sosnivka', kind: 'sight', name: 'Пляж «Соснівський-1»', icon: '🏖️', ll: [49.464543, 32.035328] },
   { id: 'kazbet', kind: 'sight', name: 'Казбетський пляж', icon: '🏖️', ll: [49.45722, 32.055922] },
   { id: 'mytnbeach', kind: 'sight', name: 'Митницький пляж', icon: '🏖️', ll: [49.446136, 32.078061] },
