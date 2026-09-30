@@ -85,8 +85,9 @@ Flows:
   - Offered right on `/start` (the first button and a line under the welcome), then in the menu ("🔔 Підписатись" /
     "🔕 Відписатись"), by `/news` and `/stop`, and from the game's "🔔 Новини" chip (`?start=sub` subscribes at once).
   - A subscriber is `subs/<chat>.json` in Spaces (and `sub: true` in the session, for the menu button).
-  - `bot/broadcast.mjs` sends the post from Oleg's Mac; a scheduled task writes it from the day's commits
-    (`docs/news.md`). Chats that blocked the bot are dropped. Every post and `news/last.json` stay in Spaces.
+  - `news.js` posts it at 21:00 Kyiv from the `daily-news` trigger: GPT-6 Luna (Gemma as the fallback) writes it from
+    `main`'s new commits, and there is no model call and no post when nothing is new (`docs/news.md`; `bot/broadcast.mjs`
+    runs the same by hand). Chats that blocked the bot are dropped. Every post and `news/last.json` stay in Spaces.
 
 ## How Oleg works the issues
 

@@ -342,11 +342,60 @@ const buttons = (m) => (m.kb || []).flat().map((b) => b.data || b.url);
   assert.doesNotMatch(last(f).text, /Нічого не додали/);
 }
 
+// daily news (news.js): only after 21:00 Kyiv, the model only when main has new commits, one post a day, fallbacks
+{
+  const { createNews, kyiv } = require(dir + 'news.js');
+  assert.deepEqual(kyiv(new Date('2026-09-30T18:00:00Z')), { day: '2026-09-30', hour: 21 }); // summer: UTC+3
+  assert.deepEqual(kyiv(new Date('2026-12-01T19:30:00Z')), { day: '2026-12-01', hour: 21 }); // winter: UTC+2
+  const f = fakes(), sent = f.sent, realFetch = globalThis.fetch;
+  let head = 'a1', commits = [], asked = [], answers = [];
+  const gh = { log: async (base) => { assert.equal(base, f.files.has('news/cursor.json') ? JSON.parse(f.files.get('news/cursor.json')).sha : 'a0'); return { head, commits }; } };
+  globalThis.fetch = async (url, o) => { asked.push(url); const a = answers.shift(); if (a instanceof Error) throw a;
+    return { ok: true, json: async () => ({ choices: [{ message: { content: a } }] }) }; };
+  const tg = { send: async (chat, text, kb) => { if (chat === 13) { const e = new Error('tg: blocked'); e.tg = { error_code: 403 }; throw e; } sent.push({ chat, text, kb }); } };
+  f.files.set('news/last.json', JSON.stringify({ day: '2026-09-29', sha: 'a0' }));
+  for (const c of [42, 7, 13]) f.files.set(`subs/${c}.json`, '{}');
+  const news = createNews({ tg, gh, store: { ...f.bot && {}, get: async (p) => f.files.get(p) ?? null, getJSON: async (p) => (f.files.has(p) ? JSON.parse(f.files.get(p)) : null),
+    put: async (p, b) => { f.files.set(p, b); }, list: async (p) => [...f.files.keys()].filter((k) => k.startsWith(p)), del: async (p) => f.files.delete(p) },
+    writers: [{ name: 'openai', url: 'u1', key: 'k', model: 'm' }, { name: 'gemma', url: 'u2', key: 'k', model: 'g' }, { name: 'off', url: 'u3', key: '', model: 'x' }],
+    adminChat: 1, sleep: async () => {} });
+  const at = (h, d = '2026-09-30') => new Date(`${d}T${String(h - 3).padStart(2, '0')}:00:00Z`);
+  try {
+    assert.match((await news.daily({ now: at(20) })).skip, /before 21/);
+    assert.match((await news.daily({ now: at(21) })).skip, /no new commits/); // same head: GitHub only, no model
+    assert.equal(asked.length, 0);
+    assert.equal(JSON.parse(f.files.get('news/cursor.json')).day, '2026-09-30');
+    assert.match((await news.daily({ now: at(22) })).skip, /done for 2026-09-30/);
+    head = 'b2'; commits = [{ sha: 'b1', message: 'Update docs' }, { sha: 'b2', message: 'Tidy tests' }]; answers = ['NONE'];
+    assert.match((await news.daily({ now: at(21, '2026-10-01') })).skip, /nothing for players in 2 commits \(openai\)/);
+    assert.equal(JSON.parse(f.files.get('news/cursor.json')).sha, 'b2');
+    head = 'c1'; commits = [{ sha: 'c1', message: 'Hand-build the market' }];
+    answers = [new Error('HTTP 500'), '🗞 <b>Що нового</b>\n\n🏛 Ринок — як справжній, і з\'явився дах.'];
+    const r = await news.daily({ now: at(21, '2026-10-02') });
+    assert.deepEqual([r.writer, r.sent, r.dropped, r.sha], ['gemma', 2, 1, 'c1']);
+    assert.equal(r.text, '🗞 <b>Що нового</b>\n\n🏛 Ринок – як справжній, і з’явився дах.'); // no em-dash, a real apostrophe
+    assert.deepEqual(asked, ['u1/chat/completions', 'u1/chat/completions', 'u2/chat/completions']); // the NONE run, then u1 fails, u2 writes
+    assert.ok(!f.files.has('subs/13.json')); // blocked the bot: unsubscribed
+    assert.equal(JSON.parse(f.files.get('news/last.json')).day, '2026-10-02');
+    assert.ok(f.files.get('news/2026-10-02.html').startsWith('🗞'));
+    assert.deepEqual(sent.filter((m) => m.chat !== 1).map((m) => m.kb.flat().map((b) => b.url || b.data)), [['https://driver.ck.ua/', 'nw:0'], ['https://driver.ck.ua/', 'nw:0']]);
+    assert.match(sent.at(-1).text, /надіслано 2, відписались 1/); // the report to Oleg
+    head = 'd1'; commits = [{ sha: 'd1', message: 'x' }]; answers = ['<script>x</script>', 'Просто текст'];
+    await assert.rejects(news.daily({ now: at(22, '2026-10-03') }), /no writer: openai: bad shape; gemma: bad shape/);
+    assert.equal(sent.at(-1).text.startsWith('📰 Новини 2026-10-03 не вийшли'), true); // Oleg hears about it
+    assert.equal(sent.filter((m) => m.chat !== 1).length, 2); // nobody else got anything; the cursor stays for a retry
+    assert.equal(JSON.parse(f.files.get('news/cursor.json')).sha, 'c1');
+    const n = sent.length; answers = ['🗞 ok']; const d = await news.daily({ now: at(23, '2026-10-03'), dry: true });
+    assert.deepEqual([d.text, sent.length, JSON.parse(f.files.get('news/cursor.json')).sha], ['🗞 ok', n, 'c1']); // dry: nothing sent or stored
+  } finally { globalThis.fetch = realFetch; }
+}
+
 // webhook auth in index.js
 {
   process.env.TELEGRAM_WEBHOOK_SECRET = 'tgs'; process.env.GITHUB_WEBHOOK_SECRET = 'ghs';
   const { main } = require(dir + 'index.js');
   assert.equal((await main({ __ow_headers: {}, __ow_body: '{}' })).statusCode, 403);
+  assert.equal((await main({ __ow_headers: {}, __ow_body: '{}', job: 'news' })).statusCode, 403); // a web call never runs the news job
   assert.equal((await main({ __ow_headers: { 'x-telegram-bot-api-secret-token': 'nope' }, __ow_body: '{}' })).statusCode, 403);
   const body = JSON.stringify({ zen: 'hi' });
   const sig = 'sha256=' + crypto.createHmac('sha256', 'ghs').update(body).digest('hex');

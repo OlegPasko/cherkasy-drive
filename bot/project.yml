@@ -6,7 +6,7 @@ packages:
         runtime: nodejs:24
         web: raw
         limits:
-          timeout: 60000
+          timeout: 180000 # the news job: a reasoning model, then one message per subscriber
           memory: 256
         environment:
           TELEGRAM_BOT_TOKEN: "${TELEGRAM_BOT_TOKEN}"
@@ -22,3 +22,12 @@ packages:
           ADMIN_CHAT_ID: "${ADMIN_CHAT_ID}"
           DARKBLOOM_API_KEY: "${DARKBLOOM_API_KEY}"
           DEEPSEEK_API_KEY: "${DEEPSEEK_API_KEY}"
+          OPENAI_API_KEY: "${OPENAI_API_KEY}"
+        triggers: # the daily news (news.js) at 21:00 Kyiv: the cron is UTC, 18:00 in summer and 19:00 in winter, so it fires
+                  # at both and only the run that lands on 21:00 Kyiv does the work; the other returns at once
+          - name: daily-news
+            sourceType: scheduler
+            sourceDetails:
+              cron: "0 18,19 * * *"
+              withBody:
+                job: news

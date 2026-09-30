@@ -1,50 +1,36 @@
 # Daily news to the bot's subscribers
 
 Players subscribe to the game news in `@driver_game_bot`: on `/start`, from the menu, with `/news`, or with the
-"🔔 Новини" chip in the game (`?start=sub`). Each day at 21:00 Kyiv time, a scheduled Claude task on Oleg's Mac
-(`cherkasy-daily-news`, cron `0 20 * * *` in local CET/CEST, which is 21:00 in Kyiv) reads what reached `main` since the
-last post. It writes a short post for players and sends it with `bot/broadcast.mjs`. On a day with nothing new for
-players, nothing is sent.
+"🔔 Новини" chip in the game (`?start=sub`). Each day at 21:00 Kyiv time, the bot's own DigitalOcean function writes a
+short post about what reached `main` and sends it to every subscriber. On a day with nothing new for players, nothing is
+sent. It runs in the cloud, so no Mac has to be awake.
 
-- The task works in its own detached worktree, `../cherkasy-drive-news`, at `origin/main`. It never touches the main
-  checkout or other sessions' work. The secrets come from the main checkout's `bot/.env` through `BOT_ENV`.
-- `node bot/broadcast.mjs --status` shows the subscriber count and the last post: its Kyiv day, the `origin/main` sha it
-  covered, and the sent and dropped counts.
-- `--to <chat>` sends a preview to one chat, `--dry` prints the post without sending, and `--force` posts a second time
-  on the same day.
-- Spaces keeps every post as `driver-bot/news/<day>.html`.
+## How it runs
 
-## The task prompt
+- The `daily-news` scheduled trigger in `bot/project.yml` calls the `driver_bot` function with `{ job: 'news' }` at 18:00
+  and 19:00 UTC. The cron is in UTC, and Kyiv is UTC+3 in summer and UTC+2 in winter. So one of the two runs lands on
+  21:00 Kyiv and does the work, and the other returns at once. A failed summer run is retried by the 22:00 one.
+- `news.js` asks GitHub for `main`'s new commits since `news/cursor.json` (the last day checked and the commit it
+  covered). No new commits means no model call and no post. Otherwise the commit messages go to the writer, `gpt-6-luna`
+  on OpenAI (`OPENAI_API_KEY`, `OPENAI_MODEL` overrides). If that fails, Gemma on Darkbloom writes instead. The writer
+  keeps only what a player can see, or answers `NONE`, and then nothing is sent.
+- A post must start with 🗞 and use only `<b>`, `<i>` and `<a href>`. Em-dashes become en-dashes, and `'` inside a word
+  becomes `’`. A post that breaks these goes to the next writer.
+- It sends to every `subs/<chat>.json` with "🚗 Грати" and "🔕 Відписатись". Chats that blocked the bot are
+  unsubscribed. Spaces keeps every post as `driver-bot/news/<day>.html` and the run as `news/last.json`. Oleg gets a
+  one-line report, or the reason when no writer managed.
+- A web request can never start it: web calls always carry `__ow_headers` and get 403.
+- The prompt, the checks and the rules for the text are in `bot/packages/default/driver_bot/news.js`.
 
-```
-Daily news post for Cherkasy Drive's Telegram subscribers. Kyiv time, unattended: do not ask questions.
+## By hand
 
-MAIN=/Users/olegpasko/sites/ai-playground/cherkasy-drive
-NEWS=/Users/olegpasko/sites/ai-playground/cherkasy-drive-news
-export BOT_ENV=$MAIN/bot/.env
+    node bot/broadcast.mjs --status                 # subscribers, the cursor and the last post
+    node bot/broadcast.mjs --run --dry              # what tonight's run would post; nothing sent or stored
+    node bot/broadcast.mjs --run --dry --base <sha> # the same from an older commit, to try the writer
+    node bot/broadcast.mjs --run                    # post now, at any hour (still once per Kyiv day)
+    node bot/broadcast.mjs --file post.html [--to <chat>] [--force]   # a hand-written post, or a preview to one chat
+    doctl serverless triggers list                  # the trigger and its last run
+    doctl serverless activations logs --function driver_bot   # "[news] …" lines
 
-1. Worktree. If $NEWS does not exist: git -C $MAIN fetch origin && git -C $MAIN worktree add --detach $NEWS origin/main.
-   Otherwise: git -C $NEWS fetch origin && git -C $NEWS checkout --detach --force origin/main. Work only in $NEWS; never
-   edit, commit or push anything.
-2. cd $NEWS && node bot/broadcast.mjs --status. If last.day is today (Kyiv), stop: already posted.
-3. The range. If last.sha exists and `git merge-base --is-ancestor <last.sha> origin/main` succeeds, use
-   `git log --no-merges --format='%h %ad %s%n%b' --date=iso <last.sha>..origin/main`. Otherwise use
-   `--since="24 hours ago"` on origin/main. Read `git show --stat <sha>` for any commit that is unclear.
-4. Keep only what a player can see or feel in the game: new or rebuilt buildings and landmarks, new missions,
-   features, controls, sounds, map changes, performance and visible bug fixes, new ways to take part (bot flows, ads).
-   Drop docs, tests, tooling, refactors, analytics, deploy, bot internals and anything a player would not notice.
-   If nothing is left, stop: do not post, and say "no news today" in the report.
-5. Write the post in Ukrainian as Telegram HTML (only <b>, <i>, <a href>; escape & < > in text). Use en-dashes (–),
-   never em-dashes. The shape:
-     🗞 <b>Що нового в Cherkasy Drive</b>
-     (blank line)
-     2–7 lines, each an emoji and one short, lively sentence about one change, in terms of what the player sees
-     ("На Замковій горі тепер …"). Merge related commits into one line. A request built for a player may be named
-     "за заявкою гравця", never with a name, username or issue number.
-     (blank line)
-     🔄 Щоб побачити – оновіть сторінку гри без кешу: Cmd + Shift + R (Mac) або Ctrl + F5 (Windows).
-   Keep it under 1200 characters. No internal words (commit, PR, refactor, module names), and no promises about the future.
-6. Save it to a temp file (mktemp) and send:
-   node bot/broadcast.mjs --file <that file> --sha $(git rev-parse origin/main)
-7. Report in one or two lines, in Ukrainian: how many subscribers got it (or why nothing went out), and the post text.
-```
+Before this function took over, a scheduled Claude task on Oleg's Mac (`cherkasy-daily-news`) wrote the post. That task
+is now disabled.

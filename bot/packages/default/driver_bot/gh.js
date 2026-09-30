@@ -1,6 +1,7 @@
 // GitHub REST for the request issues.
 //   createGitHub({ token, repo: 'owner/name', assignee? }) -> { create({ title, body, labels }) -> issue, get(n) -> issue,
-//     comment(n, body), labels(n, add[], remove[]), state(n, 'open' | 'closed') }
+//     comment(n, body), labels(n, add[], remove[]), state(n, 'open' | 'closed'),
+//     log(base, sinceIso) -> { head, commits: [{ sha, message }] } – for the daily news (news.js) }
 // assignee (default: the repo owner): every new issue is assigned to them, so GitHub emails them about it
 function createGitHub({ token, repo, assignee = repo.split('/')[0] }) {
   async function api(method, path, body) {
@@ -22,6 +23,17 @@ function createGitHub({ token, repo, assignee = repo.split('/')[0] }) {
       for (const l of remove) await api('DELETE', `/issues/${n}/labels/${encodeURIComponent(l)}`);
     },
     state: (n, state) => api('PATCH', `/issues/${n}`, { state }),
+    async log(base, since) { // main's non-merge commits after base (or since an ISO time when base is gone or rewritten)
+      const head = (await api('GET', '/commits/main')).sha;
+      if (base && head.startsWith(base)) return { head, commits: [] };
+      let list = null;
+      if (base) {
+        const c = await api('GET', `/compare/${base}...${head}`).catch(() => null);
+        if (c && (c.status === 'ahead' || c.status === 'identical')) list = c.commits;
+      }
+      list ||= (await api('GET', `/commits?sha=${head}&per_page=100&since=${since}`)).reverse();
+      return { head, commits: list.filter((c) => c.parents.length < 2).map((c) => ({ sha: c.sha, message: c.commit.message.trim() })) };
+    },
   };
 }
 
