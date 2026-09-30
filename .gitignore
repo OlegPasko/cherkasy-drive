@@ -1,0 +1,6 @@
+node_modules/
+dist/
+.DS_Store
+tools/cherkasy/raw/
+__pycache__/
+.playwright-mcp/

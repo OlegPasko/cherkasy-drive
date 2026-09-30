@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="uk">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Черкаси – колізії</title>
+  <style>
+    html, body { margin: 0; height: 100%; overflow: hidden; background: #0d1117; color: #e6edf3; font: 13px/1.45 ui-monospace, Menlo, monospace; }
+    canvas { display: block; }
+    #hud { position: fixed; left: 12px; top: 12px; padding: 10px 12px; background: rgba(13, 17, 23, .78); border: 1px solid #30363d; border-radius: 6px; white-space: pre; pointer-events: none; min-width: 330px; }
+    #help { position: fixed; right: 12px; bottom: 12px; padding: 8px 12px; background: rgba(13, 17, 23, .7); border-radius: 6px; white-space: pre; color: #9aa7b4; }
+    #load { position: fixed; inset: 0; display: grid; place-items: center; font-size: 16px; }
+  </style>
+</head>
+<body>
+  <div id="load">Завантаження мапи Черкас…</div>
+  <div id="hud"></div>
+  <div id="help">WASD – рух · Space / C – вгору / вниз · Shift – швидко (40 м/с)
+Q / E – поворот · B – капсула / авто · G – гравітація
+V – каркаси колізій · клік – промінь з камери · миша – орбіта</div>
+  <script type="module" src="./collision.js"></script>
+</body>
+</html>

@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="uk">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Рендер – демо</title>
+  <style>
+    html, body { margin: 0; height: 100%; overflow: hidden; background: #0d1117; color: #e8edf3; font: 13px/1.35 system-ui, sans-serif; }
+    #app { position: fixed; inset: 0; }
+    #panel { position: fixed; top: 10px; right: 10px; width: 270px; padding: 10px 12px; background: #0d1117cc; border: 1px solid #ffffff22;
+      border-radius: 8px; backdrop-filter: blur(6px); z-index: 5; }
+    #panel h3 { margin: 0 0 6px; font-size: 14px; }
+    #panel label { display: flex; align-items: center; gap: 6px; margin: 4px 0; }
+    #panel label > span:first-child { width: 92px; opacity: .8; }
+    #panel input[type=range] { flex: 1; }
+    #panel .row { display: flex; flex-wrap: wrap; gap: 4px; margin: 6px 0; }
+    #panel button { background: #243244; color: inherit; border: 1px solid #ffffff22; border-radius: 4px; padding: 3px 7px; cursor: pointer; }
+    #panel button.on { background: #f2c14e; color: #111; }
+    #stats { margin-top: 8px; font: 11px/1.4 ui-monospace, monospace; white-space: pre; opacity: .85; }
+    #hint { position: fixed; left: 10px; bottom: 10px; opacity: .7; z-index: 5; pointer-events: none; }
+    #loading { position: fixed; inset: 0; display: grid; place-content: center; background: #0d1117; z-index: 10; transition: opacity .5s; }
+    #loading.done { opacity: 0; pointer-events: none; }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+  <div id="panel">
+    <h3>Рендер: небо, світло, тіні</h3>
+    <label><span>Час</span><input id="time" type="range" min="0" max="24" step="0.05"><span id="timeOut">--:--</span></label>
+    <label><span>Швидкість</span><select id="speed">
+      <option value="0">стоп</option><option value="60">×60</option><option value="600">×600</option>
+      <option value="1800">×1800</option><option value="3600">×3600</option></select></label>
+    <div class="row" id="presets"></div>
+    <label><span>Хмарність</span><input id="cloud" type="range" min="0" max="1" step="0.01" value="0.35"></label>
+    <label><span>Експозиція</span><input id="ev" type="range" min="-2" max="2" step="0.1" value="0"></label>
+    <label><span>Якість</span><select id="quality"><option value="low">низька</option><option value="medium">середня</option><option value="high">висока</option></select></label>
+    <div class="row" id="toggles"></div>
+    <div id="stats"></div>
+  </div>
+  <div id="hint">Клік – керування мишею · WASD / стрілки – рух · Space / Ctrl – вгору / вниз · Shift – швидко · колесо – швидкість · T – пресет · F9 – якість</div>
+  <div id="loading"><div class="msg">Завантаження Черкас…</div></div>
+  <script type="module" src="./render.js"></script>
+</body>
+</html>

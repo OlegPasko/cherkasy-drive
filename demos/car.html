@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="uk">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Авто – демо</title>
+  <style>
+    html, body { margin: 0; height: 100%; overflow: hidden; background: #0d1117; color: #e8edf3; font: 13px/1.35 system-ui, sans-serif; }
+    #app { position: fixed; inset: 0; }
+    #stats { position: fixed; left: 50%; bottom: 8px; transform: translateX(-50%); padding: 6px 10px; background: #0d1117aa; border-radius: 6px;
+      font: 11px/1.4 ui-monospace, monospace; white-space: pre; z-index: 13; pointer-events: none; }
+    #go { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 14; display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; max-width: 520px; }
+    #go button { background: #243244; color: inherit; border: 1px solid #ffffff22; border-radius: 4px; padding: 5px 9px; cursor: pointer; }
+    #go.off { display: none; }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+  <div id="go">
+    <button data-to="spawn">Старт</button><button data-to="ramp">Трамплін</button><button data-to="kicker">Кікер</button>
+    <button data-to="wall">Стіна</button><button data-to="roofRamp">На дах гаража</button><button data-to="crates">Ящики</button>
+    <button data-to="water">Річка</button><button data-to="air">У повітрі</button><button id="close">Грати (клік – курсор)</button>
+  </div>
+  <div id="stats"></div>
+  <script type="module" src="./car.js"></script>
+</body>
+</html>

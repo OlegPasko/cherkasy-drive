@@ -1,0 +1,8 @@
+{
+  "name": "driver_bot",
+  "version": "1.0.0",
+  "private": true,
+  "main": "index.js",
+  "dependencies": { "unpdf": "^1.8.1" },
+  "description": "Cherkasy Drive Telegram bot: requests -> GitHub issues, statuses back to Telegram"
+}

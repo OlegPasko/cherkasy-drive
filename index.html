@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="uk">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Черкаси Драйв</title>
+  <meta name="description" content="Їзди й літай реальним містом – просто в браузері. Черкаси з OSM: вулиці, трафік, пішоходи, набережна Дніпра, місії таксі й кур'єра.">
+  <meta name="theme-color" content="#0d1117">
+  <link rel="icon" href="/favicon.ico" sizes="32x32">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <link rel="manifest" href="/site.webmanifest">
+  <!-- share cards: og:image must be an absolute URL -->
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Черкаси Драйв">
+  <meta property="og:locale" content="uk_UA">
+  <meta property="og:url" content="https://driver.ck.ua/">
+  <meta property="og:title" content="Черкаси Драйв">
+  <meta property="og:description" content="Їзди й літай реальним містом – просто в браузері.">
+  <meta property="og:image" content="https://driver.ck.ua/og.jpg">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Літаюче авто над Черкасами й Дніпром">
+  <meta name="twitter:card" content="summary_large_image">
+  <style>
+    html, body { margin: 0; height: 100%; overflow: hidden; background: #0d1117; color: #e8edf3; font: 15px/1.4 system-ui, sans-serif; }
+    #app { position: fixed; inset: 0; }
+    #loading { position: fixed; inset: 0; display: grid; place-content: center; gap: 14px; text-align: center;
+      background: radial-gradient(circle at 50% 40%, #1d2a3a, #0d1117 70%); transition: opacity .6s; z-index: 10; }
+    #loading.done { opacity: 0; pointer-events: none; }
+    #loading .title { font-size: 34px; font-weight: 700; letter-spacing: .04em; }
+    #loading .msg { opacity: .75; min-height: 1.4em; }
+    #loading .bar { width: 220px; height: 3px; margin: 0 auto; background: #ffffff1a; overflow: hidden; border-radius: 2px; }
+    #loading .bar i { display: block; width: 40%; height: 100%; background: #f2c14e; animation: slide 1.1s ease-in-out infinite; }
+    @keyframes slide { from { transform: translateX(-100%); } to { transform: translateX(250%); } }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+  <div id="loading">
+    <div class="title">Черкаси Драйв</div>
+    <div class="msg">Завантаження…</div>
+    <div class="bar"><i></i></div>
+  </div>
+  <script type="module">
+    import { initAnalytics } from '/src/analytics.js';
+    // phones get the city map (src/mapview.js): touch only, no mouse or trackpad anywhere, or a phone's user agent
+    const q = new URLSearchParams(location.search), mm = (m) => matchMedia(m).matches;
+    const phone = q.has('mobile') || (!q.has('desktop') && ((mm('(pointer: coarse)') && !mm('(any-pointer: fine)')) || /Android.+Mobile|iPhone|iPod|Mobi/i.test(navigator.userAgent)));
+    initAnalytics({ mode: phone ? 'map' : 'game' });
+    (phone ? import('/src/mapview.js').then((m) => m.startMapView()) : import('/src/main.js').then((m) => m.startGame())).catch((err) => {
+      console.error(err);
+      const m = document.querySelector('#loading .msg');
+      if (m) m.textContent = 'Не вдалося запустити гру: ' + (err?.message || err);
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="uk">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Черкаси – світ</title>
+  <style>
+    html, body { margin: 0; height: 100%; overflow: hidden; background: #0d1117; color: #e8edf3; font: 13px/1.35 system-ui, sans-serif; }
+    #app { position: fixed; inset: 0; }
+    #stats { position: fixed; top: 10px; right: 10px; padding: 8px 10px; background: #0d1117cc; border: 1px solid #ffffff22; border-radius: 8px;
+      font: 11px/1.45 ui-monospace, monospace; white-space: pre; z-index: 5; pointer-events: none; }
+    #panel { position: fixed; top: 10px; left: 10px; display: flex; flex-wrap: wrap; gap: 4px; max-width: 520px; z-index: 5; }
+    #panel button { background: #243244; color: inherit; border: 1px solid #ffffff22; border-radius: 4px; padding: 3px 7px; cursor: pointer; }
+    #hint { position: fixed; left: 10px; bottom: 10px; opacity: .7; z-index: 5; pointer-events: none; }
+    #loading { position: fixed; inset: 0; display: grid; place-content: center; gap: 14px; text-align: center;
+      background: radial-gradient(circle at 50% 40%, #1d2a3a, #0d1117 70%); transition: opacity .6s; z-index: 10; }
+    #loading.done { opacity: 0; pointer-events: none; }
+    #loading .title { font-size: 30px; font-weight: 700; letter-spacing: .04em; }
+    #loading .msg { opacity: .75; min-height: 1.4em; }
+    #loading .bar { width: 260px; height: 3px; margin: 0 auto; background: #ffffff1a; overflow: hidden; border-radius: 2px; }
+    #loading .bar i { display: block; width: 0; height: 100%; background: #f2c14e; transition: width .2s; }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+  <div id="panel"></div>
+  <div id="stats"></div>
+  <div id="hint">Клік – керування мишею · WASD – рух · Space / Ctrl – вгору / вниз · Shift ×6 · колесо – швидкість · T – час доби · F9 – якість · K – колізії · P – зонд у стіну</div>
+  <div id="loading"><div class="title">Черкаси</div><div class="msg">Завантаження…</div><div class="bar"><i></i></div></div>
+  <script type="module" src="./world.js"></script>
+</body>
+</html>

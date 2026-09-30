@@ -1,0 +1,677 @@
+{
+ "voices": {
+  "dispatcher": "9Sj8ugvpK1DmcAXyvi3a",
+  "passenger": "pwfUObaNG29PitX1ZmwL"
+ },
+ "groups": {
+  "sfx": [
+   {
+    "id": "chpok",
+    "prompts": [
+     "One tiny soft cartoon chpok: a silicone suction cup gently popping off smooth glass, rounded low-mid plop with a faint rubbery tick. Close dry mono, actual pop under 0.2 seconds followed by silence. No voice, no scream, no human impact, no wet gore, no music, no reverb.",
+     "One gentle cartoon chpok from a small hollow rubber toy softly compressing and popping back, slightly deeper and rounder than a suction-cup click. Close dry mono, tiny 0.18-second sound with silence after. No voice, no scream, no bodily impact, no squeak, no music, no reverb.",
+     "One feather-light cartoon chpok, a small soft silicone cap releasing with a pillowy pop and a very short hollow tail, slightly brighter but never sharp. Close dry mono, isolated, silence after 0.2 seconds. No voice, no scream, no flesh sound, no crack, no music, no reverb."
+    ],
+    "dur": 0.5,
+    "gain": 0.4
+   },
+   {
+    "id": "hit_car",
+    "prompt": "One restrained low-speed vehicle bumper contact: padded polymer knock, short thin steel panel rattle, tiny suspension creak. Exterior perspective at two metres, dry mono, softened transient, no debris bed. No voice, no horn, no engine, no music, no explosion.",
+    "dur": 0.65,
+    "n": 2,
+    "gain": 0.65
+   },
+   {
+    "id": "hit_car_heavy",
+    "prompt": "One compact arcade vehicle collision: a broad cushioned thump, folded sheet-steel crunch and two short loose-panel rattles. Exterior at three metres, dry mono, controlled bass, rounded attack, quick decay. No voice, no siren, no engine, no explosion, no cinematic boom, no music.",
+    "dur": 1.1,
+    "n": 2,
+    "gain": 0.95
+   },
+   {
+    "id": "hit_wall",
+    "prompt": "One light rubber bumper knock against solid concrete, a low dry tok with a brief plastic-panel tremble. Close exterior at two metres, mono, deadened and compact. No voice, no stone collapse, no glass, no engine, no music, no reverberant boom.",
+    "dur": 0.55,
+    "n": 2,
+    "gain": 0.62
+   },
+   {
+    "id": "hit_wall_heavy",
+    "prompt": "One weighty but restrained vehicle bumper thud against concrete, brief low-mid body resonance and a short dull metal buckle. Dry mono exterior at three metres, softened peak, no sub-bass tail. No voice, no building collapse, no explosion, no engine, no music.",
+    "dur": 0.9,
+    "n": 2,
+    "gain": 0.9
+   },
+   {
+    "id": "glass",
+    "prompt": "A small handful of tempered safety-glass granules scattering onto asphalt, delicate irregular tinkles and tiny dry taps, no initial crash. Close mono at two metres, softened treble, short natural decay. No voice, no music, no explosive shatter, no ringing high-frequency spike.",
+    "dur": 0.8,
+    "n": 2,
+    "gain": 0.38
+   },
+   {
+    "id": "tree",
+    "prompt": "A small dry tree trunk bends and cracks once, then leafy branches fall with a soft wooden thud on soil and a short leaf rustle. Crack near the start, ground contact around one second. Exterior at four metres, dry mono. No voice, no gunshot-like crack, no huge forest collapse, no music.",
+    "dur": 1.6,
+    "n": 2,
+    "gain": 0.7
+   },
+   {
+    "id": "land",
+    "prompt": "One soft vehicle landing on asphalt: four rubber tyres settling as a single cushioned thump, a short suspension compression creak and tiny chassis rattle. Near cabin exterior, dry mono, rounded bass. No voice, no crash, no tyre squeal, no engine, no music.",
+    "dur": 0.7,
+    "n": 2,
+    "gain": 0.65
+   },
+   {
+    "id": "wings_out",
+    "prompt": "Compact electric vehicle wings unfolding: two smooth miniature servo movements, muted aluminium hinge glide and one soft magnetic latch at the end. Close dry mono mechanism, precise and lightweight. No voice, no hydraulic hiss, no giant robot slam, no engine roar, no music.",
+    "dur": 1.2,
+    "n": 1,
+    "gain": 0.55
+   },
+   {
+    "id": "wings_in",
+    "prompt": "Compact electric wings folding into a pickup body: short descending servo glide, muted aluminium hinge motion and a gentle padded latch click. Close dry mono, slightly shorter and lower than deployment. No voice, no hydraulic hiss, no robot slam, no combustion engine, no music.",
+    "dur": 1.0,
+    "n": 1,
+    "gain": 0.53
+   },
+   {
+    "id": "turbine_up",
+    "prompt": "A small pair of electric ducted fans smoothly spinning up, quiet rounded inverter tone rising into a soft even airflow, gentle attack and no terminal hit. Close dry mono, mechanically clean. No voice, no jet roar, no helicopter blades, no combustion, no bass drop, no music.",
+    "dur": 1.5,
+    "n": 1,
+    "gain": 0.47
+   },
+   {
+    "id": "takeoff",
+    "prompt": "One gentle electric vehicle lift-off air whoosh, a short rounded swell of filtered air moving past the body and away, no tonal motor component. Close exterior dry mono, soft airy tail. No voice, no jet roar, no sonic boom, no explosion, no music.",
+    "dur": 0.9,
+    "n": 1,
+    "gain": 0.58
+   },
+   {
+    "id": "pigeons",
+    "prompt": "Three pigeons taking off nearby, soft irregular feather flaps and a brief rush of wings moving away, no calls. Outdoor perspective at three metres, fairly dry mono with natural short decay. No voice, no shrieks, no impact, no music.",
+    "dur": 1.0,
+    "n": 2,
+    "gain": 0.4
+   }
+  ],
+  "ui": [
+   {
+    "id": "start",
+    "prompt": "A single warm rounded digital bell confirmation, soft sine-like body, small upward overtone bloom and short dry tail. Close centred UI sound, restrained treble. No voice, no musical phrase, no backing music, no alarm, no reverb wash.",
+    "dur": 0.65,
+    "n": 1,
+    "gain": 0.62
+   },
+   {
+    "id": "call",
+    "prompt": "One light, soft notification ding: a single small glass bell struck gently, clear warm tone with a short sparkle and quick natural decay. Close centred mono, delicate and friendly, not urgent. No voice, no melody, no second note, no music, no reverb wash.",
+    "dur": 0.5,
+    "n": 1,
+    "gain": 0.3
+   },
+   {
+    "id": "success",
+    "prompt": "A tiny original success jingle: three warm plucked synth notes rising to a gentle major resolution, soft felt-like attacks and a short dry bell tail. Friendly understated arcade style, centred stereo, no bass hit or percussion. No voice, no choir, no borrowed melody.",
+    "dur": 1.2,
+    "n": 1,
+    "gain": 0.72
+   },
+   {
+    "id": "fail",
+    "prompt": "A tiny original failure sting: two soft muted electric-piano notes stepping down, lightly wry rather than tragic, quick dry release. Close centred stereo, mellow midrange. No voice, no buzzer, no horror tone, no dramatic orchestration.",
+    "dur": 0.85,
+    "n": 1,
+    "gain": 0.58
+   },
+   {
+    "id": "coins",
+    "prompt": "Two small coins gently dropping into a felt-lined metal cash tray, light rounded clinks followed by one quiet mechanical register click. Close dry mono, restrained sparkle, compact decay. No voice, no loud cash-register bell, no jackpot cascade, no music.",
+    "dur": 0.7,
+    "n": 1,
+    "gain": 0.43
+   },
+   {
+    "id": "fine",
+    "prompt": "A tiny original penalty sting, one soft wooden tick followed by a short low descending muted-synth note, dry and matter-of-fact with a mildly wry feel. Close centred mono. No voice, no harsh buzzer, no siren, no dramatic bass, no extended music.",
+    "dur": 0.7,
+    "n": 1,
+    "gain": 0.55
+   },
+   {
+    "id": "ring",
+    "prompt": "One clean soft glassy synth ping with a rounded attack, a tiny bright overtone and a very short dry decay. Close centred mono arcade checkpoint feedback. No voice, no melody, no backing music, no piercing bell, no reverb wash.",
+    "dur": 0.5,
+    "n": 1,
+    "gain": 0.53
+   },
+   {
+    "id": "tick",
+    "prompt": "One soft dry wooden metronome tick, rounded midrange tap without a click spike, isolated with silence after the first tenth of a second. Close centred mono, calm and discreet. No voice, no alarm, no clock sequence, no music.",
+    "dur": 0.5,
+    "n": 1,
+    "gain": 0.28
+   },
+   {
+    "id": "partner",
+    "prompt": "One small soft felt-mallet chime, warm rounded tone with a delicate airy overtone, brief dry decay, lower and gentler than a checkpoint ping. Close centred mono. No voice, no melody, no backing music, no sharp bell.",
+    "dur": 0.5,
+    "n": 1,
+    "gain": 0.38
+   },
+   {
+    "id": "map_open",
+    "prompt": "One short soft swish of a thin folded paper map being gently opened, light paper fibres and a delicate fingertip slide, no crinkle spike. Close dry mono, airy upward gesture. No voice, no music, no room ambience.",
+    "dur": 0.5,
+    "n": 1,
+    "gain": 0.3
+   },
+   {
+    "id": "map_close",
+    "prompt": "One short gentle paper-map fold closing with a soft downward swish and tiny padded paper tap. Close dry mono, slightly lower and shorter than opening, no sharp crinkle. No voice, no music, no room ambience.",
+    "dur": 0.5,
+    "n": 1,
+    "gain": 0.28
+   },
+   {
+    "id": "click",
+    "prompt": "One tiny padded tactile button click, a soft polymer tap with a faint rounded electronic tick, very short and dry, silence after 0.08 seconds. Close centred mono. No voice, no beep sequence, no music, no sharp switch snap.",
+    "dur": 0.5,
+    "n": 1,
+    "gain": 0.25
+   }
+  ],
+  "amb": [
+   {
+    "id": "city_day",
+    "prompt": "Seamless quiet daytime city ambience from an open street in a modest riverside city: distant diffuse tyre hush, faint broad urban air and very sparse faraway birds. Stable wide stereo, all sources at least fifty metres away, unobtrusive outdoor depth. No voice, no conversations, no prominent vehicles, no horns, no sirens, no rain, no music, no obvious repeating event, no fade in or out.",
+    "dur": 24,
+    "loop": true,
+    "stereo": true,
+    "gain": 0.65
+   },
+   {
+    "id": "city_night",
+    "prompt": "Seamless very quiet city night atmosphere: diffuse distant road hush, mild still outdoor air and a barely perceptible low building ventilation texture, no identifiable foreground event. Wide stable stereo, distant perspective, restrained low end. No voice, no footsteps, no birds, no horns, no sirens, no dogs, no rain, no music, no fade in or out.",
+    "dur": 24,
+    "loop": true,
+    "stereo": true,
+    "gain": 0.45
+   },
+   {
+    "id": "forest_day",
+    "prompt": "Seamless peaceful pine woodland ambience: soft steady air through pine needles, a light distant leafy rustle and sparse small songbirds well back among trees. Natural spacious stereo, no close branches or footsteps, gentle outdoor diffusion. No voice, no city traffic, no loud animals, no rain, no music, no dramatic gusts, no fade in or out.",
+    "dur": 28,
+    "loop": true,
+    "stereo": true,
+    "gain": 0.7
+   },
+   {
+    "id": "forest_night",
+    "prompt": "Seamless subdued pine woodland at night: gentle continuous air through needles, faint distant dry leaf movement and a sparse diffuse insect texture. Soft wide stereo, stable quiet distant perspective. No voice, no daytime birds, no owl hoots, no animal cries, no traffic, no rain, no music, no horror atmosphere, no fade in or out.",
+    "dur": 26,
+    "loop": true,
+    "stereo": true,
+    "gain": 0.5
+   },
+   {
+    "id": "altitude",
+    "prompt": "Seamless soft open-air atmosphere at altitude, smooth broad diffuse wind with gentle slow variation and no contact with a microphone or vehicle body. Wide stable stereo, airy distant perspective, mellow upper frequencies. No voice, no turbines, no whistling, no buffeting, no birds, no storm, no rain, no music, no fade in or out.",
+    "dur": 20,
+    "loop": true,
+    "stereo": true,
+    "gain": 0.5
+   }
+  ],
+  "motor": [
+   {
+    "id": "inv_low",
+    "prompt": "Seamless steady quiet electric traction motor at low fixed speed, a faint smooth rounded inverter hum around 150 Hz with very soft upper harmonics, lightly mechanical and clean. Close dry mono, constant pitch and level, no acceleration or envelope. No voice, no combustion, no exhaust, no gears, no diesel rumble, no music.",
+    "dur": 8,
+    "loop": true,
+    "stereo": false,
+    "gain": 0.175
+   },
+   {
+    "id": "inv_mid",
+    "prompt": "Seamless steady subtle electric traction motor at a fixed moderate speed, smooth narrow inverter tone around 220 Hz with soft rounded harmonics and faint electric texture. Close dry mono, constant pitch and amplitude, no sweep. No voice, no combustion engine, no gear shifts, no tyre sound, no music.",
+    "dur": 8,
+    "loop": true,
+    "stereo": false,
+    "gain": 0.215
+   },
+   {
+    "id": "inv_high",
+    "prompt": "Seamless steady restrained electric traction motor at fixed high road speed, a fine rounded inverter tone around 320 Hz and very soft blurred harmonics, smooth and unobtrusive. Close dry mono, stable pitch and level. No voice, no piercing whine, no jet sound, no combustion, no gear changes, no music.",
+    "dur": 8,
+    "loop": true,
+    "stereo": false,
+    "gain": 0.25
+   },
+   {
+    "id": "fan_idle",
+    "prompt": "Seamless small electric ducted-fan idle, soft smooth rounded motor tone around 180 Hz mixed with a faint even filtered airflow, gentle and clean. Close dry mono, constant speed and level, no start or stop. No voice, no jet roar, no helicopter pulse, no combustion, no dramatic bass, no music.",
+    "dur": 10,
+    "loop": true,
+    "stereo": false,
+    "gain": 0.45
+   },
+   {
+    "id": "fan_thrust",
+    "prompt": "Seamless steady compact electric ducted fans under moderate load, restrained rounded electric tone around 260 Hz with smooth low-level air pressure hiss. Close dry mono, constant pitch, level and airflow, no acceleration. No voice, no aircraft jet roar, no rotor chop, no combustion, no siren whine, no music.",
+    "dur": 10,
+    "loop": true,
+    "stereo": false,
+    "gain": 0.75
+   },
+   {
+    "id": "wind",
+    "prompt": "Seamless soft aerodynamic air sliding over a smooth electric pickup body, gentle even filtered broadband hiss with a restrained low-mid swish, no flapping or whistle. Near-body dry narrow stereo perspective, stable texture and level. No voice, no wind-on-microphone rumble, no motor, no jet roar, no music.",
+    "dur": 12,
+    "loop": true,
+    "stereo": false,
+    "gain": 0.6
+   },
+   {
+    "id": "squeal",
+    "prompt": "Seamless steady tyre squeal loop: rubber tyres sliding sideways on dry asphalt during a controlled drift, a smooth continuous mid-high screech with soft grainy texture, not piercing. Close exterior dry mono, constant level and pitch. No voice, no engine, no crash, no music, no fade in or out.",
+    "dur": 4,
+    "loop": true,
+    "stereo": false,
+    "gain": 0.35
+   },
+   {
+    "id": "horn",
+    "prompt": "Seamless loop of one single unbroken car horn tone held down the whole time: a modern car's dual-tone electric horn, two bright midrange pitches sounding together as one steady buzzing chord with no gaps at all. Exterior at three metres, dry mono, perfectly constant level and pitch from the first to the last sample. No honk pattern, no repeated toots, no silence, no voice, no truck air horn, no siren, no melody, no music, no fade in or out.",
+    "dur": 3,
+    "loop": true,
+    "stereo": false,
+    "influence": 0.7,
+    "gain": 0.5
+   }
+  ],
+  "vo": [
+   {
+    "id": "mission_started",
+    "voice": "dispatcher",
+    "lines": [
+     "Ти на місці. Я на зв’язку.",
+     "Ну що, до справи.",
+     "Починаємо. Без зайвого героїзму.",
+     "За роботу. Черкаси самі себе не виручать."
+    ]
+   },
+   {
+    "id": "mission_abandoned",
+    "voice": "dispatcher",
+    "lines": [
+     "Завдання закриваю. Їдемо далі.",
+     "Прийнято, знімаю завдання.",
+     "Добре, скасовуємо. Буде інша нагода."
+    ]
+   },
+   {
+    "id": "mission_success",
+    "voice": "dispatcher",
+    "lines": [
+     "Гарна робота. Можна видихнути.",
+     "Оце я розумію, сервіс.",
+     "Черкаси дякують. Я теж.",
+     "Усе як слід. Приємно працювати."
+    ]
+   },
+   {
+    "id": "mission_failed",
+    "voice": "dispatcher",
+    "lines": [
+     "Цього разу не вийшло. Спробуєш ще.",
+     "Не склалося. Наступна спроба буде краща.",
+     "Буває. Зберімося й спробуймо ще."
+    ]
+   },
+   {
+    "id": "timer_low",
+    "voice": "dispatcher",
+    "lines": [
+     "Час підтискає. Поквапся.",
+     "Треба швидше, але обережно.",
+     "Фінішуй, часу обмаль.",
+     "Ще трохи зусиль, часу майже немає."
+    ]
+   },
+   {
+    "id": "fine_issued",
+    "voice": "dispatcher",
+    "lines": [
+     "За це є штраф. Далі обережніше.",
+     "Маємо штраф. Бережи і людей, і гаманець.",
+     "Штраф уже є. Спробуймо без наступного."
+    ]
+   },
+   {
+    "id": "mugging_thugs_flee",
+    "voice": "dispatcher",
+    "lines": [
+     "Тікають. Перехопи їх, потерпілого не зачепи.",
+     "Побігли. Зупиняй грабіжників, бережи потерпілого.",
+     "Грабіжники дали драла. Перехопи, тільки обережно."
+    ]
+   },
+   {
+    "id": "mugging_one_escaped",
+    "voice": "dispatcher",
+    "lines": [
+     "Один утік. Не дай решті втекти.",
+     "Одного втратили. Зосередься на решті."
+    ]
+   },
+   {
+    "id": "mugging_all_stopped",
+    "voice": "dispatcher",
+    "lines": [
+     "Грабіжників зупинено. Тепер підвези потерпілого до поліції.",
+     "Усі на місці. Забери потерпілого, відвези до поліції.",
+     "З грабіжниками розібралися. Потерпілому треба до поліції."
+    ]
+   },
+   {
+    "id": "mugging_victim_boarded",
+    "voice": "dispatcher",
+    "lines": [
+     "Потерпілий у салоні. Тепер спокійно до поліції.",
+     "Можна їхати до поліції. Людині вже вистачило пригод.",
+     "Пасажир на місці. До поліції, без різких рухів."
+    ]
+   },
+   {
+    "id": "mugging_delivered",
+    "voice": "dispatcher",
+    "lines": [
+     "Людина вже в поліції. Дякую за допомогу.",
+     "До поліції дісталися. Тепер можна видихнути.",
+     "Потерпілий на місці. Гарна робота."
+    ]
+   },
+   {
+    "id": "mugging_failed_escaped",
+    "voice": "dispatcher",
+    "lines": [
+     "Грабіжники втекли. Цього разу не наздогнали.",
+     "Вислизнули. Треба було перехопити раніше."
+    ]
+   },
+   {
+    "id": "mugging_failed_victim_late",
+    "voice": "dispatcher",
+    "lines": [
+     "До поліції вчасно не дісталися. Не впоралися.",
+     "Запізнилися з потерпілим. Поїздка затягнулася."
+    ]
+   },
+   {
+    "id": "mugging_failed_victim_hit",
+    "voice": "dispatcher",
+    "lines": [
+     "Ти зачепив потерпілого. Завдання закрито, маємо штраф.",
+     "Потерпілого треба було берегти. За наїзд буде штраф."
+    ]
+   },
+   {
+    "id": "chase_started",
+    "voice": "dispatcher",
+    "lines": [
+     "Наздоганяй і бий у машину. Треба зупинити позашляховик.",
+     "Тарань позашляховик, доки не зупиниться. Обережно з перехожими.",
+     "Зупини їхню машину ударами. Інші авто побережи."
+    ]
+   },
+   {
+    "id": "chase_too_far",
+    "voice": "dispatcher",
+    "lines": [
+     "Відриваються. Скорочуй відстань.",
+     "Не загуби позашляховик. Додай ходу.",
+     "Тікають дедалі далі. Наздоганяй.",
+     "Ще трохи, і вислизнуть. Підтягуйся."
+    ]
+   },
+   {
+    "id": "chase_ram_hit",
+    "voice": "dispatcher",
+    "lines": [
+     "Є влучання. Тримайся поруч.",
+     "Так, по машині. Продовжуй.",
+     "Дісталося позашляховику.",
+     "Добре, вже не так хвацько їдуть."
+    ]
+   },
+   {
+    "id": "chase_success",
+    "voice": "dispatcher",
+    "lines": [
+     "Позашляховик більше не їде. Гарна робота.",
+     "Усе, приїхали. Їхня втеча закінчилася.",
+     "Машину зупинено. Можна відпустити педаль."
+    ]
+   },
+   {
+    "id": "chase_failed_escaped",
+    "voice": "dispatcher",
+    "lines": [
+     "Позашляховик утік. Втратили їх.",
+     "Відірвалися від нас. Погоню закриваю."
+    ]
+   },
+   {
+    "id": "chase_failed_timeout",
+    "voice": "dispatcher",
+    "lines": [
+     "Час вийшов. Машину так і не зупинили.",
+     "Погоня затягнулася. Цього разу не впоралися."
+    ]
+   },
+   {
+    "id": "courier_picked_up",
+    "voice": "dispatcher",
+    "lines": [
+     "Посилка в машині. Довези без зайвого струшування.",
+     "Вантаж забрали. Тепер швидко й акуратно.",
+     "Коробка на борту. Бережи її на поворотах."
+    ]
+   },
+   {
+    "id": "courier_roof_destination",
+    "voice": "dispatcher",
+    "lines": [
+     "Доставка на дах. Сідай просто на позначку.",
+     "Посилку чекають на даху. Приземлися на позначці."
+    ]
+   },
+   {
+    "id": "courier_parcel_damaged",
+    "voice": "dispatcher",
+    "lines": [
+     "Посилці дісталося. Далі ніжніше.",
+     "Коробка таких пригод не замовляла. Обережніше.",
+     "Вантаж пошкоджено. Побережи те, що лишилося.",
+     "Посилка вже пом’ята. Без наступного удару, гаразд?"
+    ]
+   },
+   {
+    "id": "courier_delivered",
+    "voice": "dispatcher",
+    "lines": [
+     "Посилку прийняли. Кур’єр із тебе спритний.",
+     "Доставка на місці. Видихаємо.",
+     "Вантаж у замовника. Можна їхати далі."
+    ]
+   },
+   {
+    "id": "courier_failed_smashed",
+    "voice": "dispatcher",
+    "lines": [
+     "Посилку розбито. Доставку скасовано, маємо штраф.",
+     "Вантаж не витримав. За пошкодження буде штраф."
+    ]
+   },
+   {
+    "id": "courier_failed_late",
+    "voice": "dispatcher",
+    "lines": [
+     "Доставка запізнилася. За прострочення маємо штраф.",
+     "Посилку вчасно не довезли. На жаль, буде штраф."
+    ]
+   },
+   {
+    "id": "taxi_passenger_boarded",
+    "voice": "dispatcher",
+    "lines": [
+     "Пасажир у салоні. Їдемо плавно.",
+     "Можна рушати. Комфорт теж входить у послугу.",
+     "Клієнт на місці. Без різких рухів."
+    ]
+   },
+   {
+    "id": "taxi_passenger_shocked",
+    "voice": "dispatcher",
+    "lines": [
+     "Обережніше. Пасажир такого не замовляв.",
+     "Спокійніше за кермом. Веземо людину.",
+     "Бережи пасажира й перехожих. Без різких маневрів."
+    ]
+   },
+   {
+    "id": "taxi_first_takeoff",
+    "voice": "dispatcher",
+    "lines": [
+     "Таксі пішло на зліт. Тримай політ плавним.",
+     "Повітряний тариф не вмикаємо. Просто летимо."
+    ]
+   },
+   {
+    "id": "taxi_arrived_with_tip",
+    "voice": "dispatcher",
+    "lines": [
+     "Клієнт на місці, ще й чайові залишив. Гарний сервіс.",
+     "Приїхали. Чайові є, значить, сподобалося.",
+     "Поїздку завершено. Пасажир подякував чайовими."
+    ]
+   },
+   {
+    "id": "taxi_failed_no_show",
+    "voice": "dispatcher",
+    "lines": [
+     "Пасажир не дочекався. Замовлення закриваю.",
+     "Клієнт уже пішов. Треба було приїхати раніше."
+    ]
+   },
+   {
+    "id": "taxi_failed_late",
+    "voice": "dispatcher",
+    "lines": [
+     "Запізнилися, клієнт поскаржився. Маємо штраф.",
+     "Поїздка затягнулася. За скаргою пасажира буде штраф."
+    ]
+   },
+   {
+    "id": "taxi_failed_passenger_hit",
+    "voice": "dispatcher",
+    "lines": [
+     "Ти зачепив пасажира. Замовлення закрито, маємо штраф.",
+     "Пасажира треба було забрати. За наїзд буде штраф."
+    ]
+   },
+   {
+    "id": "tour_started",
+    "voice": "dispatcher",
+    "lines": [
+     "Злітай і проходь крізь кільця. Краєвиди додаються.",
+     "Кільця покажуть шлях. Лети крізь них по черзі.",
+     "Курс через кільця. Милуйся містом, але не зависай."
+    ]
+   },
+   {
+    "id": "tour_ring_passed",
+    "voice": "dispatcher",
+    "lines": [
+     "Чисто пройшли. Лети далі.",
+     "Гарна траєкторія.",
+     "Так тримати, повітряний гіде.",
+     "Крила працюють, маршрут триває."
+    ]
+   },
+   {
+    "id": "tour_completed",
+    "voice": "dispatcher",
+    "lines": [
+     "Обліт завершено. Черкаси тобі пасують.",
+     "Увесь маршрут пройдено. Гарна була прогулянка.",
+     "Екскурсію завершено. Крила сьогодні відпрацювали."
+    ]
+   },
+   {
+    "id": "tour_failed_timeout",
+    "voice": "dispatcher",
+    "lines": [
+     "Час вийшов. Замилувалися містом.",
+     "Маршрут не встигли пройти. Наступного разу менше зависаємо."
+    ]
+   }
+  ],
+  "pax": [
+   {
+    "id": "pax_boarded",
+    "voice": "passenger",
+    "lines": [
+     "Добрий день. Ого, а крила у вас справжні?",
+     "Вітаю. Я пристебнувся, можна їхати.",
+     "Добрий день. Нічого собі таксі в Черкасах.",
+     "Поїхали. Тільки каву мою побережіть."
+    ]
+   },
+   {
+    "id": "pax_shocked_crash",
+    "voice": "passenger",
+    "lines": [
+     "Обережніше, будь ласка. Я нікуди так не поспішаю.",
+     "Можна трохи плавніше? Кава вже вся на мені.",
+     "Я замовляв поїздку. Атракціон можна вимкнути?",
+     "Давайте без наступного удару, домовилися?"
+    ]
+   },
+   {
+    "id": "pax_shocked_pedestrian",
+    "voice": "passenger",
+    "lines": [
+     "Там люди. Будь ласка, уважніше.",
+     "Обережно з перехожими. Краще вже повільніше.",
+     "Давайте берегти людей. Я почекаю."
+    ]
+   },
+   {
+    "id": "pax_first_takeoff",
+    "voice": "passenger",
+    "lines": [
+     "[excited] Ми летимо! Оце так таксі.",
+     "Ого, крила справді працюють. Красиво тут.",
+     "[excited] Та ми над містом! От друзям розкажу."
+    ]
+   },
+   {
+    "id": "pax_arrived_with_tip",
+    "voice": "passenger",
+    "lines": [
+     "Дякую за поїздку. Тримайте ще на каву.",
+     "Оце сервіс. Чайові ваші, заслужили.",
+     "Приїхали, дякую. Залишу трохи зверху.",
+     "Дякую, було цікаво. Ось вам чайові."
+    ]
+   }
+  ]
+ }
+}

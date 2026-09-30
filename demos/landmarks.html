@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="uk">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Черкаси – пам'ятки</title>
+  <style>
+    html, body { margin: 0; height: 100%; overflow: hidden; background: #0d1117; color: #e8edf3; font: 13px/1.35 system-ui, sans-serif; }
+    #app { position: fixed; inset: 0; }
+    #panel { position: fixed; top: 10px; right: 10px; width: 250px; max-height: calc(100% - 40px); overflow: auto; padding: 10px 12px;
+      background: #0d1117cc; border: 1px solid #ffffff22; border-radius: 8px; backdrop-filter: blur(6px); z-index: 5; }
+    #panel h3 { margin: 0 0 6px; font-size: 14px; }
+    #panel .row { display: flex; flex-wrap: wrap; gap: 4px; margin: 6px 0; }
+    #panel button { background: #243244; color: inherit; border: 1px solid #ffffff22; border-radius: 4px; padding: 3px 7px; cursor: pointer; font: inherit; }
+    #panel button.on { background: #f2c14e; color: #111; }
+    #views button { width: 100%; text-align: left; }
+    #stats { margin-top: 8px; font: 11px/1.4 ui-monospace, monospace; white-space: pre; opacity: .85; }
+    #hint { position: fixed; left: 10px; bottom: 10px; opacity: .7; z-index: 5; pointer-events: none; }
+    #loading { position: fixed; inset: 0; display: grid; place-content: center; background: #0d1117; z-index: 10; transition: opacity .5s; }
+    #loading.done { opacity: 0; pointer-events: none; }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+  <div id="panel">
+    <h3>Пам'ятки Черкас</h3>
+    <div class="row"><button id="night">Ніч</button><button id="coll">Колізії</button><button id="bld" class="on">Будинки</button></div>
+    <div class="row" id="views" style="flex-direction: column"></div>
+    <div id="stats"></div>
+  </div>
+  <div id="hint">Клік – керування мишею · WASD – рух · Space / Ctrl – вгору / вниз · Shift – швидко · колесо – швидкість · N – ніч · 1–9, 0 – точки огляду</div>
+  <div id="loading">завантаження…</div>
+  <script type="module" src="./landmarks.js"></script>
+</body>
+</html>

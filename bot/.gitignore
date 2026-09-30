@@ -1,0 +1,4 @@
+.env
+.deployed/
+node_modules/
+__deployer__.zip

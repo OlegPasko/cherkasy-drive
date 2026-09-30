@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="uk">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Черкаси – дерева і вода</title>
+  <style>
+    html, body { margin: 0; height: 100%; overflow: hidden; background: #0d1014; font: 13px/1.4 system-ui, sans-serif; color: #e8e6e0; }
+    canvas { display: block; }
+    #hud { position: fixed; left: 12px; top: 12px; padding: 10px 12px; background: rgba(12, 14, 18, 0.72); border-radius: 8px; min-width: 260px; pointer-events: none; }
+    #hud b { color: #9fd67a; font-weight: 600; }
+    #hud pre { margin: 6px 0 0; font: 12px/1.45 ui-monospace, Menlo, monospace; white-space: pre; }
+    #bar { position: fixed; right: 12px; top: 12px; display: flex; flex-direction: column; gap: 6px; align-items: flex-end; }
+    #bar div { display: flex; gap: 6px; }
+    #bar button { background: rgba(12, 14, 18, 0.8); color: #e8e6e0; border: 1px solid #3a3f46; border-radius: 6px; padding: 6px 10px; cursor: pointer; font: inherit; }
+    #bar button:hover { border-color: #9fd67a; }
+    #help { position: fixed; left: 12px; bottom: 12px; padding: 8px 10px; background: rgba(12, 14, 18, 0.6); border-radius: 8px; font-size: 12px; pointer-events: none; }
+  </style>
+</head>
+<body>
+  <div id="hud"><b>Дерева і вода: набережна Черкас</b><pre id="stats">завантаження…</pre></div>
+  <div id="bar">
+    <div><button id="tip">Звалити дерево</button><button id="night">Ніч</button><button id="refl">Відбиття: так</button></div>
+    <div id="views"></div>
+  </div>
+  <div id="help">Миша (затиснути) – огляд · WASD – рух · Q/E – вниз/вгору · Shift – швидко · коліщатко – швидкість · T – звалити дерево · N – ніч/день</div>
+  <script type="module" src="./nature.js"></script>
+</body>
+</html>

@@ -1,0 +1,183 @@
+# AGENTS.md
+
+Cherkasy Drive is an open-world driving and flying game set in the real city of Cherkasy, Ukraine. You drive a
+Cybertruck-style car that can also fly. The city has traffic, pedestrians, landmarks along the Dnipro, and
+missions: couriers, taxi, chases and muggings. It is built with three.js r186 and Vite, as plain ES modules
+without a framework. The code is open source under the GNU AGPL-3.0 (see `LICENSE`).
+
+## Run
+
+    npm install
+    npm run dev                  # http://127.0.0.1:5174  (the game)
+    npm run build                # production build into dist/
+    for t in tests/*.mjs; do node $t; done   # headless tests, no framework
+
+The dev server serves the demo pages. Each one isolates a single subsystem on the real city data:
+`/demos/{render,buildings,nature,collision,traffic,people,landmarks,world,car}.html`.
+
+## Layout
+
+See `ARCHITECTURE.md` for the module map. Where things live:
+
+- `src/main.js` – `createCore` (renderer, scene, camera, input, daylight, sky, shadows, post, systems loop) and
+  `startGame` (world → car → HUD → missions).
+  - Frame order: input → daylight → systems (car → traffic player sync → world → missions → HUD) → sky →
+    shadows → post.
+- `src/render/` – renderer, post chain, sky and haze, daylight, shadows.
+  - The post chain is N8AO → bloom + PBR Neutral tone mapping → SMAA.
+  - `daylight.js` exports `nightFactor()` and `nightK`.
+  - `adaptive.js` – adaptive resolution: when the real frame interval stays over 1/48 s and the CPU is not the limit, it
+    lowers the render pixel ratio in ~0.2 steps (1.6 → 1.4 → 1.2 → 1.0, never below 1 or the quality's own base) and
+    gives it back once there is room; reset on every quality change, never saved. `?noadapt` turns it off.
+  - Shadows use three's `SunLight` with 2 cascades.
+- `src/kit/` – mesh building blocks:
+  - `mesh.js` – `MeshBuilder`/`MB`, `M4`, `hexLin`;
+  - `logo.js` – brand SVGs from `public/assets/brand/` as recoloured textures (the Everlabs plate on the car, roof signs);
+  - `batch.js` – spatial tiles;
+  - `instances.js` – LOD pools;
+  - `textures.js` – procedural textures.
+- `src/world/` – general world systems:
+  - `facade.js` and `materials.js` – the facade shader, lit windows and the `DP` part ids;
+  - `buildings.js` – OSM building extrusion;
+  - `trees.js` – procedural trees with LODs and breakable items;
+  - `water.js`;
+  - `collision.js` – boxes, cylinders and prisms in a grid, with `walkSlope`.
+- `src/world/cherkasy/` – the city itself:
+  - `city.js` – `buildCherkasy`, which returns the world; its API is documented in the file header;
+  - `ground.js` – terrain, roads, markings, kerbs and shore, built in workers;
+  - `geo.js` – shared 2D helpers;
+  - the hand-made landmarks: `landmarks`, `pagorb`, `rosevalley`, `restinn`, `embankment`, `dam`, `yachtclub`,
+    `beaches`, `zhuzhoma`, `prystan`, `restaurants`, `yalynka`, `facadekit`, `khimikiv`, `druzhba` (Palace of Culture);
+  - `zamkova.js` – Zamkova hora: the hilltop lift (`shapeZamkova`, the terrain hook in `city.js`), platform, wall, monuments;
+  - more hand-built sights: `market` (the round covered market), `bilyidim` (Budynok rad), `kobzar`, `museum` (local
+    history), `philharmonic` (with the «Висока нота» violinist), `wedding` (Palace of weddings), `bohdan` (the
+    Khmelnytsky monument), `lotus` (White Lotus temple on its slope), `lovebridge` (Bridge of Lovers over a carved
+    ravine), `station` (railway station, platforms, footbridge, parked trains) and `station_rails` (the whole `rails`
+    layer: track, level crossings, catenary on the electrified lines). Several shape the terrain with a guarded
+    `shape*` / `level*` hook next to `shapeZamkova`. A site builder that reads `ground` must be listed in `GROUND_SITES`
+    in `city.js`; the others build while the ground workers run.
+  - hand-built ordinary buildings (not sights, not in `places.js`): `simeinyi` (ЖК «Сімейний Lux», Героїв Дніпра 4),
+    `fitness34` (fitness club «3-4», Надпільна 252), `torhivli` (Будинок торгівлі with the corner pavilion), `chnu` (ЧНУ
+    main building), `chdtu` (ЧДТУ campus: корпуси 1–4 and the canteen), `bankinst` (the banking institute, Чорновола 164).
+  - `places.js` – the sights, the paying partners (kind `ad`) and the non-landmark objects rebuilt on request (kind
+    `improved`: a grey footprint only, "Покращений об’єкт" in the big map's legend) for both maps: icon, name, note, the OSM buildings
+    whose footprints get highlighted, and for partners the site `url` (with `utm_source=driver.ck.ua`) and the pitch
+    lines. `world.places` is the resolved list. Only paid placements are ads: today U space (the south tower of the
+    Rest Inn block) and Everlabs (the offices over the hotel next to it, a lit logo on the roof), both built in
+    `restinn.js`; the other hand-built venues stay in the world unadvertised.
+  - `billboards.js` – roadside billboards sold through the bot: the `BILLBOARDS` list (spot, facing, art) and the
+    builder; unsold ones show the "ваша реклама / @driver_game_bot" placeholder. The header says how to add a real one.
+- `src/npc/` – everything that moves on its own:
+  - `lanes.js` – the lane graph and signals;
+  - `vehicles.js` – loads the glb models, instanced fleet, `makeMesh`;
+  - `traffic.js` and `wrecks.js` – the traffic sim, rigid-body wrecks and dents; the car rams through
+    `ram(q)`;
+  - `people.js` and `people/` – procedural, GPU-animated pedestrians and pigeons;
+  - `gibs.js` – gore chunks and debris.
+- `src/game/` – gameplay:
+  - `car/` – `car.js` (control, flight, camera), `model.js` (the Cybertruck), `collide.js` (car
+    collider);
+  - `partners.js` – a partner's soft pink ring at its door, the building's light-up on approach, and the card that
+    slides in on the right inside the ring (O or a click opens the site in a new tab);
+  - `explore.js` – the standing quest "visit every sight": every `places.js` sight counts once the car comes within
+    reach; visited ids (and the ids already known, so a returning player hears about new ones) live in localStorage
+    under `cherkasy.explore`; +50 ₴ per sight. Sights get `visited` true/false, which the map badges show (dim until
+    visited, then a green check) and the HUD counter under the money. A new sight in `places.js` joins it by itself;
+  - `missions.js` – the dispatcher and the five mission types; fines; money is stored in localStorage under
+    `cherkasy.money`;
+  - `testworld.js` – a small flat world for car tests.
+- `src/audio/` – the sound, all recorded with ElevenLabs:
+  - `engine.js` – the sample player: buses (sfx, ui, amb, motor, dispatcher `vo` with a radio band-pass, passenger
+    `pax`), positional one-shots, seamless loops, one voice line at a time with ducking;
+  - `game.js` – the car's electric motor, drift squeal, fans and wind from car state; the place ambience (city,
+    Sosnivka forest from `map.cover.forest`, altitude, day/night); event one-shots; mission lines;
+  - `radio.js` – the car radio (Q on / off, E next; off by default): Oleg's own songs, credited "Oleg Pasko (with
+    Suno)". Nothing is fetched until it is turned on, then only the playing track, streamed. Add songs with
+    `node tools/audio/radio.mjs <files…>` (levels, encodes to `public/assets/radio/`, appends to `tracks.json`).
+  - `cue.js` – `cue(name, data)`, how world modules (wrecks, trees, people, birds, missions, partners) ask for a sound.
+    Running people over is a soft "chpok", never a scream.
+  - Assets: `public/assets/audio/<group>/<id>_<k>.mp3` + `index.json`, made by `node tools/audio/gen.mjs` from
+    `tools/audio/sounds.json` (prompts, voice lines, gains). The key is the keychain item `ELEVENLABS_MACOS_LOCAL`.
+    Existing files are kept; `--only id,id` redoes some, `--index` rebuilds the index. Dispatcher voice: Alex Nekrasov
+    (shared library); passenger: Volodymyr.
+- `src/ui/hud.js` and `hud.css` – speed/altitude readout, minimap (with a few street names, pinned to their streets), the in-flight "S – glide down" tip, objective, the edge-pinned mission marker,
+  damage bars, money and help. UI text is Ukrainian.
+  - `mapdraw.js` – the painter both maps share: feature index, canvas tiles per zoom level (one LRU cache), place
+    badges, the street-name chains built from `map.json` road names and `layAlong`, which lays a name's glyphs along a
+    street for both maps.
+  - `perfhint.js` – watches the real frame rate; after ~6 s under 40 fps it offers G (simpler graphics, one quality
+    step down) in a pill at the bottom, but only once the adaptive resolution has nothing lower left to try. G works any time and goes round (the lowest wraps to the highest); F9 cycles the levels upward.
+  - `bigmap.js` – the full-screen map on M: north up, wheel / drag / arrows, street names along the streets, sight and
+    partner badges with hover notes (a click on a partner badge opens its site), mission markers and the objective.
+    The game pauses while it is open (`ctx.paused`: only systems added with `{ always: true }` run, nothing renders).
+- `src/ui/botlink.js` – links into the Telegram bot: the "Бот" chip next to H, the "🔔 Новини" chip (`?start=sub`), the H card line, the big-map button,
+  the right-click menu (improve / advertise at that point) and the partner card line.
+- `src/analytics.js` – Google Analytics 4: loads only on `driver.ck.ua` (never in dev, demos or tests); `track(name, params)`
+  sends the game events listed in its header (missions, partner clicks, sights, load time).
+- `src/mapview.js` and `ui/mapview.css` – the phone page: `index.html` sends touch-only devices and phone user agents here
+  instead of the game (`?mobile` / `?desktop` force either). It loads only `map.json` + `map_buildings.json` and opens the
+  big map with no car (`createBigMap({ player: null })`; one finger pans, two pinch, a tap shows a badge's card and a
+  second tap opens a partner's site), under a card that says the ride is on a computer.
+- `bot/` – `@driver_game_bot`, a DigitalOcean Function (Node 24, one npm dep: `unpdf`) outside the game bundle. It turns
+  requests (object improvement, ads, billboard, van livery, balloon – paid as a minimum donation to the 3D forge's monobank jar and proven by a screenshot or receipt; free ideas and feedback) into GitHub issues in
+  this repo and relays comments and statuses back to Telegram. It uses Jev as the guardrail on typed input and to judge donation proofs (read by Gemma on Darkbloom, DeepSeek as the fallback), and
+  Spaces for sessions and photos. Players can subscribe to the game news: a scheduled task posts what reached the game each day at 21:00 Kyiv through `bot/broadcast.mjs` (`docs/news.md`). `docs/improve-object.md` is the step-by-step playbook for building a requested object (and adding a landmark to the maps). `bot/README.md` covers the flows, how to work the issues (`//` = internal comment,
+  `in-progress`, closing), deploy and setup. The secrets live only in `bot/.env` (gitignored). Test with
+  `node tests/bot.test.mjs`.
+- `public/assets/cherkasy/` – `map.json`, `map_buildings.json` and `dem.bin`, compiled by
+  `tools/cherkasy/build_map.mjs`.
+  - That script reads the raw data from `tools/cherkasy/raw/`, which is gitignored and fetched with
+    `fetch_osm.mjs` and `fetch_dem.mjs`.
+  - A full rebuild takes about 5.5 minutes, and the output is deterministic.
+- `public/assets/vehicles/*.glb` – generated by `tools/blender/cars_small.py` and `cars_big.py`.
+  - Mesh naming is `type`, `type_l1`, `type_l2`.
+  - `uv1.x` holds the part id and `COLOR_0` holds the baked AO.
+
+## Conventions
+
+- Every module exports `create*` or `build*` and returns a plain object with `update(dt, …)` where needed.
+- Each file starts with a short header comment that states its contract: exports, arguments and the returned
+  shape. Keep that header up to date.
+- The code is compact, and comments explain *why*. Code, comments and commit messages are in English; UI text is
+  in Ukrainian.
+- Static geometry is merged and tiled; anything repeated is instanced.
+- `map.json` is the only source of city data.
+- Performance target: 60 fps on an M-series laptop with the full city loaded.
+  - The city has about 55k buildings, 92k trees, 130 cars and 600 people.
+  - It loads in about 2–3 s.
+
+## Debugging and verification
+
+- URL flags:
+  - `?testworld` – the flat test world;
+  - `?paused` – start without the loop;
+  - `?notraffic`, `?nopeds`, `?noworkers`;
+  - `?blood` – blood droplets and splats on pedestrian hits (off by default);
+  - `?fresh` – ignore the saved car position (`cherkasy.pos` in localStorage, saved every 10 s) and start at the
+    default spawn;
+  - `?coll` – collision overlay;
+  - `?cam=x,y,z,tx,ty,tz`.
+  - `?at=lat,lon[&road=street]` – start on the road beside that point, with the point ahead on the right (`src/game/placeat.js`);
+    the Telegram bot's "🚗 Подивитись у грі" links use it.
+  - `?noga` – no Google Analytics on the production site;
+  - `?noadapt` – no adaptive resolution (steady pixel ratio for perf measurements);
+  - `?mobile` / `?desktop` – force the phone map page or the game (`src/mapview.js`).
+- Handles: `window.__game` (ctx with `world`, `car`, `hud` (`hud.map`, `hud.painter`), `missions`, `perf`), `window.__car`,
+  `window.__missions`, `window.__cherkasyTraffic`, `window.__cherkasyPeds`.
+- `window.tick(n, dt)` pauses the loop, steps n frames deterministically and returns a snapshot.
+  `__game.start()` resumes the loop. Use this for scripted checks.
+- In the game: M opens the city map (Esc or M closes it), H (or the always-visible H chip) shows the controls card –
+  every key, grouped; add new keys to `HELP` in `hud.js` –, F2 hides the HUD, T cycles the time of day (morning, midday, evening – no night),
+  Q turns the radio on / off and E skips a track, F honks the horn (people in a cone ahead dash off to the sides), G lowers the graphics quality one step (from the lowest back to the highest), F9 cycles quality, B (or Home, or the "На старт" chip) takes a stuck car back to the start, N skips a mission call, O opens a partner's site inside its ring, Enter retries after a failure, and Backspace abandons a mission.
+- Chrome gives hidden tabs no animation frames, so a background tab looks frozen. Keep the tab in front, or use
+  `tick()`.
+- Reversed depth buffer: use `decalBias()` from `render/renderer.js` for decals and road markings, never
+  negative `polygonOffsetUnits`.
+- Custom `ShaderMaterial`s need the three fog chunks to receive the height haze.
+- Known gap: the dam road and bridge are not in `map.json`, so on the minimap that area shows as water.
+
+## Working agreements (Oleg)
+
+- Reply in the language of Oleg's message; he usually writes Ukrainian. Use en-dashes (–), never em-dashes.
+- Never add a Co-Authored-By or any other Claude attribution line to commits. Commit and push only when asked.
+- Nothing gets published (share links, public repos) without an explicit request.
