@@ -32,6 +32,7 @@ export const PLACES = [
   { id: 'spartak', kind: 'improved', name: 'Покращений об’єкт', note: 'вул. Остафія Дашковича, 23', bld: [156926550] },
   { id: 'pioner', kind: 'improved', name: 'Покращений об’єкт', note: 'вул. Митницька, 13 / бульв. Шевченка, 274', bld: [411245074] },
   { id: 'slavutych', kind: 'improved', name: 'Покращений об’єкт', note: 'вул. Небесної Сотні, 105', bld: [161603694] },
+  { id: 'lyubava', kind: 'improved', name: 'Покращений об’єкт', note: 'бульв. Шевченка, 208/1', bld: [159065169] },
   // sights
   { id: 'mykhailo', kind: 'sight', name: 'Свято-Михайлівський собор', icon: '⛪', bld: [242469769] },
   { id: 'troitsky', kind: 'sight', name: 'Свято-Троїцький собор', icon: '⛪', bld: [157432721] },
