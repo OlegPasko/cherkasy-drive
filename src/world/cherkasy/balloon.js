@@ -1,16 +1,33 @@
-// OWNER: cherkasy. A hot-air balloon over the Rose Valley lawn, the kind the city's balloon festivals fly there, half
-// again the size of a usual one (envelope ~24 m across, ~30 m tall) and floating a little higher than the tethered
-// festival balloons. The envelope wears the Zhuzhomy 4 "pixel" tower's palette (maroon / red / orange / yellow cells on
+// OWNER: cherkasy. A hot-air balloon of the kind the city's festivals fly over the Rose Valley, half again the size of
+// a usual one (envelope ~24 m across, ~30 m tall) and a little higher than the tethered festival balloons. It hangs over
+// the valley's round fountain, then drifts at a walker's pace (1.3 m/s) down the Dnipro, 45 m out over the water along
+// the shore, to the river station and back – about an hour each way, paced by the wall clock so every player sees it
+// in the same place. The envelope wears the Zhuzhomy 4 "pixel" tower's palette (maroon / red / orange / yellow cells on
 // white, zhuzhoma.js) and an equator band that sells the space on it: "Реклама на кулі – за донат" + the bot's handle
 // (the bot's `ad-balloon` flow). It bobs and turns slowly so the band reads from every side; at night the burner
 // fires now and then and the envelope glows from inside.
-//   buildBalloon({ root, solids, heightAt }) -> { update(dt), clear(x, z), balloon: { x, z, y } } | null
+//   buildBalloon({ root, heightAt }) -> { update(dt), clear(x, z), balloon: { x, z, y } } | null
+// No collision: the solids grid is static and the balloon keeps moving (the car flies through it).
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { nightK } from '../../render/daylight.js';
 import { canvasTex } from './sculpt.js';
+import { WATER_Y } from '../water.js';
 
-const AT = [760, -200];            // map x, z: the open lawn of the Rose Valley, below Pagorb Slavy
+const HOME = [700, -185];          // map x, z: the Rose Valley's round fountain
+// the flight line: from the valley's shore 45 m out over the Dnipro, round the bank, to off the river station (map x, z;
+// the OSM river outline offset onto the water, smoothed, a point every ~60 m)
+const ROUTE = [
+  949, -107, 951, -59, 967, -13, 991, 37, 1017, 79, 1053, 113, 1100, 147, 1150, 187, 1194, 239, 1226, 298, 1244, 365,
+  1240, 435, 1223, 493, 1207, 548, 1187, 604, 1167, 652, 1150, 702, 1129, 763, 1092, 821, 1055, 861, 1041, 900, 1026,
+  958, 1004, 1007, 997, 1033, 991, 1083, 987, 1134, 993, 1188, 994, 1252, 987, 1311, 975, 1377, 941, 1439, 907, 1482,
+  885, 1529, 864, 1583, 843, 1633, 831, 1681, 826, 1730, 834, 1769, 857, 1805, 860, 1819, 889, 1807, 942, 1801, 979,
+  1784, 1024, 1748, 1074, 1713, 1129, 1678, 1189, 1653, 1240, 1635, 1284, 1608, 1334, 1571, 1412, 1559, 1476, 1609,
+  1500, 1668, 1524, 1724, 1534, 1792, 1533, 1851, 1539, 1900, 1558, 1947, 1581, 2000, 1592, 2046, 1604, 2070, 1643,
+  2060, 1631, 2027, 1594, 2037, 1619, 2089, 1665, 2152, 1660, 2220, 1634, 2281, 1606, 2336, 1576, 2388, 1548, 2440,
+  1521, 2493, 1494, 2546, 1467, 2598, 1447, 2642, 1442, 2674, 1442, 2725, 1441, 2748, 1411, 2793, 1374, 2834, 1338,
+  2869, 1312, 2907, 1299, 2945];
+const SPEED = 1.3, DWELL = 240;    // m/s (a walker's pace); seconds it hangs at each end
 const LIFT = 70;                   // basket bottom over the ground (the festival balloons hang ~20–50 m up)
 const R = 12, H = 30, ROPE = 5.2;  // envelope radius / height (1.5 x a 2200 m³ balloon), throat-to-basket cables
 const GORES = 16, ROWS = 18;       // envelope panels round and up (the pixel cells follow them)
@@ -27,9 +44,16 @@ const PROFILE = [[0.15, 0], [0.24, 0.05], [0.42, 0.15], [0.62, 0.27], [0.8, 0.39
 function hash(a, b) { const s = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return s - Math.floor(s); }
 function pick(u) { let t = CELLS.reduce((s, c) => s + c[0], 0) * u; for (const [w, c] of CELLS) { if ((t -= w) < 0) return c; } return null; }
 
-export function buildBalloon({ root, solids: S, heightAt }) {
+export function buildBalloon({ root, heightAt }) {
   const t0 = performance.now();
-  const [x, z] = AT, y0 = heightAt(x, z) + LIFT;
+  const [x, z] = HOME, y0 = heightAt(x, z) + LIFT;
+  // the line: home, then the route; cumulative lengths for the pace
+  const L = [HOME[0], HOME[1], ...ROUTE], cum = [0];
+  for (let i = 2; i < L.length; i += 2) cum.push(cum.at(-1) + Math.hypot(L[i] - L[i - 2], L[i + 1] - L[i - 1]));
+  const total = cum.at(-1), cycle = 2 * (total / SPEED + DWELL);
+  const at = (d, out) => { let i = 1; while (i < cum.length - 1 && cum[i] < d) i++; const k = (d - cum[i - 1]) / (cum[i] - cum[i - 1] || 1);
+    out[0] = L[2 * i - 2] + (L[2 * i] - L[2 * i - 2]) * k; out[1] = L[2 * i - 1] + (L[2 * i + 1] - L[2 * i - 1]) * k; return out; };
+  const pos = [0, 0];
   // smooth profile through the control points, then a lathe with uv v = arc length share (so cells keep their size)
   const curve = new THREE.SplineCurve(PROFILE.map(([r, h]) => new THREE.Vector2(r * R, h * H)));
   const pts = curve.getSpacedPoints(40);
@@ -101,20 +125,21 @@ export function buildBalloon({ root, solids: S, heightAt }) {
   group.position.set(x, y0, z);
   root.add(group);
 
-  // collision at the mean position (the bob is ±1.2 m): the envelope as two frustums, the basket as a short cylinder
-  const yT = y0 + 1.4 + ROPE, yM = yT + 0.67 * H;
-  S?.cyl(x, z, yT, yM, PROFILE[0][0] * R, R * 0.97, 'wall');
-  S?.cyl(x, z, yM, yT + H, R * 0.97, 1, 'wall');
-  S?.cyl(x, z, y0 - 1.2, y0 + 2.8, 1.4, 1.4, 'wall');
 
-  let t = 0, burst = 0, nextBurst = 3;
+  let t = 0, burst = 0, nextBurst = 3, yLift = null;
   console.log(`[cherkasy] Balloon: at ${x}, ${z}, basket ${LIFT} m up, envelope ${2 * R} x ${H} m, ${(env.attributes.position.count + n) / 1000 | 0}k verts in ${(performance.now() - t0).toFixed(0)} ms`);
   return {
     balloon: { x, z, y: y0 },
     clear: () => false,
     update(dt) {
       t += dt;
-      group.position.y = y0 + Math.sin(t * 0.3) * 1.2;
+      // where on the line: hang at home, drift out at a steady walker's pace, hang at the river station, drift back
+      const c = (Date.now() / 1000) % cycle, run = total / SPEED, half = cycle / 2;
+      const u = c < half ? Math.min(1, Math.max(0, (c - DWELL) / run)) : 1 - Math.min(1, Math.max(0, (c - half - DWELL) / run));
+      at(total * u, pos);
+      const yg = Math.max(heightAt(pos[0], pos[1]), WATER_Y) + LIFT;  // over the water: the river's surface
+      yLift = yLift === null ? yg : yLift + (yg - yLift) * Math.min(1, dt * 0.05); // rise and sink gently, never a jump
+      group.position.set(pos[0], yLift + Math.sin(t * 0.3) * 1.2, pos[1]);
       group.rotation.y = t * 0.035;                              // a full turn in ~3 min: the band shows every side
       group.rotation.z = Math.sin(t * 0.21) * 0.012;
       if ((nextBurst -= dt) < 0) { burst = 1.6 + Math.random() * 1.2; nextBurst = 7 + Math.random() * 9; }
