@@ -31,7 +31,7 @@ const stripeTex = () => canvasTex(256, 64, (g, w, h) => {
   g.fillStyle = 'rgba(0,0,0,0.12)'; for (let x = 0; x < w; x += w / 7) g.fillRect(x, 0, 1, h);
 });
 // sign atlas 2048 x 1024: row 0 the logo and «ЕПІЦЕНТР», row 1 the board, row 2 the chevron (left) and «ВХІД» (right)
-const SIGN = { name: [0, 0, 1, 0.3], board: [0, 0.32, 1, 0.5], chev: [0, 0.52, 0.5, 1], vhid: [0.52, 0.62, 1, 0.8] };
+const SIGN = { name: [0, 0, 0.74, 0.3], board: [0, 0.32, 1, 0.5], chev: [0, 0.52, 0.5, 1], vhid: [0.52, 0.62, 1, 0.8] };
 const signTex = () => canvasTex(2048, 1024, (g) => {
   g.clearRect(0, 0, 2048, 1024);
   // logo: white disc, navy ring, a navy triangle pointing down with a short stem over it
@@ -41,8 +41,8 @@ const signTex = () => canvasTex(2048, 1024, (g) => {
   g.fillRect(140, 60, 20, 70);
   g.textBaseline = 'alphabetic'; g.lineJoin = 'round';
   g.font = 'bold 250px "Arial Narrow", Arial, Helvetica, sans-serif';
-  g.strokeStyle = '#ffffff'; g.lineWidth = 16; g.strokeText('ЕПІЦЕНТР', 330, 262, 1690);
-  g.fillStyle = NAVY; g.fillText('ЕПІЦЕНТР', 330, 262, 1690);
+  g.strokeStyle = '#ffffff'; g.lineWidth = 16; g.strokeText('ЕПІЦЕНТР', 330, 262, 1170);
+  g.fillStyle = NAVY; g.fillText('ЕПІЦЕНТР', 330, 262, 1170);
   // the board
   g.fillStyle = '#ffffff'; g.fillRect(0, 330, 2048, 180); g.fillStyle = NAVY; g.fillRect(0, 330, 2048, 10); g.fillRect(0, 500, 2048, 10);
   g.textAlign = 'center'; g.font = 'bold 120px "Arial Narrow", Arial, sans-serif';
@@ -143,7 +143,7 @@ export function buildEpicentr({ root, map, solids: S, zips: Z, heightAt }) {
   // ---- the roof signs over the main front: truss, letters and logo, the board further south-east
   const ff = edgeFaces(ring).find((q) => q.nx > 0.9 && q.L > 100);
   if (ff) {
-    const c = ff.L * 0.42, w = 34, yb = Y(H) + 0.6, hh = w * (0.3 * 1024) / 2048; // the name cell keeps its aspect (2048 x 307)
+    const c = ff.L * 0.42, w = 27, yb = Y(H) + 0.6, hh = w * (0.3 * 1024) / (0.74 * 2048); // the truss is as wide as the name cell (1515 x 307 px)
     D.setColor('#9a9fa3');
     for (let s = c - w / 2; s <= c + w / 2 + 0.01; s += w / 8) fbox(D, ff, s - 0.08, s + 0.08, Y(H) - 0.3, yb + hh, -1.6, -1.4, 'fblr');
     for (const y of [yb, yb + hh]) fbox(D, ff, c - w / 2, c + w / 2, y - 0.08, y + 0.08, -1.6, -1.4, 'fbtu');
