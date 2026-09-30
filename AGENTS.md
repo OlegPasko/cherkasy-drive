@@ -58,7 +58,9 @@ See `ARCHITECTURE.md` for the module map. Where things live:
     in `city.js`; the others build while the ground workers run.
   - hand-built ordinary buildings (not sights, not in `places.js`): `simeinyi` (ЖК «Сімейний Lux», Героїв Дніпра 4),
     `fitness34` (fitness club «3-4», Надпільна 252), `torhivli` (Будинок торгівлі with the corner pavilion), `chnu` (ЧНУ
-    main building), `chdtu` (ЧДТУ campus: корпуси 1–4 and the canteen), `bankinst` (the banking institute, Чорновола 164).
+    main building), `chdtu` (ЧДТУ campus: корпуси 1–4 and the canteen), `bankinst` (the banking institute, Чорновола 164). `khrcity`
+    (ТРЦ «Хрещатик-Сіті», Дашковича 19: the horseshoe round its courtyard, the arch, the towers and the atrium pavilions)
+    is built the same way and marked on the maps as an `improved` object.
   - `places.js` – the sights, the paying partners (kind `ad`) and the non-landmark objects rebuilt on request (kind
     `improved`: a grey footprint only, "Покращений об’єкт" in the big map's legend) for both maps: icon, name, note, the OSM buildings
     whose footprints get highlighted, and for partners the site `url` (with `utm_source=driver.ck.ua`) and the pitch
