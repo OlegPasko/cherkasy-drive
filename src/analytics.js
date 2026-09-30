@@ -4,7 +4,7 @@
 //   track(name, params?)                                          a GA4 event, e.g. track('mission_end', { mission_type, ok })
 // Events sent today: game_ready (load_ms, quality), mission_start / mission_end (mission_type, ok), partner_open
 // (partner, via: key | card | map), sight_visited (sight), adaptive_res (dpr, step, reason, quality: the adaptive
-// resolution changed the render pixel ratio on a slow machine). Outbound link clicks (the Telegram bot) come from GA's own
+// resolution changed the render pixel ratio on a slow machine), teleport (place: the big map moved the car there). Outbound link clicks (the Telegram bot) come from GA's own
 // enhanced measurement.
 export const GA_ID = 'G-6DK19V1WXV';
 const PROD = /(^|\.)driver\.ck\.ua$/;

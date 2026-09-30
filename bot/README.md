@@ -104,15 +104,17 @@ Flows:
   - for the other kinds, a "done" message only.
 - **Close as not planned** sends "закрито без виконання".
 - **Bot comments** (player replies, fixes, confirmations) carry `<!-- bot -->` and are never echoed back.
-- **Photos** are public files in Spaces (`everlabs-file-uploads/driver-bot/media/<chat>/…`), shown inline in the
-  issue.
+- **Photos** are public files in Spaces (`everlabs-file-uploads/driver-bot/media/<mid>/…`, `mid` a random id per chat,
+  never the chat id), shown inline in the issue.
+- **The issues are public**, so they carry no player names and no chat ids: the footer says only "Від гравця через
+  Telegram-бот". Who asked is in Oleg's "🆕 #N" Telegram message (@username and chat id).
 
 ## How it works
 
 ```
-Telegram ──webhook──┐                                   ┌── GitHub issue (+ hidden <!-- tg:{"chat":…,"kind":…} -->)
+Telegram ──webhook──┐                                   ┌── GitHub issue (public: no names, no chat ids)
                     ├─> DO Function default/driver_bot ─┤
-GitHub  ──webhook───┘   (nodejs:24, web: raw)           └── Spaces: sessions/<chat>.json, media/…, static/zhuzhoma.jpg
+GitHub  ──webhook───┘   (nodejs:24, web: raw)           └── Spaces: sessions/<chat>.json, issues/<n>.json, media/…, static/…
                                  │
                                  └─> TypeSafe Jev: guardrail on every typed reply
 ```
@@ -144,7 +146,8 @@ State:
 
 - The conversation (step and draft) lives in `sessions/<chat>.json` in Spaces.
 - The request itself lives in the issue.
-- The link back from an issue to its chat is the hidden marker in the issue body.
+- The link back from an issue to its chat is `issues/<n>.json` in Spaces (`{ chat, kind, at? }`). The first issues
+  (#1–#4) carried it as a hidden `<!-- tg:{…} -->` in the body, which is still read when Spaces has no record.
 
 ## Links into the game
 
@@ -153,7 +156,7 @@ A finished request carries a **🚗 Подивитись у грі** button, on 
 
 - The point comes from the request: a pin or coordinates as given, or a typed address geocoded with OSM Nominatim
   (`geo.js`, bounded to Cherkasy).
-- The street name comes from a building-level reverse lookup and is kept in the issue marker (`at`). Older issues are
+- The street name comes from a building-level reverse lookup and is kept in the issue's mark (`at`, also a hidden `<!-- at:[…] -->` line in the body). Older issues are
   geocoded from their "Де" line when they close.
 - Override the base with `GAME_URL`.
 

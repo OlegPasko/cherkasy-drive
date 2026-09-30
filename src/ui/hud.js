@@ -28,6 +28,7 @@
 //                   banner(title, sub?, color?), setMoney(n), flashMoney(), setHint(text | null) }
 //   hud.map = { open(), close(), toggle(), isOpen }   the full-screen map (M in main.js; Esc closes it too)
 //   hud.onHome = fn                      set by main: the "На старт" chip calls it
+//   hud.onGo = fn(place)                 set by main: the big map's "Переміститись сюди?" – move the car beside that place
 //   hud.onRadio = fn, hud.onRadioNext = fn, hud.setRadio({ on, loading, title, artist, empty })   the radio chips
 //                                        (src/audio/radio.js state)
 //   hud.root (the HUD layer, hidden by F2), hud.stats() -> { tilesPending, mapMs, features, places }, hud.dispose()
@@ -139,7 +140,8 @@ export function createHud({ player, world, camera, container = globalThis.docume
 
   // ---------------------------------------------------------------- map tiles (shared with the big map)
   const painter = createMapPainter({ world, features, doc });
-  const bigmap = createBigMap({ painter, player, container, map: world?.cherkasy?.map, getObjective: () => objective, getMarkers: () => markers });
+  const bigmap = createBigMap({ painter, player, container, map: world?.cherkasy?.map, getObjective: () => objective, getMarkers: () => markers,
+    onGo: player ? (p) => hud.onGo?.(p) : null });
   let lastMapMs = 0;
 
   // ---------------------------------------------------------------- per-frame helpers
@@ -412,7 +414,7 @@ export function createHud({ player, world, camera, container = globalThis.docume
   applyHelp();
 
   const hud = {
-    mission, setTelemetry, onHome: null, onRadio: null, onRadioNext: null,
+    mission, setTelemetry, onHome: null, onGo: null, onRadio: null, onRadioNext: null,
     setRadio({ on, loading, title, artist, empty }) {
       setClass(el.radioKey, 'act', on);
       setText(el.radioT, empty ? 'Радіо: немає треків' : !on ? 'Радіо' : loading && !title ? 'Радіо…' : `♪ ${title}${loading ? '…' : ''}`);

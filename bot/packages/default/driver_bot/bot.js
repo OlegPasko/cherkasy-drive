@@ -1,11 +1,12 @@
 // The bot's brain: a small step machine per chat. A request is drafted in the session (Spaces), becomes a GitHub
-// issue on submit, and the issue carries a hidden marker with the chat id, so GitHub events find their way back.
+// issue on submit, and a marker in Spaces ('issues/<n>.json': the chat id) lets GitHub events find their way back. The
+// issues are public: they carry no names and no chat ids (Oleg gets the player's @username in his "🆕 #N" message).
 //   createBot({ tg, gh, store, jev, proof, moderate?, adminChat?, gameUrl?, geo? (geo.js; tests pass a fake) }) -> { onUpdate(update), onGitHub(event, payload) }
 //   the issue marker { chat, kind, at?: [lat, lon, road] } also feeds the "look in the game" button (gameUrl?at=…&road=…)
 //   session (store 'sessions/<chat>.json'): { step, draft: { kind, id, where, desc, what, text, note, back }, ctx, issues: [n],
-//     paid: { [n]: UAH counted so far } }
-//   photos go to store 'media/<chat>/<draft id>/…' (public) and are listed on submit, so album parts never race
-//   ad artwork (the customer's own picture for the billboard / van / balloon) goes to 'art/<chat>/<draft id>/…' with a
+//     paid: { [n]: UAH counted so far }, mid: a random id for this chat's public files (their URLs go into the issues) }
+//   photos go to store 'media/<mid>/<draft id>/…' (public) and are listed on submit, so album parts never race
+//   ad artwork (the customer's own picture for the billboard / van / balloon) goes to 'art/<mid>/<draft id>/…' with a
 //   .json verdict beside each image (moderate.js): a clear no is turned away, anything unsure gets `art-review` on the issue
 //   paid requests are donations: the issue waits under `awaiting-donation` until a proof (screenshot / PDF receipt) passes
 //   proof.js -> `donation-ok` (or `donation-review` for a person); proofs stay private in 'proofs/…', their keys stop reuse
@@ -15,11 +16,15 @@ const { KINDS, T, JAR, OWNER, uah } = require('./texts');
 const { esc } = require('./tg');
 const { parsePlace, inCherkasy, fromStart, mapsUrl } = require('./place');
 const GEO = require('./geo');
+const { randomBytes } = require('node:crypto');
 
 const BOT_MARK = '<!-- bot -->';
 const NO_POINT = new Set(['van', 'balloon']); // ad formats with no place: they move all over the city
 const ART_MARK = { ok: '✅', review: '👀 перевірити вручну:', reject: '⛔ відхилено:' };
+// who an issue belongs to: { chat, kind, at? } in Spaces ('issues/<n>.json'), never in the public issue; the first
+// issues carried it as a hidden <!-- tg:{…} --> in the body, still read as a fallback
 const markOf = (body) => { try { return JSON.parse(/<!-- tg:(\{.*?\}) -->/.exec(body || '')[1]); } catch { return null; } };
+const markKey = (n) => `issues/${n}.json`;
 const fixesOf = (issue) => issue.labels.map((l) => /^rework-(\d)$/.exec(l.name || l)?.[1]).filter(Boolean).map(Number).reduce((a, b) => Math.max(a, b), 0);
 const hasLabel = (issue, name) => issue.labels.some((l) => (l.name || l) === name);
 const btn = (text, data) => ({ text, data });
@@ -73,13 +78,16 @@ function createBot({ tg, gh, store, jev, proof, moderate = null, adminChat = nul
   }
   const load = async (c) => { c.s = (await store.getJSON(`sessions/${c.chat}.json`)) || { issues: [] }; c.orig = JSON.stringify(c.s); };
   const save = async (c) => { const j = JSON.stringify(c.s); if (j !== c.orig) await store.put(`sessions/${c.chat}.json`, j, { type: 'application/json' }); };
-  const mediaDir = (c) => `media/${c.chat}/${c.s.ctx?.media || c.s.draft?.id || 'loose'}/`;
+  const mid = (c) => (c.s.mid ||= randomBytes(6).toString('hex')); // not the chat id: these URLs are public
+  const mediaDir = (c) => `media/${mid(c)}/${c.s.ctx?.media || c.s.draft?.id || 'loose'}/`;
   const photosOf = async (c) => (await store.list(mediaDir(c))).map((k) => store.url(k));
-  const artDir = (c) => `art/${c.chat}/${c.s.draft?.id || 'loose'}/`;
+  const artDir = (c) => `art/${mid(c)}/${c.s.draft?.id || 'loose'}/`;
   const artOf = async (c) => { // [{ url, verdict, reason, p, desc, meta }] in upload order
     const keys = (await store.list(artDir(c))).filter((k) => k.endsWith('.json')).sort();
     return (await Promise.all(keys.map((k) => store.getJSON(k)))).filter(Boolean);
   };
+
+  const markFor = async (issue) => (await store.getJSON(markKey(issue.number)).catch(() => null)) || markOf(issue.body);
 
   async function menu(c, text = T.MENU) { c.s.step = null; c.s.draft = null; c.s.ctx = null; await c.show(text, menuKb(c.s)); }
 
@@ -137,8 +145,8 @@ function createBot({ tg, gh, store, jev, proof, moderate = null, adminChat = nul
     const photos = await photosOf(c), k = KINDS[d.kind];
     await c.show(summary(d, photos, await artOf(c)), [[btn(k.price ? T.PAY(k.price) : T.SEND, 'sub')], [btn(T.BACK, 'b'), btn(T.CANCEL, 'x')]]);
   }
-  function issueBody(c, d, photos, at, art = [], lm = null) {
-    const k = KINDS[d.kind], who = c.from.username ? `@${c.from.username}` : esc([c.from.first_name, c.from.last_name].filter(Boolean).join(' '));
+  function issueBody(d, photos, at, art = [], lm = null) { // public: no names, no chat ids (the mark goes to Spaces)
+    const k = KINDS[d.kind];
     const L = [`## ${k.icon} ${k.name}`, ''];
     if (lm?.is || lm?.maybe) L.push(`> 🏛 **${lm.is ? 'Схоже на лендмарк' : 'Можливо, лендмарк – перевірте'}** (${lm.p.toFixed(2)}): ${lm.f?.name || 'без назви'}${lm.f ? ` · ${lm.f.kind} · [OSM ${lm.f.osm}](https://www.openstreetmap.org/${lm.f.osm})` : ''}${lm.f?.tags.wikipedia ? ` · [Wikipedia](https://${lm.f.tags.wikipedia.split(':')[0]}.wikipedia.org/wiki/${encodeURIComponent(lm.f.tags.wikipedia.split(':').slice(1).join(':'))})` : ''}`, '> Після роботи – додати на мапу (`src/world/cherkasy/places.js`), див. `docs/improve-object.md`.', '');
     if (d.where) L.push(`**Де:** ${d.where.url ? `[${d.where.lat.toFixed(5)}, ${d.where.lon.toFixed(5)}](${d.where.url})` : ''} ${d.where.text || ''}${d.where.fromGame ? ' _(точка з гри)_' : ''}`, '');
@@ -149,7 +157,7 @@ function createBot({ tg, gh, store, jev, proof, moderate = null, adminChat = nul
       `${ART_MARK[a.verdict]} ${a.why || ''}${a.reason ? ` · ${a.reason}` : ''}${a.desc ? ` – _${a.desc.replace(/\s+/g, ' ').slice(0, 300)}_` : ''}`,
       a.meta?.reader ? `<sub>🤖 ${a.meta.reader} · ${a.meta.model} · ${(a.meta.ms / 1000).toFixed(1)} s</sub>` : '', '']), '');
     if (k.price) L.push(`**Донат:** від ${k.price} грн у банку «${JAR.title}» – чекаємо підтвердження`, '');
-    L.push('---', `Від ${who} через Telegram-бот · правок: ${k.fixes}`, `<!-- tg:${JSON.stringify({ chat: c.chat, kind: d.kind, ...(at && { at }) })} -->`);
+    L.push('---', `Від гравця через Telegram-бот · правок: ${k.fixes}`, ...(at ? [`<!-- at:${JSON.stringify(at)} -->`] : [])); // the resolved point, for whoever builds it
     return L.join('\n');
   }
   async function submit(c) {
@@ -160,10 +168,12 @@ function createBot({ tg, gh, store, jev, proof, moderate = null, adminChat = nul
     const at = await locate(d.where).catch(() => null);
     const lm = d.kind === 'improve' ? await landmarkOf(d).catch(() => null) : null;
     const review = art.some((a) => a.verdict === 'review') ? ['art-review'] : [];
-    const issue = await gh.create({ title, body: issueBody(c, d, photos, at, art, lm), labels: [...k.labels, 'telegram', ...review, ...(lm?.is ? ['landmark'] : []), ...(k.price ? ['awaiting-donation'] : [])] });
+    const issue = await gh.create({ title, body: issueBody(d, photos, at, art, lm), labels: [...k.labels, 'telegram', ...review, ...(lm?.is ? ['landmark'] : []), ...(k.price ? ['awaiting-donation'] : [])] });
+    await store.put(markKey(issue.number), JSON.stringify({ chat: c.chat, kind: d.kind, ...(at && { at }) }), { type: 'application/json' });
     c.s.issues = [issue.number, ...(c.s.issues || []).filter((n) => n !== issue.number)].slice(0, 30);
     c.s.step = null; c.s.draft = null;
-    if (adminChat) tg.send(adminChat, `🆕 <b>#${issue.number}</b> ${esc(title)}`, [[{ text: 'Відкрити в GitHub', url: issue.html_url }]]).catch(() => {});
+    const who = c.from?.username ? `@${c.from.username}` : [c.from?.first_name, c.from?.last_name].filter(Boolean).join(' ');
+    if (adminChat) tg.send(adminChat, `🆕 <b>#${issue.number}</b> ${esc(title)}${who ? `\n👤 ${esc(who)} · чат ${c.chat}` : ''}`, [[{ text: 'Відкрити в GitHub', url: issue.html_url }]]).catch(() => {});
     if (!k.price) return c.show(T.SENT(issue.number), [[btn(T.MENU_BTN, 'm'), btn('📋 Мої заявки', 'my')], ...(c.s.sub ? [] : [[btn(T.NEWS_ON, 'nw:1')]])]);
     return askDonation(c, issue.number, k.price, true);
   }
@@ -236,7 +246,7 @@ function createBot({ tg, gh, store, jev, proof, moderate = null, adminChat = nul
   };
   async function mine(c, n) { // the issue if it belongs to this chat
     const issue = await gh.get(n).catch(() => null);
-    const m = issue && markOf(issue.body);
+    const m = issue && await markFor(issue);
     if (!m || m.chat !== c.chat) { await c.show(T.NOT_YOURS, [[btn(T.TO_LIST, 'my')]]); return null; }
     return { issue, kind: m.kind };
   }
@@ -244,7 +254,7 @@ function createBot({ tg, gh, store, jev, proof, moderate = null, adminChat = nul
     const ns = (c.s.issues || []).slice(0, 12);
     if (!ns.length) return c.show(T.MY_EMPTY, menuKb(c.s));
     const rows = await Promise.all(ns.map(async (n) => {
-      const issue = await gh.get(n).catch(() => null), m = issue && markOf(issue.body);
+      const issue = await gh.get(n).catch(() => null), m = issue && await markFor(issue);
       if (!m) return null;
       return [btn(clip(`#${n} ${KINDS[m.kind]?.icon || ''} ${T.STATUS[statusOf(issue, m.kind)]} · ${issue.title.replace(/^[^:]*:\s*/, '')}`, 60), `i:${n}`)];
     }));
@@ -255,7 +265,7 @@ function createBot({ tg, gh, store, jev, proof, moderate = null, adminChat = nul
     const { issue, kind } = got, st = statusOf(issue, kind);
     const kb = [];
     if (st === 'check') kb.push([btn(T.OK, `ok:${n}`), btn(T.FIX, `fx:${n}`)]);
-    if (st === 'check' || st === 'done') { const b = lookBtn(await placeOf(issue, markOf(issue.body))); if (b) kb.push(b); }
+    if (st === 'check' || st === 'done') { const b = lookBtn(await placeOf(issue, await markFor(issue))); if (b) kb.push(b); }
     if (st === 'pay') kb.push([{ text: T.JAR_BTN, url: JAR.url }], [btn(T.PROOF_BTN, `pf:${n}`)]);
     kb.push([btn(T.SAY, `s:${n}`)], [btn(T.TO_LIST, 'my')]);
     await c.show(T.ISSUE({ n, kind, title: esc(issue.title), status: T.STATUS[st] }), kb);
@@ -459,7 +469,7 @@ function createBot({ tg, gh, store, jev, proof, moderate = null, adminChat = nul
   }
 
   async function onGitHub(event, p) {
-    const issue = p.issue, mark = issue && markOf(issue.body);
+    const issue = p.issue, mark = issue && await markFor(issue);
     if (!mark) return 'no marker';
     const n = issue.number, title = esc(issue.title), kind = mark.kind, chat = mark.chat;
     const to = (text, kb) => tg.send(chat, text, kb);
@@ -482,4 +492,4 @@ function createBot({ tg, gh, store, jev, proof, moderate = null, adminChat = nul
   return { onUpdate, onGitHub };
 }
 
-module.exports = { createBot, markOf, BOT_MARK };
+module.exports = { createBot, markOf, markKey, BOT_MARK };

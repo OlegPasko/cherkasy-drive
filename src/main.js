@@ -244,6 +244,15 @@ export async function startGame({ container = document.getElementById('app') || 
   // a stuck car: back to the city's start spot (the saved position moves with it, so a reload does not undo it)
   const goHome = () => { car.home(); if (inCity) savePos(); };
   hud.onHome = goHome;
+  // the big map's teleport (improved objects and partners): the road beside it, the building on the passenger side; a
+  // running mission carries on. The street from the note ("вул. Хрещатик, 235", "Оренда офісів · Надпільна, 252").
+  hud.onGo = (p) => {
+    const road = String(p.note || '').split('·').pop().split(',')[0].trim();
+    const spot = map && roadSpotNear(map, p.x, p.z, { road });
+    if (!spot) { console.warn('[main] teleport: no road near', p.id); return; }
+    car.teleport(new THREE.Vector3(spot.x, world.groundHeight(spot.x, spot.z, spot.bridge ? 400 : undefined) + 0.3, spot.z), spot.yaw);
+    hud.map.close(); if (inCity) savePos();
+  };
   input.bind('radio', ['KeyQ']);
   input.bind('radioNext', ['KeyE']);
   audio.radio.onChange = (st) => hud.setRadio(st);

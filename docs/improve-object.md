@@ -17,8 +17,8 @@ data is committed under `public/assets/cherkasy/`, and no bot secrets are needed
   - **Що змінити** – what the player says is wrong;
   - **Фото** – the player's photos (public Spaces links). These are the best reference: they are current;
   - the `🏛 Схоже на лендмарк` / `Можливо, лендмарк` note and the `landmark` label, if the bot found one (step 5);
-  - the hidden `<!-- tg:{…,"at":[lat,lon,road]} -->` marker: the point the bot resolved, and the street the "look in the
-    game" link uses.
+  - the hidden `<!-- at:[lat,lon,road] -->` line: the point the bot resolved, and the street the "look in the game" link
+    uses (the first issues had it inside a `<!-- tg:{…} -->` marker).
 - Comments that start with `//` stay internal. Every other comment you write on the issue is sent to the player in
   Telegram as it is, so write those in Ukrainian and politely.
 

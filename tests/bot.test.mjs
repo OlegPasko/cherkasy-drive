@@ -6,7 +6,7 @@ import crypto from 'node:crypto';
 import assert from 'node:assert/strict';
 const require = createRequire(import.meta.url);
 const dir = '../bot/packages/default/driver_bot/';
-const { createBot, markOf } = require(dir + 'bot.js');
+const { createBot, markOf, markKey } = require(dir + 'bot.js');
 const { parsePlace, fromStart, inCherkasy } = require(dir + 'place.js');
 const { createProof, kyivNow } = require(dir + 'proof.js');
 
@@ -107,9 +107,12 @@ const buttons = (m) => (m.kb || []).flat().map((b) => b.data || b.url);
   await f.bot.onUpdate(tap('sub'));
   const i = f.issues.get(1);
   assert.ok(i, 'issue created');
-  assert.deepEqual(markOf(i.body), { chat: CHAT, kind: 'improve', at: [49.44412, 32.05912, 'бульвар Шевченка'] });
+  assert.deepEqual(JSON.parse(f.files.get(markKey(1))), { chat: CHAT, kind: 'improve', at: [49.44412, 32.05912, 'бульвар Шевченка'] });
+  assert.ok(!/tester|<!-- tg:|\b42\b/.test(i.body), i.body);
+  assert.match(i.body, /<!-- at:\[49\.44412,32\.05912,"бульвар Шевченка"\] -->/);
+  assert.ok(f.sent.some((s) => s.chat === 1 && /@tester/.test(s.text)), 'Oleg sees who asked');
   assert.ok(i.labels.some((l) => l.name === 'awaiting-donation') && i.labels.some((l) => l.name === 'object-improvement'));
-  assert.match(i.body, /<img src="https:\/\/cdn\/media\/42\//);
+  assert.match(i.body, /<img src="https:\/\/cdn\/media\/[0-9a-f]{12}\//);
   assert.ok(f.sent.some((s) => /Драйвер #1/.test(s.text) && /від 50 грн/.test(s.text)), 'donation how-to');
   assert.ok(buttons(last(f)).includes('https://send.monobank.ua/jar/6JmQWTvEpW'));
   assert.ok(f.sent.some((s) => s.chat === 1 && /#1/.test(s.text)), 'admin notified');
@@ -118,7 +121,9 @@ const buttons = (m) => (m.kb || []).flat().map((b) => b.data || b.url);
   assert.match(last(f).text, /оновлено/);
   assert.deepEqual(buttons(last(f)), ['https://driver.ck.ua/?at=49.44412%2C32.05912&road=%D0%B1%D1%83%D0%BB%D1%8C%D0%B2%D0%B0%D1%80+%D0%A8%D0%B5%D0%B2%D1%87%D0%B5%D0%BD%D0%BA%D0%B0&utm_source=telegram']);
   // an older issue with only a typed address: geocoded when it closes
-  f.issues.get(1).body = f.issues.get(1).body.replace(/<!-- tg:.*-->/, '<!-- tg:{"chat":42,"kind":"improve"} -->').replace(/\*\*Де:\*\*.*/, '**Де:**  Проспект Хіміків 44');
+  // (a legacy issue: its mark in the body, none in Spaces)
+  f.files.delete(markKey(1));
+  f.issues.get(1).body = `${f.issues.get(1).body.replace(/\*\*Де:\*\*.*/, '**Де:**  Проспект Хіміків 44')}\n<!-- tg:{"chat":42,"kind":"improve"} -->`;
   await f.bot.onGitHub('issues', { action: 'closed', issue: { ...f.issues.get(1), state: 'closed', state_reason: 'completed' } });
   assert.match(buttons(last(f))[0], /at=49\.40684%2C32\.04566&road=/);
 }
@@ -204,7 +209,7 @@ const buttons = (m) => (m.kb || []).flat().map((b) => b.data || b.url);
   await f.bot.onUpdate(msg('І ще одне', { reply_to_message: { from: { is_bot: true }, text: '💬 Відповідь по заявці #1' } }));
   assert.match(i.comments.at(-1), /І ще одне/);
   // someone else's issue is refused
-  f.issues.get(1).body = f.issues.get(1).body.replace('"chat":42', '"chat":7');
+  f.files.set(markKey(1), f.files.get(markKey(1)).replace('"chat":42', '"chat":7'));
   await f.bot.onUpdate(tap('i:1'));
   assert.match(last(f).text, /не знайдено/);
 }

@@ -4,10 +4,12 @@
 // sights dim until visited, then checked – game/explore.js; hover: name, note, distance and visited; a partner's footprint glows, a click on its badge opens its site in
 // a new tab), the mission markers, the objective (with a straight line from the
 // car) and the car itself. A right click offers the Telegram bot at that point (improve this object / advertise here). The game is expected to pause while it is open (main.js reads hud.map.isOpen).
+// With a car and onGo, a click on an improved object or a partner's badge asks "Переміститись сюди?" (a partner's card
+// also links its site); yes (or Enter) calls onGo(place). Sights are never teleport targets: the explore quest counts them.
 // Touch: one finger pans, two pinch-zoom, a tap on a badge shows its card and a second tap opens a partner's site.
 //
 //   createBigMap({ painter, player, container, map? (map.json: region -> zoom-out limit), getObjective() -> Vector3 | null, getMarkers() -> [{ x, z, color, label }],
-//                  home? { x, z } })
+//                  home? { x, z }, onGo?(place) (move the car there; main.js) })
 //     player null: the map on its own (mapview.js on phones) – no car, no "to the car", no distances; it opens at home
 //     -> { open(), close(), toggle(), isOpen, update(dt), dispose() }
 // Rendering: a "base" canvas (tiles, footprints, street names, badges) redrawn only when the view, the toggles or the
@@ -31,11 +33,12 @@ const NORTH = enuToWorld(0, 1, 0);
 const ROT = -Math.PI / 2 - Math.atan2(NORTH.z, NORTH.x); // canvas rotation that puts north up
 const fmtDist = (m) => (m >= 1000 ? `${(m / 1000).toFixed(1).replace('.', ',')} км` : `${Math.round(m / 10) * 10} м`);
 
-export function createBigMap({ painter, player, container, map = null, getObjective, getMarkers, home = { x: 0, z: 0 } }) {
+export function createBigMap({ painter, player, container, map = null, getObjective, getMarkers, home = { x: 0, z: 0 }, onGo = null }) {
   const doc = container.ownerDocument;
+  const canGo = (p) => !!(player && onGo && p && (p.kind === 'improved' || (p.kind === 'ad' && p.rings?.length))); // buildings only, never a sight
   const touch = !!globalThis.matchMedia?.('(pointer: coarse)').matches;
   const keysHint = touch ? 'пальцем – рух · двома пальцями – масштаб · торкніться значка – опис'
-    : `колесо / + − – масштаб · тягни або стрілки – рух${player ? ' · Пробіл – до авто' : ''} · правий клік – покращити місце${player ? ' · M / Esc – закрити' : ''}`;
+    : `колесо / + − – масштаб · тягни або стрілки – рух${player ? ' · Пробіл – до авто' : ''} ${player && onGo ? ' · клік по партнеру чи покращеному – переміститись' : ''} · правий клік – покращити місце${player ? ' · M / Esc – закрити' : ''}`;
   const root = doc.createElement('div');
   root.className = 'bigmap off';
   root.innerHTML = `
@@ -54,6 +57,7 @@ export function createBigMap({ painter, player, container, map = null, getObject
     <div class="bm-scale"><i></i><span></span></div>
     <div class="bm-keys">${keysHint}</div>
     <div class="bm-ctx"><a data-f="imp" target="_blank" rel="noopener">🏠 Покращити цей об'єкт</a><a data-f="ad" target="_blank" rel="noopener">📣 Реклама тут</a><small>відкриється бот у Telegram</small></div>
+    <div class="bm-go"><b>🚗 Переміститись сюди?</b><span></span><div><button data-a="yes">Так</button><button data-a="no">Ні</button></div><a target="_blank" rel="noopener">🌐 Відкрити сайт</a></div>
     <div class="bm-tip"><b></b><span></span><em></em><u></u></div>`;
   container.appendChild(root);
   const $ = (q) => root.querySelector(q);
@@ -122,7 +126,7 @@ export function createBigMap({ painter, player, container, map = null, getObject
 
   // ---------------------------------------------------------------- input (only while open)
   const onWheel = (e) => {
-    e.preventDefault(); hideCtx();
+    e.preventDefault(); hideCtx(); hideGo();
     const d = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaY;
     zoomAt(Math.exp(-d * 0.0022), e.clientX, e.clientY);
   };
@@ -137,12 +141,27 @@ export function createBigMap({ painter, player, container, map = null, getObject
     ctx.classList.add('on');
   };
   ctx.addEventListener('click', () => setTimeout(hideCtx, 0));
+  // the teleport question over an improved object or a partner (its site is a real <a>: the new tab is the user's click)
+  const go = $('.bm-go'), goSite = $('.bm-go a');
+  let goFor = null;
+  const hideGo = () => { go.classList.remove('on'); goFor = null; };
+  function showGo(p, x, y) {
+    goFor = p;
+    go.querySelector('span').textContent = p.kind === 'ad' ? `${p.name} · ${p.note || ''}` : p.note || p.name;
+    goSite.style.display = p.url ? '' : 'none'; if (p.url) goSite.href = p.url;
+    go.style.left = `${Math.max(8, Math.min(x - 120, W - 260))}px`; go.style.top = `${Math.max(8, Math.min(y + 14, H - 150))}px`;
+    go.classList.add('on');
+  }
+  function goYes() { const p = goFor; hideGo(); if (!p) return; track('teleport', { place: p.id }); onGo(p); }
+  go.querySelector('[data-a="yes"]').addEventListener('click', goYes);
+  go.querySelector('[data-a="no"]').addEventListener('click', hideGo);
+  goSite.addEventListener('click', () => { if (goFor) track('partner_open', { partner: goFor.id, via: 'map' }); setTimeout(hideGo, 0); });
   // pointers: a mouse drags and hovers; touch fingers are tracked by id (two of them pinch)
   const fingers = new Map();
   let pinch = null;                // { d, mx, my } of the last pinch frame
   const pinchOf = () => { const [a, b] = [...fingers.values()]; return { d: Math.hypot(a.x - b.x, a.y - b.y) || 1, mx: (a.x + b.x) / 2, my: (a.y + b.y) / 2 }; };
   const onDown = (e) => {
-    hideCtx();
+    hideCtx(); hideGo();
     if (e.button !== 0) return;
     try { cv.setPointerCapture(e.pointerId); } catch { /* not a live pointer */ }
     if (e.pointerType !== 'mouse') {
@@ -178,11 +197,14 @@ export function createBigMap({ painter, player, container, map = null, getObject
       return;
     }
     if (drag && drag.moved < 6) { // a click or a tap, not a pan
-      if (!drag.touch) { if (tipFor?.url) { track('partner_open', { partner: tipFor.id, via: 'map' }); globalThis.open?.(tipFor.url, '_blank', 'noopener'); } }
-      else { // a tap shows the badge's card; tapping the same badge again opens the site
+      if (!drag.touch) {
+        if (canGo(tipFor)) showGo(tipFor, e.clientX, e.clientY);
+        else if (tipFor?.url) { track('partner_open', { partner: tipFor.id, via: 'map' }); globalThis.open?.(tipFor.url, '_blank', 'noopener'); }
+      } else { // a tap shows the badge's card; tapping the same badge again asks to move there, or opens the site
         const hit = pick(e.clientX, e.clientY, 10);
         mouse = hit ? { x: hit.x, y: hit.y } : null; // the badge's centre: the card stays on it while nothing moves
-        if (hit && hit.p === drag.tip && hit.p.url) { track('partner_open', { partner: hit.p.id, via: 'map' }); globalThis.open?.(hit.p.url, '_blank', 'noopener'); }
+        if (hit && hit.p === drag.tip && canGo(hit.p)) showGo(hit.p, hit.x, hit.y);
+        else if (hit && hit.p === drag.tip && hit.p.url) { track('partner_open', { partner: hit.p.id, via: 'map' }); globalThis.open?.(hit.p.url, '_blank', 'noopener'); }
       }
     }
     drag = null; root.classList.remove('grab');
@@ -195,6 +217,7 @@ export function createBigMap({ painter, player, container, map = null, getObject
     if (!isOpen) return;
     if (e.type === 'keyup') { keys.delete(e.code); return; }
     const c = e.code;
+    if (goFor && (c === 'Enter' || c === 'NumpadEnter' || c === 'Escape')) { e.preventDefault(); e.stopPropagation(); if (c === 'Escape') hideGo(); else goYes(); return; }
     if (c === 'Escape') { if (player) { e.preventDefault(); close(); } return; } // on its own the map is the page
     if (PAN[c]) { keys.add(c); e.preventDefault(); return; }
     if (c === 'Equal' || c === 'NumpadAdd') { zoomAt(1.6); e.preventDefault(); }
@@ -471,7 +494,7 @@ export function createBigMap({ painter, player, container, map = null, getObject
     return null;
   }
   function updateTip() {
-    const best = mouse && !drag && !pinch ? pick(mouse.x, mouse.y, touch ? 10 : 0) : null;
+    const best = mouse && !drag && !pinch && !goFor ? pick(mouse.x, mouse.y, touch ? 10 : 0) : null;
     root.classList.toggle('pick', !!best);
     if (!best) { if (tipFor) { el.tip.classList.remove('on'); tipFor = null; } return; }
     if (tipFor !== best.p) {
@@ -479,7 +502,8 @@ export function createBigMap({ painter, player, container, map = null, getObject
       el.tipB.textContent = best.p.name; el.tipS.textContent = best.p.note || '';
       el.tip.classList.toggle('ad', best.p.kind === 'ad');
       el.tip.classList.toggle('imp', best.p.kind === 'improved');
-      el.tipU.textContent = best.p.url ? (touch ? 'Торкніться значка ще раз – відкриється сайт' : 'Клік по значку – відкриє сайт у новій вкладці') : '';
+      el.tipU.textContent = canGo(best.p) ? (touch ? 'Торкніться ще раз – переміститись сюди' : `Клік – переміститись сюди${best.p.url ? ' або відкрити сайт' : ''}`)
+        : best.p.url ? (touch ? 'Торкніться значка ще раз – відкриється сайт' : 'Клік по значку – відкриє сайт у новій вкладці') : '';
     }
     const P = player?.position;
     const seen = best.p.kind !== 'sight' ? null : best.p.visited ?? null; // the explore quest's mark (game/explore.js)
@@ -512,7 +536,7 @@ export function createBigMap({ painter, player, container, map = null, getObject
   function close() {
     if (!isOpen) return;
     isOpen = false; keys.clear(); drag = null; mouse = null; pinch = null; fingers.clear();
-    root.classList.add('off'); el.tip.classList.remove('on'); tipFor = null; hideCtx();
+    root.classList.add('off'); el.tip.classList.remove('on'); tipFor = null; hideCtx(); hideGo();
     painter.drop('big'); baseKey = ''; // the game's minimap must not inherit a queue of big tiles
   }
   function update(dt) {
