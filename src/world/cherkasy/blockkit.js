@@ -15,6 +15,8 @@
 //     (q.sill colour); q.dep reveal depth; q.door: a solid leaf colour (no glass) up to q.leaf metres
 //   fsolid(S, f, s0, s1, o0, o1, y0, y1, kind, flags = 0)   collision prism over an s / o rectangle
 //   ringFaces(ring, inside) -> faces of a ring [[x, z], ...] (one per edge, zero-length edges dropped)
+//   openSpans(f, covers) -> [[s0, s1], ...]      stretches of the face not standing against another volume
+//   hipRoof(D, [x0, z0, x1, z1], y, pitch, uvM?) -> ridge y   hip roof over an axis-aligned rectangle
 //   finish(root, name, B, M, shadow) -> { group, verts, tris, meshes }  one mesh per non-empty builder B[k] with
 //     material M[k]; builders named in `shadow` cast shadows
 import * as THREE from 'three';
@@ -98,6 +100,36 @@ export function fsolid(S, f, s0, s1, o0, o1, y0, y1, kind, flags = 0) {
   const flat = [];
   for (const [s, o] of [[s0, o0], [s1, o0], [s1, o1], [s0, o1]]) { const [x, , z] = at(f, s, 0, o); flat.push(x, z); }
   return S.prism(flat, y0, y1, 0, 0, kind, flags); // the prism takes either winding
+}
+
+// the stretches of a face that nothing in `covers` (predicates (x, z) -> bool) stands against, sampled every 0.25 m
+export function openSpans(f, covers) {
+  const out = [], n = Math.max(1, Math.round(f.L / 0.25));
+  let start = null;
+  for (let i = 0; i <= n; i++) {
+    const s = f.L * i / n, [x, , z] = at(f, Math.min(f.L - 0.05, Math.max(0.05, s)), 0, 0.3), free = !covers.some((c) => c(x, z));
+    if (free && start === null) start = s;
+    if ((!free || i === n) && start !== null) { if (s - start > 0.3) out.push([start, s]); start = null; }
+  }
+  return out;
+}
+// hip roof over the rectangle [x0, z0, x1, z1] (eaves at y, rising at `pitch` radians), ridge along the longer side;
+// uv in metres over the slope for a standing-seam texture
+export function hipRoof(D, [x0, z0, x1, z1], y, pitch, uvM = [1, 1]) {
+  const alongX = x1 - x0 >= z1 - z0, hw = (alongX ? z1 - z0 : x1 - x0) / 2, t = Math.tan(pitch), yr = y + hw * t;
+  const P = alongX
+    ? { a: [x0, z0], b: [x1, z0], c: [x1, z1], d: [x0, z1], r0: [x0 + hw, (z0 + z1) / 2], r1: [x1 - hw, (z0 + z1) / 2] }
+    : { a: [x0, z0], b: [x0, z1], c: [x1, z1], d: [x1, z0], r0: [(x0 + x1) / 2, z0 + hw], r1: [(x0 + x1) / 2, z1 - hw] };
+  const v = (p, h) => [p[0], h, p[1]], R0 = v(P.r0, yr), R1 = v(P.r1, yr);
+  const slope = (e0, e1, r0, r1) => { // one face: eave e0-e1 with ridge r0-r1 (r0 == r1 on a hip end)
+    const mx = (e0[0] + e1[0]) / 2, mz = (e0[1] + e1[1]) / 2, rx = (r0[0] + r1[0]) / 2 - mx, rz = (r0[2] + r1[2]) / 2 - mz;
+    const L = Math.hypot(rx, rz) || 1, n = [-rx / L * t, 1, -rz / L * t], nl = Math.hypot(...n), N = n.map((q) => q / nl);
+    const E0 = v(e0, y), E1 = v(e1, y), ex = e1[0] - e0[0], ez = e1[1] - e0[1], el = Math.hypot(ex, ez), sl = hw / Math.cos(pitch);
+    const u = (p) => (((p[0] - e0[0]) * ex + (p[2] - e0[1]) * ez) / el) / uvM[0];
+    quad(D, E0, E1, r1, r0, N, [[u(E0), 0], [u(E1), 0], [u(r1), sl / uvM[1]], [u(r0), sl / uvM[1]]]);
+  };
+  slope(P.a, P.b, R0, R1); slope(P.c, P.d, R1, R0); slope(P.b, P.c, R1, R1); slope(P.d, P.a, R0, R0);
+  return yr;
 }
 
 export function finish(root, name, B, M, shadow) {
