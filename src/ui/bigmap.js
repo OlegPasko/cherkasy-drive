@@ -4,8 +4,8 @@
 // sights dim until visited, then checked – game/explore.js; hover: name, note, distance and visited; a partner's footprint glows, a click on its badge opens its site in
 // a new tab), the mission markers, the objective (with a straight line from the
 // car) and the car itself. A right click offers the Telegram bot at that point (improve this object / advertise here). The game is expected to pause while it is open (main.js reads hud.map.isOpen).
-// With a car and onGo, a click on an improved object or a partner's badge asks "Переміститись сюди?" (a partner's card
-// also links its site); yes (or Enter) calls onGo(place). Sights are never teleport targets: the explore quest counts them.
+// With a car and onGo, a click on an improved object or a partner's badge asks "Переміститись сюди?"; yes (or Enter)
+// calls onGo(place). The partner's site stays in its ring in the world (game/partners.js). Sights are never teleport targets: the explore quest counts them.
 // Touch: one finger pans, two pinch-zoom, a tap on a badge shows its card and a second tap opens a partner's site.
 //
 //   createBigMap({ painter, player, container, map? (map.json: region -> zoom-out limit), getObjective() -> Vector3 | null, getMarkers() -> [{ x, z, color, label }],
@@ -21,6 +21,7 @@ import { track } from '../analytics.js';
 
 const S_MAX = 3.2, S_OPEN = 0.55;                // css px per metre (the minimum fits the whole city)
 const PAN_PX = 700;                              // keyboard pan speed, css px / s
+const HOLD_PX = 16;                              // a press on a teleport target pans only once it moves this far
 const LABEL_FONT = 'system-ui, -apple-system, "Segoe UI", sans-serif';
 const STREET = [ // per road rank: min zoom, font, colour
   { s: 0.16, font: `700 13px ${LABEL_FONT}`, fill: '#ffffff' },
@@ -57,7 +58,7 @@ export function createBigMap({ painter, player, container, map = null, getObject
     <div class="bm-scale"><i></i><span></span></div>
     <div class="bm-keys">${keysHint}</div>
     <div class="bm-ctx"><a data-f="imp" target="_blank" rel="noopener">🏠 Покращити цей об'єкт</a><a data-f="ad" target="_blank" rel="noopener">📣 Реклама тут</a><small>відкриється бот у Telegram</small></div>
-    <div class="bm-go"><b>🚗 Переміститись сюди?</b><span></span><div><button data-a="yes">Так</button><button data-a="no">Ні</button></div><a target="_blank" rel="noopener">🌐 Відкрити сайт</a></div>
+    <div class="bm-go"><b>🚗 Переміститись сюди?</b><span></span><div><button data-a="yes">Так</button><button data-a="no">Ні</button></div></div>
     <div class="bm-tip"><b></b><span></span><em></em><u></u></div>`;
   container.appendChild(root);
   const $ = (q) => root.querySelector(q);
@@ -141,21 +142,19 @@ export function createBigMap({ painter, player, container, map = null, getObject
     ctx.classList.add('on');
   };
   ctx.addEventListener('click', () => setTimeout(hideCtx, 0));
-  // the teleport question over an improved object or a partner (its site is a real <a>: the new tab is the user's click)
-  const go = $('.bm-go'), goSite = $('.bm-go a');
+  // the teleport question over an improved object or a partner
+  const go = $('.bm-go');
   let goFor = null;
   const hideGo = () => { go.classList.remove('on'); goFor = null; };
   function showGo(p, x, y) {
     goFor = p;
     go.querySelector('span').textContent = p.kind === 'ad' ? `${p.name} · ${p.note || ''}` : p.note || p.name;
-    goSite.style.display = p.url ? '' : 'none'; if (p.url) goSite.href = p.url;
     go.style.left = `${Math.max(8, Math.min(x - 120, W - 260))}px`; go.style.top = `${Math.max(8, Math.min(y + 14, H - 150))}px`;
     go.classList.add('on');
   }
   function goYes() { const p = goFor; hideGo(); if (!p) return; track('teleport', { place: p.id }); onGo(p); }
   go.querySelector('[data-a="yes"]').addEventListener('click', goYes);
   go.querySelector('[data-a="no"]').addEventListener('click', hideGo);
-  goSite.addEventListener('click', () => { if (goFor) track('partner_open', { partner: goFor.id, via: 'map' }); setTimeout(hideGo, 0); });
   // pointers: a mouse drags and hovers; touch fingers are tracked by id (two of them pinch)
   const fingers = new Map();
   let pinch = null;                // { d, mx, my } of the last pinch frame
@@ -169,7 +168,9 @@ export function createBigMap({ painter, player, container, map = null, getObject
       if (fingers.size === 2) { drag = null; pinch = pinchOf(); return; }
       if (fingers.size > 2) return; // a third finger is ignored until the pair changes
     }
-    drag = { x: e.clientX, y: e.clientY, moved: 0, tip: tipFor, touch: e.pointerType !== 'mouse' };
+    const on = e.pointerType === 'mouse' ? pick(e.clientX, e.clientY)?.p : null;
+    drag = { x: e.clientX, y: e.clientY, x0: e.clientX, y0: e.clientY, moved: 0, tip: tipFor, touch: e.pointerType !== 'mouse',
+      target: canGo(on) ? on : null }; // a click on a target that wobbles a little is still a click, not a pan
     if (drag.touch) mouse = null; // a finger's card belongs to its tap: a pan drops it
     root.classList.add('grab');
   };
@@ -184,6 +185,7 @@ export function createBigMap({ painter, player, container, map = null, getObject
       return;
     }
     if (!drag) return;
+    if (drag.target) { if (Math.hypot(e.clientX - drag.x0, e.clientY - drag.y0) < HOLD_PX) return; drag.target = null; drag.moved = 99; }
     const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
     drag.x = e.clientX; drag.y = e.clientY; drag.moved += Math.abs(dx) + Math.abs(dy);
     const a = toWorld(W / 2 - dx, H / 2 - dy);
@@ -196,9 +198,11 @@ export function createBigMap({ painter, player, container, map = null, getObject
       else { pinch = null; persist(); const [f] = fingers.values(); drag = f ? { ...f, moved: 99 } : null; }
       return;
     }
-    if (drag && drag.moved < 6) { // a click or a tap, not a pan
-      if (!drag.touch) {
-        if (canGo(tipFor)) showGo(tipFor, e.clientX, e.clientY);
+    if (drag?.target) showGo(drag.target, e.clientX, e.clientY);
+    else if (drag && drag.moved < 6) { // a click or a tap, not a pan
+      if (!drag.touch) { // what is under the pointer now, not the last frame's hover (a slow frame, a click without a move)
+        const hit = pick(e.clientX, e.clientY)?.p || tipFor;
+        if (canGo(hit)) showGo(hit, e.clientX, e.clientY);
         else if (tipFor?.url) { track('partner_open', { partner: tipFor.id, via: 'map' }); globalThis.open?.(tipFor.url, '_blank', 'noopener'); }
       } else { // a tap shows the badge's card; tapping the same badge again asks to move there, or opens the site
         const hit = pick(e.clientX, e.clientY, 10);
@@ -211,7 +215,7 @@ export function createBigMap({ painter, player, container, map = null, getObject
     try { cv.releasePointerCapture(e.pointerId); } catch { /* already released */ }
   };
   const onLeave = (e) => { if (e.pointerType === 'mouse') mouse = null; };
-  const onDbl = (e) => zoomAt(2, e.clientX, e.clientY);
+  const onDbl = (e) => { if (!canGo(pick(e.clientX, e.clientY)?.p)) zoomAt(2, e.clientX, e.clientY); }; // a double click on a target keeps its question
   const PAN = { ArrowLeft: [-1, 0], KeyA: [-1, 0], ArrowRight: [1, 0], KeyD: [1, 0], ArrowUp: [0, -1], KeyW: [0, -1], ArrowDown: [0, 1], KeyS: [0, 1] };
   const onKey = (e) => {
     if (!isOpen) return;
@@ -502,7 +506,7 @@ export function createBigMap({ painter, player, container, map = null, getObject
       el.tipB.textContent = best.p.name; el.tipS.textContent = best.p.note || '';
       el.tip.classList.toggle('ad', best.p.kind === 'ad');
       el.tip.classList.toggle('imp', best.p.kind === 'improved');
-      el.tipU.textContent = canGo(best.p) ? (touch ? 'Торкніться ще раз – переміститись сюди' : `Клік – переміститись сюди${best.p.url ? ' або відкрити сайт' : ''}`)
+      el.tipU.textContent = canGo(best.p) ? (touch ? 'Торкніться ще раз – переміститись сюди' : 'Клік – переміститись сюди')
         : best.p.url ? (touch ? 'Торкніться значка ще раз – відкриється сайт' : 'Клік по значку – відкриє сайт у новій вкладці') : '';
     }
     const P = player?.position;

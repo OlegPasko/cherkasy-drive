@@ -210,7 +210,6 @@
   border: 1px solid rgba(255, 255, 255, .25); background: rgba(34, 44, 64, .95); }
 .bm-go button[data-a="yes"] { background: #2d7fd0; border-color: #5aa7ef; }
 .bm-go button:hover { filter: brightness(1.15); }
-.bm-go a { font: 600 12.5px system-ui, sans-serif; color: #ff9fcf; text-decoration: none; margin-top: 4px; text-align: center; }
 .bm-scale { position: absolute; right: 32px; bottom: 30px; text-align: right; pointer-events: none; font: 600 12px system-ui, sans-serif;
   text-shadow: 0 1px 4px rgba(0, 0, 0, .8); }
 .bm-scale i { display: block; margin-left: auto; height: 6px; border: 2px solid #fff; border-top: none; box-shadow: 0 2px 4px rgba(0, 0, 0, .5); }

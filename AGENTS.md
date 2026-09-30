@@ -122,7 +122,7 @@ See `ARCHITECTURE.md` for the module map. Where things live:
   - `bigmap.js` – the full-screen map on M: north up, wheel / drag / arrows, street names along the streets, sight and
     partner badges with hover notes, mission markers and the objective. A click on an improved object or a partner asks
     "Переміститись сюди?" and moves the car to the road beside it (`hud.onGo` in `main.js`, missions carry on; a partner's
-    card also links its site); sights are never teleport targets, so the explore quest still needs the drive.
+    site stays in its ring in the world); sights are never teleport targets, so the explore quest still needs the drive.
     The game pauses while it is open (`ctx.paused`: only systems added with `{ always: true }` run, nothing renders).
 - `src/ui/consent.js` and `consent.css` – the consent card on the loading screen: the main keys and the terms (an
   entertainment game, toy people not modelled on real residents, toy crashes, open-data city with nothing military or
