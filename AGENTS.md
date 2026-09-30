@@ -61,6 +61,13 @@ See `ARCHITECTURE.md` for the module map. Where things live:
     main building), `chdtu` (ЧДТУ campus: корпуси 1–4 and the canteen), `bankinst` (the banking institute, Чорновола 164). `khrcity`
     (ТРЦ «Хрещатик-Сіті», Дашковича 19: the horseshoe round its courtyard, the arch, the towers and the atrium pavilions)
     is built the same way and marked on the maps as an `improved` object.
+    Twenty more well-known buildings are built the same way, each marked as an `improved` object: `miskrada` (city
+    council), `poshtamt` (head post office), `oblbiblioteka` (regional library), `medakademia` (medical academy),
+    `podatkova` (tax office, Хрещатик 235), `school17`, `kinoukraina` (Ukraina cinema), `chnu3` (ЧНУ building 3),
+    `epicentr`, `grandmarket`, `dytlikarnya` (regional children's hospital), `budivelnyk` and `spartak` (sports palaces),
+    `lyubava`, `pioner`, `slavutych`, `dniproplaza` and `depot` (malls), `hoteldnipro` and `politekhkoledzh` (the
+    polytechnic college in the old wine warehouse). They share five small wall kits: `civic.js`, `blockkit.js`,
+    `bldkit.js`, `shellkit.js` and `slabkit.js` (walls per footprint edge, windows with reveals, collision, mesh wrap-up).
   - `places.js` – the sights, the paying partners (kind `ad`) and the non-landmark objects rebuilt on request (kind
     `improved`: a grey footprint only, "Покращений об’єкт" in the big map's legend) for both maps: icon, name, note, the OSM buildings
     whose footprints get highlighted, and for partners the site `url` (with `utm_source=driver.ck.ua`) and the pitch

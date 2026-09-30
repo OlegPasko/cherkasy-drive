@@ -46,6 +46,10 @@ export const PLACES = [
   { id: 'kinoukraina', kind: 'improved', name: 'Покращений об’єкт', note: 'вул. Смілянська, 21', bld: [405324710, 104299465] },
   { id: 'chnu3', kind: 'improved', name: 'Покращений об’єкт', note: 'бульв. Шевченка, 79', bld: [103576791] },
   { id: 'pixel', kind: 'improved', name: 'Покращений об’єкт', note: 'вул. Сержанта Жужоми, 4', bld: [1303243021] },
+  { id: 'miskrada', kind: 'improved', name: 'Покращений об’єкт', note: 'вул. Байди Вишневецького, 36', bld: [108383954] },
+  { id: 'poshtamt', kind: 'improved', name: 'Покращений об’єкт', note: 'вул. Байди Вишневецького, 34', bld: [157506758] },
+  { id: 'oblbiblioteka', kind: 'improved', name: 'Покращений об’єкт', note: 'вул. Байди Вишневецького, 8', bld: [155354151, 1076511725] },
+  { id: 'medakademia', kind: 'improved', name: 'Покращений об’єкт', note: 'вул. Хрещатик, 215', bld: [155354150] },
   // sights
   { id: 'mykhailo', kind: 'sight', name: 'Свято-Михайлівський собор', icon: '⛪', bld: [242469769] },
   { id: 'troitsky', kind: 'sight', name: 'Свято-Троїцький собор', icon: '⛪', bld: [157432721] },
