@@ -31,6 +31,7 @@ export const PLACES = [
   { id: 'khrcity', kind: 'improved', name: 'Покращений об’єкт', note: 'ТРЦ «Хрещатик-Сіті», вул. Остафія Дашковича, 19', bld: [6287196] },
   { id: 'podatkova', kind: 'improved', name: 'Покращений об’єкт', note: 'вул. Хрещатик, 235', bld: [2106384] },
   { id: 'school17', kind: 'improved', name: 'Покращений об’єкт', note: 'вул. Хрещатик, 218', bld: [104299469] },
+  { id: 'kinoukraina', kind: 'improved', name: 'Покращений об’єкт', note: 'вул. Смілянська, 21', bld: [405324710, 104299465] },
   // sights
   { id: 'mykhailo', kind: 'sight', name: 'Свято-Михайлівський собор', icon: '⛪', bld: [242469769] },
   { id: 'troitsky', kind: 'sight', name: 'Свято-Троїцький собор', icon: '⛪', bld: [157432721] },
