@@ -55,7 +55,11 @@ const SITE_MODULES = import.meta.glob(['./landmarks.js', './frame.js', './restin
   './signs.js', './facadekit.js', './khimikiv.js', './druzhba.js', './billboards.js', './zamkova.js', './kobzar.js', './museum.js', './market.js', './wedding.js', './bohdan.js', './philharmonic.js', './bilyidim.js', './lotus.js', './station.js', './lovebridge.js',
   './simeinyi.js', './fitness34.js', './torhivli.js', './chnu.js', './chdtu.js', './bankinst.js', './khrcity.js',
   './spartak.js', './pioner.js', './slavutych.js', './lyubava.js',
-  './budivelnyk.js', './grandmarket.js', './epicentr.js', './dytlikarnya.js']);
+  './budivelnyk.js', './grandmarket.js', './epicentr.js', './dytlikarnya.js',
+  './hoteldnipro.js',
+  './dniproplaza.js',
+  './depot.js',
+  './politekhkoledzh.js']);
 async function loadSites() {
   const out = {};
   await Promise.all(Object.entries(SITE_MODULES).map(async ([path, load]) => {
@@ -108,6 +112,7 @@ export async function buildCherkasy({ scene, renderer, onProgress = null, params
   if (S.lotus?.shapeLotus && geo) guard('White Lotus terrain', () => S.lotus.shapeLotus(hf, map, geo)); // the bank behind the temple
   if (S.station?.levelStation) guard('station terrain', () => S.station.levelStation(hf)); // the station yard, level
   if (S.lovebridge?.shapeLoveBridge && geo) guard('Bridge of Lovers terrain', () => S.lovebridge.shapeLoveBridge(hf, map, geo)); // the ravine under the bridge, before ground + buildings
+  if (S.dniproplaza?.shapeDniproPlaza) guard('Dnipro Plaza terrain', () => S.dniproplaza.shapeDniproPlaza(hf, map)); // the mall's lot and forecourt, level
   const strip = guard('shore strip', () => { const s = S.shore?.shoreStrip?.(map); return s ? { A: s.A, B: s.B, y0: S.shore.STRIP.y0, y1: S.shore.STRIP.y1 } : null; });
   if (S.signs?.ukrainianSigns) T.signs = guard('signs', () => S.signs.ukrainianSigns()); // storefront bands in Ukrainian
   const facadeMat = createFacadeMaterial(T), detailMat = createDetailMaterial(T);
@@ -123,7 +128,11 @@ export async function buildCherkasy({ scene, renderer, onProgress = null, params
     ['beaches', 'BEACH_SKIP'], ['yachtclub', 'YACHT_SKIP'], ['zhuzhoma', 'ZHU_SKIP'], ['khimikiv', 'KHIM_SKIP'], ['druzhba', 'DRUZHBA_SKIP'], ['kobzar', 'KOBZAR_SKIP'], ['museum', 'MUSEUM_SKIP'], ['market', 'MARKET_SKIP'], ['wedding', 'WEDDING_SKIP'], ['bohdan', 'BOHDAN_SKIP'], ['philharmonic', 'PHIL_SKIP'], ['bilyidim', 'BILYIDIM_SKIP'], ['lotus', 'LOTUS_SKIP'], ['station', 'STATION_SKIP'],
     ['simeinyi', 'SIMEINYI_SKIP'], ['fitness34', 'FIT34_SKIP'], ['torhivli', 'TORHIVLI_SKIP'], ['chnu', 'CHNU_SKIP'], ['chdtu', 'CHDTU_SKIP'], ['bankinst', 'BANK_SKIP'], ['khrcity', 'KHRCITY_SKIP'],
     ['spartak', 'SPARTAK_SKIP'], ['pioner', 'PIONER_SKIP'], ['slavutych', 'SLAVUTYCH_SKIP'], ['lyubava', 'LYUBAVA_SKIP'],
-    ['budivelnyk', 'BUD_SKIP'], ['grandmarket', 'GRANDMARKET_SKIP'], ['epicentr', 'EPICENTR_SKIP'], ['dytlikarnya', 'DYTLIK_SKIP']]) for (const id of S[mod]?.[key] ?? []) skip.add(id);
+    ['budivelnyk', 'BUD_SKIP'], ['grandmarket', 'GRANDMARKET_SKIP'], ['epicentr', 'EPICENTR_SKIP'], ['dytlikarnya', 'DYTLIK_SKIP'],
+    ['hoteldnipro', 'HOTEL_SKIP'],
+    ['dniproplaza', 'DP_SKIP'],
+    ['depot', 'DEPOT_SKIP'],
+    ['politekhkoledzh', 'POLITEKH_SKIP']]) for (const id of S[mod]?.[key] ?? []) skip.add(id);
   let groundDone = false, bldF = 0;
   const report = () => onProgress?.(0.15 + 0.55 * (0.3 * (groundDone ? 1 : 0) + 0.7 * bldF), `Рельєф, вулиці, будинки… ${Math.round(100 * (0.3 * (groundDone ? 1 : 0) + 0.7 * bldF))}%`);
   const groundP = buildGroundAsync({ scene: root, T, map, hf, strip, renderer, mapUrl: url('map.json') }).then((g) => { groundDone = true; report(); return g; });
@@ -145,7 +154,11 @@ export async function buildCherkasy({ scene, renderer, onProgress = null, params
     ['ChNU', 'chnu', 'buildChnu'], ['ChDTU', 'chdtu', 'buildChdtu'], ['Banking institute', 'bankinst', 'buildBankInst'],
     ['Khreshchatyk City', 'khrcity', 'buildKhrCity'],
     ['Spartak', 'spartak', 'buildSpartak'], ['Pioneer', 'pioner', 'buildPioner'], ['Slavutych', 'slavutych', 'buildSlavutych'], ['Lyubava', 'lyubava', 'buildLyubava'],
-    ['Budivelnyk sports palace', 'budivelnyk', 'buildBudivelnyk'], ['Grand Market', 'grandmarket', 'buildGrandMarket'], ['Epicentr', 'epicentr', 'buildEpicentr'], ["Children's hospital", 'dytlikarnya', 'buildDytlikarnya']];
+    ['Budivelnyk sports palace', 'budivelnyk', 'buildBudivelnyk'], ['Grand Market', 'grandmarket', 'buildGrandMarket'], ['Epicentr', 'epicentr', 'buildEpicentr'], ["Children's hospital", 'dytlikarnya', 'buildDytlikarnya'],
+    ['Hotel Dnipro', 'hoteldnipro', 'buildHotelDnipro'],
+    ['Dnipro Plaza', 'dniproplaza', 'buildDniproPlaza'],
+    ["DEPO't Center", 'depot', 'buildDepot'],
+    ['Polytechnic college', 'politekhkoledzh', 'buildPolitekh']];
   const built = list.map(() => null);
   const runSites = async (late) => {
     for (const [i, [label, mod, fn]] of list.entries()) {
