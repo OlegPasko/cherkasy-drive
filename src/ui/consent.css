@@ -16,5 +16,6 @@
 .consent button:hover:not(:disabled) { transform: translateY(-1px); }
 .consent button:disabled { opacity: .45; cursor: progress; }
 .consent button:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
+.consent .c-next { grid-column: 1 / -1; text-align: center; font-size: 14px; opacity: .85; margin-top: -6px; }
 .consent .c-foot { grid-column: 1 / -1; text-align: center; font-size: 12px; opacity: .45; }
 @media (max-width: 760px) { .consent { grid-template-columns: minmax(0, 520px); } }

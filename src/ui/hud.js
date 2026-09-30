@@ -44,7 +44,6 @@ const MAP_HZ = 25, DPR_MAX = 1.75;
 // minimap street names: small, one per street and a few in all, centred on anchors every STREET_STEP metres along the street
 // (fixed in the world, so a name rides with the map instead of sliding along its street)
 const STREET_FONT = '600 9.5px system-ui, -apple-system, "Segoe UI", sans-serif', STREET_STEP = 30, STREET_MAX = 5;
-const HELP_SECONDS = 28;
 // the controls card: [group, [[keys, what it does], ...]]; keys: ' / ' separates alternatives, a run of short symbols
 // ('+ −') becomes one keycap each
 const HELP = [
@@ -106,7 +105,7 @@ export function createHud({ player, world, camera, container = globalThis.docume
   const mapG = el.map.getContext('2d'), cmpG = el.compass.getContext('2d');
 
   // ---------------------------------------------------------------- state
-  let visible = true, helpOn = true, helpForced = false, helpT = HELP_SECONDS;
+  let visible = true, helpOn = false; // the card opens on H only: the consent card on the loading screen already names H
   let objective = null, markers = [];
   let size = { w: 1, h: 1, mw: 1, mh: 1, cw: 1, ch: 1, dpr: 1 };
   let mapAcc = 1;
@@ -442,7 +441,7 @@ export function createHud({ player, world, camera, container = globalThis.docume
     },
     root, // the HUD layer: other overlays that should hide with F2 go in here
     map: bigmap, painter, // painter: debug handle (tiles, places, street chains)
-    showHelp(v) { helpForced = true; helpOn = !!v; applyHelp(); },
+    showHelp(v) { helpOn = !!v; applyHelp(); },
     toggleHelp() { // with the HUD hidden (F2) H brings it back with the card open
       if (!visible) { hud.setVisible(true); hud.showHelp(true); } else hud.showHelp(!helpOn);
     },
@@ -452,7 +451,6 @@ export function createHud({ player, world, camera, container = globalThis.docume
       if ((toastT -= dt) <= 0 && toastT > -1) { el.toast.classList.remove('on'); toastT = -1; }
       if (sideT > 0 && (sideT -= dt) <= 0) setClass(el.panel, 'side', true);
       if (bigmap.isOpen) { bigmap.update(dt); mapAcc = 1; return; }
-      if (!helpForced && helpOn && (helpT -= dt) <= 0) { helpOn = false; applyHelp(); }
       if (!visible) return;
       const f = cameraForward();
       const yaw = -Math.PI / 2 - Math.atan2(f.z, f.x);
