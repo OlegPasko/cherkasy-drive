@@ -89,6 +89,7 @@
   white-space: nowrap; opacity: 0; transition: opacity .4s, transform .4s; pointer-events: none; }
 .hud-fly.on { opacity: 1; transform: translate(-50%, 0); }
 .hud-fly kbd { margin-right: 3px; }
+.hud-turbo kbd { margin: 0 3px; }
 
 /* the slow-frame offer (perfhint.js): a small pill at the bottom centre, clickable while it offers */
 .hud-perf { position: absolute; left: 50%; bottom: 3.2vh; transform: translate(-50%, 8px); padding: 7px 14px; border-radius: 999px;

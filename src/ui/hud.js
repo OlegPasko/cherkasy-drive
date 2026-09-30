@@ -19,7 +19,9 @@
 //   hud.update(dt)                         per frame: objective projection + compass every frame, map at ~25 Hz;
 //                                          while the big map is open only the big map (the game is paused meanwhile)
 //   hud.setTelemetry(state, vF, camMode)   the car's per-frame readout (state: grounded, alt, gear, wing, airT, stall,
-//                                          airbrake); in flight it also shows the "S – glide down" tip
+//                                          airbrake); in flight it also shows the "S – glide down" tip, and a minute
+//                                          into the ride the "hold Shift – turbo" tip for a minute or until the wings
+//                                          come out (never again once Shift was used: cherkasy.turbo in localStorage)
 //   hud.setObjective(pos | null)           world position (copied); non-finite -> cleared
 //   hud.setMarkers([{ x, z, color, label }])  replaces the mission markers (minimap discs)
 //   hud.setExplore(n, total, flash?)       the "📍 n / total пам’яток" counter under the money (a click opens the map)
@@ -83,6 +85,7 @@ export function createHud({ player, world, camera, container = globalThis.docume
       <div class="row"><span class="bl"></span><div class="bar"><i></i></div><div class="tm"></div></div></div>
     <div class="hud-toast"></div><div class="hud-banner"></div><div class="hud-hint"></div>
     <div class="hud-fly"><kbd>S</kbd> – скинути швидкість і спланувати вниз</div>
+    <div class="hud-fly hud-turbo">Натисни й тримай <kbd>Shift</kbd> для турборежиму</div>
     <button class="hud-helpkey" type="button" title="Керування (H)"><kbd>H</kbd><span>Керування</span></button>
     <a class="hud-botkey" href="${botLink()}" target="_blank" rel="noopener" title="Telegram-бот гри"><i>✈</i><span>Бот</span></a>
     <button class="hud-homekey" type="button" title="Повернутись на старт (B)"><kbd>B</kbd><span>На старт</span></button>
@@ -100,7 +103,7 @@ export function createHud({ player, world, camera, container = globalThis.docume
     compass: $('.hud-compass'), map: $('.hud-map'), pin: $('.hud-pin'), pinMk: $('.hud-pin .mk'), pinD: $('.hud-pin .d'),
     money: $('.hud-money'), moneyV: $('.hud-money span'), panel: $('.hud-panel'), ttl: $('.hud-panel .ttl'), obj: $('.hud-panel .obj'),
     bl: $('.hud-panel .bl'), bar: $('.hud-panel .bar'), barI: $('.hud-panel .bar i'), tm: $('.hud-panel .tm'),
-    toast: $('.hud-toast'), banner: $('.hud-banner'), hint: $('.hud-hint'), fly: $('.hud-fly'), help: $('.hud-help'), helpKey: $('.hud-helpkey'), botKey: $('.hud-botkey'), newsKey: $('.hud-newskey'), homeKey: $('.hud-homekey'), radioKey: $('.hud-radiokey'), radioT: $('.hud-radiokey span'), radioNext: $('.hud-radionext'), mapKey: $('.hud-mapkey'),
+    toast: $('.hud-toast'), banner: $('.hud-banner'), hint: $('.hud-hint'), fly: $('.hud-fly:not(.hud-turbo)'), turbo: $('.hud-turbo'), help: $('.hud-help'), helpKey: $('.hud-helpkey'), botKey: $('.hud-botkey'), newsKey: $('.hud-newskey'), homeKey: $('.hud-homekey'), radioKey: $('.hud-radiokey'), radioT: $('.hud-radiokey span'), radioNext: $('.hud-radionext'), mapKey: $('.hud-mapkey'),
     explore: $('.hud-explore'), exploreN: $('.hud-explore b'), exploreT: $('.hud-explore span'),
   };
   const mapG = el.map.getContext('2d'), cmpG = el.compass.getContext('2d');
@@ -389,8 +392,13 @@ export function createHud({ player, world, camera, container = globalThis.docume
   };
 
   // ---------------------------------------------------------------- telemetry (the car calls this every frame)
-  let camMode = 'chase', telT = 0, flyUsed = false, flyLearned = 0;
+  let camMode = 'chase', telT = 0, flyUsed = false, flyLearned = 0, playT = 0;
+  let turboKnown = false;
+  try { turboKnown = localStorage.getItem('cherkasy.turbo') === '1'; } catch {}
   function setTelemetry(s, vF, mode) {
+    // the Shift tip: from 60 s to 120 s of play (map time does not count), until the wings first come out
+    if (!turboKnown && s.wing > 0.05) { turboKnown = true; try { localStorage.setItem('cherkasy.turbo', '1'); } catch {} }
+    setClass(el.turbo, 'on', !turboKnown && playT > 60 && playT < 120);
     // the S tip while really flying (wings out, a second in); gone for the flight once S is used, for good after 3 times
     if (s.grounded) flyUsed = false;
     else if (s.airbrake && !flyUsed) { flyUsed = true; flyLearned++; }
@@ -453,6 +461,7 @@ export function createHud({ player, world, camera, container = globalThis.docume
       if ((toastT -= dt) <= 0 && toastT > -1) { el.toast.classList.remove('on'); toastT = -1; }
       if (sideT > 0 && (sideT -= dt) <= 0) setClass(el.panel, 'side', true);
       if (bigmap.isOpen) { bigmap.update(dt); mapAcc = 1; return; }
+      playT += dt;
       if (!visible) return;
       const f = cameraForward();
       const yaw = -Math.PI / 2 - Math.atan2(f.z, f.x);
