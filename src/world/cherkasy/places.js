@@ -32,6 +32,7 @@ export const PLACES = [
   { id: 'hoteldnipro', kind: 'improved', name: 'Покращений об’єкт', note: 'вул. Верхня Горова, 13', bld: [402917283] },
   { id: 'dniproplaza', kind: 'improved', name: 'Покращений об’єкт', note: 'вул. Припортова, 34', bld: [94983922] },
   { id: 'depot', kind: 'improved', name: 'Покращений об’єкт', note: 'бульв. Шевченка, 385', bld: [398694732] },
+  { id: 'politekhkoledzh', kind: 'improved', name: 'Покращений об’єкт', note: 'вул. Надпільна, 226', bld: [155200995] },
   // sights
   { id: 'mykhailo', kind: 'sight', name: 'Свято-Михайлівський собор', icon: '⛪', bld: [242469769] },
   { id: 'troitsky', kind: 'sight', name: 'Свято-Троїцький собор', icon: '⛪', bld: [157432721] },
