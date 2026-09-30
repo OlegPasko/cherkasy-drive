@@ -58,7 +58,7 @@ const SITE_MODULES = import.meta.glob(['./landmarks.js', './frame.js', './restin
   './budivelnyk.js', './grandmarket.js', './epicentr.js', './dytlikarnya.js',
   './hoteldnipro.js', './dniproplaza.js', './depot.js', './politekhkoledzh.js',
   './podatkova.js', './school17.js', './kinoukraina.js', './chnu3.js',
-  './miskrada.js', './poshtamt.js', './oblbiblioteka.js', './medakademia.js']);
+  './miskrada.js', './poshtamt.js', './oblbiblioteka.js', './medakademia.js', './balloon.js']);
 async function loadSites() {
   const out = {};
   await Promise.all(Object.entries(SITE_MODULES).map(async ([path, load]) => {
@@ -156,7 +156,8 @@ export async function buildCherkasy({ scene, renderer, onProgress = null, params
     ['Budivelnyk sports palace', 'budivelnyk', 'buildBudivelnyk'], ['Grand Market', 'grandmarket', 'buildGrandMarket'], ['Epicentr', 'epicentr', 'buildEpicentr'], ["Children's hospital", 'dytlikarnya', 'buildDytlikarnya'],
     ['Hotel Dnipro', 'hoteldnipro', 'buildHotelDnipro'], ['Dnipro Plaza', 'dniproplaza', 'buildDniproPlaza'], ["DEPO't Center", 'depot', 'buildDepot'], ['Polytechnic college', 'politekhkoledzh', 'buildPolitekh'],
     ['Tax office', 'podatkova', 'buildPodatkova'], ['School 17', 'school17', 'buildSchool17'], ['Kino Ukraina', 'kinoukraina', 'buildKinoUkraina'], ['ChNU building 3', 'chnu3', 'buildChnu3'],
-    ['City council', 'miskrada', 'buildMiskrada'], ['Head post office', 'poshtamt', 'buildPoshtamt'], ['Regional library', 'oblbiblioteka', 'buildOblBiblioteka'], ['Medical academy', 'medakademia', 'buildMedAkademia']];
+    ['City council', 'miskrada', 'buildMiskrada'], ['Head post office', 'poshtamt', 'buildPoshtamt'], ['Regional library', 'oblbiblioteka', 'buildOblBiblioteka'], ['Medical academy', 'medakademia', 'buildMedAkademia'],
+    ['Balloon', 'balloon', 'buildBalloon']];
   const built = list.map(() => null);
   const runSites = async (late) => {
     for (const [i, [label, mod, fn]] of list.entries()) {

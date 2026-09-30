@@ -1,0 +1,127 @@
+// OWNER: cherkasy. A hot-air balloon over the Rose Valley lawn, the kind the city's balloon festivals fly there, half
+// again the size of a usual one (envelope ~24 m across, ~30 m tall) and floating a little higher than the tethered
+// festival balloons. The envelope wears the Zhuzhomy 4 "pixel" tower's palette (maroon / red / orange / yellow cells on
+// white, zhuzhoma.js) and an equator band that sells the space on it: "Реклама на кулі – за донат" + the bot's handle
+// (the bot's `ad-balloon` flow). It bobs and turns slowly so the band reads from every side; at night the burner
+// fires now and then and the envelope glows from inside.
+//   buildBalloon({ root, solids, heightAt }) -> { update(dt), clear(x, z), balloon: { x, z, y } } | null
+import * as THREE from 'three';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { nightK } from '../../render/daylight.js';
+import { canvasTex } from './sculpt.js';
+
+const AT = [760, -200];            // map x, z: the open lawn of the Rose Valley, below Pagorb Slavy
+const LIFT = 70;                   // basket bottom over the ground (the festival balloons hang ~20–50 m up)
+const R = 12, H = 30, ROPE = 5.2;  // envelope radius / height (1.5 x a 2200 m³ balloon), throat-to-basket cables
+const GORES = 16, ROWS = 18;       // envelope panels round and up (the pixel cells follow them)
+const BAND = [0.47, 0.71];         // the lettered band, as a share of the profile's arc length
+// the pixel tower's palette: weight, colour (null = white), as in zhuzhoma.js
+const CELLS = [[6.5, null], [2.2, '#7a2a44'], [1.1, '#b8404f'], [1.6, '#dd7a43'], [1.3, '#e6bd46']];
+const WHITE = '#efede7', MAROON = '#7a2a44';
+const TEXT = ['РЕКЛАМА НА КУЛІ', '– ЗА ДОНАТ –'], HANDLE = '@driver_game_bot';
+
+// radius (share of R) over height (share of H) from the throat up: a teardrop with the widest point at ~2/3
+const PROFILE = [[0.15, 0], [0.24, 0.05], [0.42, 0.15], [0.62, 0.27], [0.8, 0.39], [0.93, 0.5], [0.99, 0.6], [1, 0.67],
+  [0.97, 0.75], [0.88, 0.84], [0.72, 0.91], [0.5, 0.96], [0.26, 0.99], [0, 1]];
+
+function hash(a, b) { const s = Math.sin(a * 127.1 + b * 311.7) * 43758.5453; return s - Math.floor(s); }
+function pick(u) { let t = CELLS.reduce((s, c) => s + c[0], 0) * u; for (const [w, c] of CELLS) { if ((t -= w) < 0) return c; } return null; }
+
+export function buildBalloon({ root, solids: S, heightAt }) {
+  const t0 = performance.now();
+  const [x, z] = AT, y0 = heightAt(x, z) + LIFT;
+  // smooth profile through the control points, then a lathe with uv v = arc length share (so cells keep their size)
+  const curve = new THREE.SplineCurve(PROFILE.map(([r, h]) => new THREE.Vector2(r * R, h * H)));
+  const pts = curve.getSpacedPoints(40);
+  pts[pts.length - 1].x = 0;
+  const env = new THREE.LatheGeometry(pts, 48);
+  // the throat sits ROPE over the basket top (1.4 m) – the whole rig hangs from one group at the basket bottom
+  env.translate(0, 1.4 + ROPE, 0);
+
+  // envelope skin: gores round (u), rows up (v); the lathe's v runs along the spaced points, i.e. arc length
+  const W = 2048, Hh = 1024;
+  const skin = canvasTex(W, Hh, (g) => {
+    const gw = W / GORES, rh = Hh / ROWS;
+    g.fillStyle = WHITE; g.fillRect(0, 0, W, Hh);
+    for (let i = 0; i < GORES * 2; i++) for (let j = 0; j < ROWS; j++) { // two pixel columns per gore
+      const v = (j + 0.5) / ROWS; if (v > BAND[0] - 0.02 && v < BAND[1] + 0.02) continue;
+      const c = v > 0.9 ? MAROON : pick(hash(i >> 0, j)); if (!c) continue;
+      g.fillStyle = c; g.fillRect(i * gw / 2, Hh - (j + 1) * rh, gw / 2 + 1, rh + 1);
+    }
+    g.fillStyle = MAROON; g.fillRect(0, Hh * (1 - 0.06), W, Hh * 0.06); // the scoop round the throat
+    // the band: white with maroon rules, the offer three times round (a third of the girth faces the viewer)
+    const b0 = Hh * (1 - BAND[1]), b1 = Hh * (1 - BAND[0]), bh = b1 - b0;
+    g.fillStyle = '#fbfaf6'; g.fillRect(0, b0, W, bh);
+    g.fillStyle = MAROON; g.fillRect(0, b0, W, bh * 0.07); g.fillRect(0, b1 - bh * 0.07, W, bh * 0.07);
+    g.textAlign = 'center'; g.textBaseline = 'middle';
+    for (const k of [0, 1, 2]) {
+      const cx = W * (1 / 6 + k / 3), font = (w, px) => `${w} ${Math.round(px)}px system-ui, "Helvetica Neue", Arial, sans-serif`;
+      g.fillStyle = MAROON; g.font = font(900, bh * 0.27);
+      g.fillText(TEXT[0], cx, b0 + bh * 0.27, W * 0.27); g.fillText(TEXT[1], cx, b0 + bh * 0.55, W * 0.27);
+      g.fillStyle = '#d0672f'; g.font = font(800, bh * 0.17);
+      g.fillText(HANDLE, cx, b0 + bh * 0.8, W * 0.25);
+    }
+    g.fillStyle = 'rgba(60,40,40,0.35)'; // load-tape seams between the gores
+    for (let i = 0; i < GORES; i++) g.fillRect(i * gw - 1, 0, 3, Hh);
+  }, { repeat: false });
+  const envMat = new THREE.MeshStandardMaterial({ map: skin, emissiveMap: skin, emissive: 0xffb070, emissiveIntensity: 0, roughness: 0.75, side: THREE.DoubleSide });
+  const envMesh = new THREE.Mesh(env, envMat);
+  envMesh.castShadow = true;
+
+  // basket, burner frame and the cables from the throat to the basket corners
+  const parts = [];
+  const box = (w, h, d, px, py, pz) => parts.push(new THREE.BoxGeometry(w, h, d).translate(px, py, pz));
+  box(2.2, 1.4, 1.7, 0, 0.7, 0);                   // wicker basket
+  box(2.4, 0.16, 1.9, 0, 1.42, 0);                  // leather rim
+  box(1.1, 0.5, 0.9, 0, 1.4 + ROPE * 0.55, 0);      // burner block
+  const top = 1.4 + ROPE, rt = PROFILE[0][0] * R;
+  for (let i = 0; i < 8; i++) {                     // cables: throat ring to the basket's corners / burner frame
+    const a = (i / 8) * Math.PI * 2, tx = Math.cos(a) * rt, tz = Math.sin(a) * rt;
+    const bx = Math.sign(Math.cos(a)) * 1.05 * (Math.abs(Math.cos(a)) > 0.3 ? 1 : 0.5), bz = Math.sign(Math.sin(a)) * 0.8 * (Math.abs(Math.sin(a)) > 0.3 ? 1 : 0.5);
+    const p0 = new THREE.Vector3(bx, 1.45, bz), p1 = new THREE.Vector3(tx, top, tz), len = p0.distanceTo(p1);
+    const c = new THREE.CylinderGeometry(0.03, 0.03, len, 4);
+    c.applyMatrix4(new THREE.Matrix4().lookAt(p0, p1, new THREE.Vector3(0, 1, 0)).multiply(new THREE.Matrix4().makeRotationX(-Math.PI / 2)));
+    c.translate((p0.x + p1.x) / 2, (p0.y + p1.y) / 2, (p0.z + p1.z) / 2);
+    parts.push(c);
+  }
+  const rig = mergeGeometries(parts.map((g) => g.toNonIndexed()));
+  const n = rig.attributes.position.count, col = new Float32Array(n * 3), wicker = new THREE.Color('#8a6238'), dark = new THREE.Color('#3a3634');
+  for (let i = 0; i < n; i++) { const c = rig.attributes.position.getY(i) < 1.6 ? wicker : dark; col.set([c.r, c.g, c.b], i * 3); }
+  rig.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  const rigMesh = new THREE.Mesh(rig, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.9 }));
+  rigMesh.castShadow = true;
+
+  // the burner flame: an additive cone that shows during a burst
+  const flameMat = new THREE.MeshBasicMaterial({ color: 0xffa040, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false });
+  const flame = new THREE.Mesh(new THREE.ConeGeometry(0.35, 2.6, 10, 1, true).translate(0, 1.4 + ROPE * 0.55 + 1.5, 0), flameMat);
+  flame.visible = false;
+
+  const group = Object.assign(new THREE.Group(), { name: 'balloon' });
+  group.add(envMesh, rigMesh, flame);
+  group.position.set(x, y0, z);
+  root.add(group);
+
+  // collision at the mean position (the bob is ±1.2 m): the envelope as two frustums, the basket as a short cylinder
+  const yT = y0 + 1.4 + ROPE, yM = yT + 0.67 * H;
+  S?.cyl(x, z, yT, yM, PROFILE[0][0] * R, R * 0.97, 'wall');
+  S?.cyl(x, z, yM, yT + H, R * 0.97, 1, 'wall');
+  S?.cyl(x, z, y0 - 1.2, y0 + 2.8, 1.4, 1.4, 'wall');
+
+  let t = 0, burst = 0, nextBurst = 3;
+  console.log(`[cherkasy] Balloon: at ${x}, ${z}, basket ${LIFT} m up, envelope ${2 * R} x ${H} m, ${(env.attributes.position.count + n) / 1000 | 0}k verts in ${(performance.now() - t0).toFixed(0)} ms`);
+  return {
+    balloon: { x, z, y: y0 },
+    clear: () => false,
+    update(dt) {
+      t += dt;
+      group.position.y = y0 + Math.sin(t * 0.3) * 1.2;
+      group.rotation.y = t * 0.035;                              // a full turn in ~3 min: the band shows every side
+      group.rotation.z = Math.sin(t * 0.21) * 0.012;
+      if ((nextBurst -= dt) < 0) { burst = 1.6 + Math.random() * 1.2; nextBurst = 7 + Math.random() * 9; }
+      burst = Math.max(0, burst - dt);
+      const on = burst > 0 ? 0.75 + 0.25 * Math.sin(t * 40) : 0, nk = nightK.value;
+      flame.visible = on > 0; flameMat.opacity = on * 0.9;
+      envMat.emissiveIntensity = nk * (0.05 + 0.45 * on);        // the night glow: the envelope lights up on each burst
+    },
+  };
+}

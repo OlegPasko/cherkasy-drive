@@ -74,6 +74,8 @@ See `ARCHITECTURE.md` for the module map. Where things live:
     lines. `world.places` is the resolved list. Only paid placements are ads: today U space (the south tower of the
     Rest Inn block) and Everlabs (the offices over the hotel next to it, a lit logo on the roof), both built in
     `restinn.js`; the other hand-built venues stay in the world unadvertised.
+  - `balloon.js` – a hot-air balloon in the pixel tower's colours over the Rose Valley lawn, its band offering the space
+    on it for a donation (the bot's `ad-balloon` flow); it bobs, turns and fires its burner (a night glow).
   - `billboards.js` – roadside billboards sold through the bot: the `BILLBOARDS` list (spot, facing, art) and the
     builder; unsold ones show the "ваша реклама / @driver_game_bot" placeholder. The header says how to add a real one.
 - `src/npc/` – everything that moves on its own:
