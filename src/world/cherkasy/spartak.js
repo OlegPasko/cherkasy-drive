@@ -3,7 +3,7 @@
 // are the Soviet original, kept plain). A two-storey-high modernist box on Dashkovycha: the ground floor glazed and set
 // back under a long, deep cantilever canopy with the «СПАРТАК» letters on its fascia; above it a row of tall narrow
 // windows between flat piers. At the south-west end a taller blank block steps forward, its street face carrying the
-// athletes sgraffito; a low service annex with a brown roof sits behind the hall. Windows light up at night.
+// athletes sgraffito (a framed low-relief panel); a low service annex with a brown roof sits behind the hall. Windows light up at night.
 //   SPARTAK_SKIP: the OSM id replaced here (buildings.js skips it)
 //   buildSpartak({ root, map, solids, zips, heightAt }) -> { update(dt), clear(x, z), footprints } | null
 // The footprint is axis-aligned in map metres, so the three volumes are map rectangles; walls are laid per face in an
@@ -30,25 +30,55 @@ const renderTex = (r) => canvasTex(128, 128, (g, w, h) => {
   g.fillStyle = '#f2f0ea'; g.fillRect(0, 0, w, h);
   for (let i = 0; i < 700; i++) { g.fillStyle = r() < 0.5 ? 'rgba(255,255,255,0.35)' : 'rgba(80,70,60,0.07)'; g.fillRect(r() * w, r() * h, 1 + r() * 2, 1 + r() * 2); }
 });
-// atlas 1024 x 1024, transparent: top quarter the fascia letters, the rest the sgraffito (runner, gymnasts in scratched
-// terracotta lines), both cut out by alphaTest so the render shows between the lines
-const artTex = () => canvasTex(1024, 1024, (g) => {
+// atlas 1024 x 1280: the top 256 px the fascia letters (transparent round them, cut by alphaTest), below them the
+// square sgraffito panel in the manner of the 1970s sports reliefs: two athletes (a runner and a javelin thrower)
+// as solid terracotta silhouettes cut through a warm plaster skin, each with a dark undercut and a
+// light edge so they read as low relief, over an ochre sun disc and layered ground bands, inside a scored border
+const ART_V = 1024 / 1280; // v of the line between the panel (below) and the letters (above)
+const artTex = () => canvasTex(1024, 1280, (g) => {
   g.clearRect(0, 0, 1024, 256);
   g.font = 'bold 190px "Arial Black", Arial, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
   g.fillStyle = '#1f3f7a'; g.fillText('СПАРТАК', 512, 132, 980);
-  g.strokeStyle = '#9a4f37'; g.lineCap = 'round'; g.lineJoin = 'round';
-  const fig = (x, y, s, pose) => { // stick-and-ribbon figure: head, torso, two arms, two legs
-    g.lineWidth = 14 * s;
-    g.beginPath(); g.arc(x, y, 26 * s, 0, Math.PI * 2); g.stroke();
-    const [hx, hy] = [x + pose[0] * s, y + 150 * s];
-    g.beginPath(); g.moveTo(x, y + 28 * s); g.lineTo(hx, hy); g.stroke();
-    for (const [ax, ay, bx, by] of pose.slice(1)) { g.beginPath(); g.moveTo(ax > 0 ? x : hx, ax > 0 ? y + 60 * s : hy); g.quadraticCurveTo(x + ax * s, y + ay * s, x + bx * s, y + by * s); g.stroke(); }
+  const r = rng(1979);
+  g.save(); g.translate(0, 256);
+  g.fillStyle = '#cfc4b0'; g.fillRect(0, 0, 1024, 1024);
+  for (let i = 0; i < 5000; i++) { g.fillStyle = r() < 0.5 ? 'rgba(255,250,240,0.18)' : 'rgba(90,70,50,0.08)'; g.fillRect(r() * 1024, r() * 1024, 2 + r() * 3, 2 + r() * 3); }
+  // sun disc with rays, ground layers
+  g.fillStyle = '#bfa073'; g.beginPath(); g.arc(560, 330, 250, 0, Math.PI * 2); g.fill();
+  g.strokeStyle = '#bfa073'; g.lineWidth = 10;
+  for (let k = 0; k < 16; k++) { const a = k * Math.PI / 8; g.beginPath(); g.moveTo(560 + Math.cos(a) * 270, 330 + Math.sin(a) * 270); g.lineTo(560 + Math.cos(a) * 330, 330 + Math.sin(a) * 330); g.stroke(); }
+  for (const [y, h, c] of [[800, 60, '#b9ab93'], [860, 42, '#8f7a64'], [902, 70, '#b9ab93']]) { g.fillStyle = c; g.fillRect(70, y, 884, h); }
+  g.strokeStyle = 'rgba(60,40,30,0.35)'; g.lineWidth = 3;
+  for (let x = 90; x < 950; x += 26) { g.beginPath(); g.moveTo(x, 905); g.lineTo(x + 30, 968); g.stroke(); } // scored hatching
+  // a figure is a skeleton of named joints; limbs are tapered bands with rounded ends, the torso a polygon from the
+  // shoulders to the hips; it is drawn three times (undercut, body, lit edge) so it reads as low relief
+  const band = (a, b, w0, w1) => {
+    const dx = b[0] - a[0], dy = b[1] - a[1], l = Math.hypot(dx, dy) || 1, nx = -dy / l, ny = dx / l;
+    g.beginPath(); g.moveTo(a[0] + nx * w0 / 2, a[1] + ny * w0 / 2); g.lineTo(b[0] + nx * w1 / 2, b[1] + ny * w1 / 2);
+    g.lineTo(b[0] - nx * w1 / 2, b[1] - ny * w1 / 2); g.lineTo(a[0] - nx * w0 / 2, a[1] - ny * w0 / 2); g.fill();
+    for (const [p, w] of [[a, w0], [b, w1]]) { g.beginPath(); g.arc(p[0], p[1], w / 2, 0, Math.PI * 2); g.fill(); }
   };
-  fig(300, 360, 1.3, [20, [120, 40, 190, -10], [-90, 90, -150, 40], [-60, 260, -20, 380], [-1, 300, 130, 350]]);
-  fig(700, 560, 1.1, [-10, [150, -20, 160, -120], [-150, -30, -160, -120], [-70, 290, -110, 390], [-1, 290, 90, 380]]);
-  fig(420, 800, 0.9, [40, [140, 60, 220, 20], [-110, 100, -160, 150], [-40, 250, 10, 320], [-1, 230, 140, 280]]);
-  g.lineWidth = 6; g.strokeStyle = '#b7836d';
-  for (let i = 0; i < 6; i++) { g.beginPath(); g.moveTo(80 + i * 150, 1000); g.bezierCurveTo(200 + i * 120, 880, 60 + i * 140, 700, 180 + i * 130, 300); g.stroke(); }
+  const body = (J, col, dx, dy, k) => {
+    const o = (p) => [p[0] + dx, p[1] + dy];
+    g.fillStyle = col;
+    g.beginPath(); [J.sl, J.sr, J.hr, J.hl].map(o).forEach((p, i) => (i ? g.lineTo(...p) : g.moveTo(...p))); g.closePath(); g.fill();
+    if (k === 1) { band(o(J.nk), o(J.hd), 30, 30); g.beginPath(); g.ellipse(...o(J.hd), 32, 38, J.tilt || 0, 0, Math.PI * 2); g.fill(); } // no lit edge on the head
+    for (const [s, e, h] of [['sl', 'el', 'hl2'], ['sr', 'er', 'hr2']]) { band(o(J[s]), o(J[e]), 36 * k, 26 * k); band(o(J[e]), o(J[h]), 26 * k, 17 * k); }
+    for (const [h, kn, f] of [['hl', 'kl', 'fl'], ['hr', 'kr', 'fr']]) { band(o(J[h]), o(J[kn]), 56 * k, 36 * k); band(o(J[kn]), o(J[f]), 36 * k, 20 * k); }
+  };
+  const relief = (J) => { body(J, '#4f2e24', 8, 8, 1); body(J, '#8e5a45', 0, 0, 1); body(J, '#b88a70', -5, -5, 0.28); };
+  // runner in full stride, leaning into it
+  relief({ hd: [362, 208], nk: [350, 255], sl: [300, 280], sr: [398, 288], hl: [298, 478], hr: [352, 478], tilt: 0.3,
+    el: [248, 372], hl2: [214, 452], er: [438, 368], hr2: [494, 312], kl: [242, 606], fl: [134, 648], kr: [458, 548], fr: [436, 700] });
+  // javelin thrower drawn back for the throw
+  g.strokeStyle = '#4f2e24'; g.lineWidth = 9; g.beginPath(); g.moveTo(975, 108); g.lineTo(560, 430); g.stroke();
+  relief({ hd: [702, 226], nk: [700, 270], sl: [648, 292], sr: [752, 290], hl: [664, 486], hr: [726, 486], tilt: -0.15,
+    el: [592, 336], hl2: [540, 300], er: [818, 236], hr2: [866, 184], kl: [616, 628], fl: [584, 792], kr: [770, 626], fr: [812, 792] });
+  g.strokeStyle = '#b88a70'; g.lineWidth = 3; g.beginPath(); g.moveTo(970, 106); g.lineTo(565, 424); g.stroke();
+  // scored double border
+  g.strokeStyle = '#6b4a3a'; g.lineWidth = 16; g.strokeRect(22, 22, 980, 980);
+  g.strokeStyle = 'rgba(107,74,58,0.7)'; g.lineWidth = 5; g.strokeRect(52, 52, 920, 920);
+  g.restore();
 }, { repeat: false, aniso: 16 });
 
 export function buildSpartak({ root, map, solids: S, zips: Z, heightAt }) {
@@ -118,11 +148,15 @@ export function buildSpartak({ root, map, solids: S, zips: Z, heightAt }) {
   const lw = 15, lm = lf * 0.55; // letters centred a little towards the tower, as in the photo
   const lt = [at(hf, lm - lw / 2, Y(CAN + 0.05), CAN_D + 0.02), at(hf, lm + lw / 2, Y(CAN + 0.05), CAN_D + 0.02), at(hf, lm + lw / 2, Y(CAN + 0.8), CAN_D + 0.02), at(hf, lm - lw / 2, Y(CAN + 0.8), CAN_D + 0.02)];
   const flip = hf.ux * hf.nz - hf.uz * hf.nx < 0, [ua, ub] = flip ? [1, 0] : [0, 1];
-  quad(B.art, ...lt, [hf.nx, 0, hf.nz], [[ua, 0.75], [ub, 0.75], [ub, 1], [ua, 1]]);
+  quad(B.art, ...lt, [hf.nx, 0, hf.nz], [[ua, ART_V], [ub, ART_V], [ub, 1], [ua, 1]]);
   // sgraffito on the tower's street face, over the lower two thirds
   const tf = T.n, fl = tf.ux * tf.nz - tf.uz * tf.nx < 0, [pa, pb] = fl ? [1, 0] : [0, 1];
-  quad(B.art, at(tf, 3.6, Y(1.8), 0.02), at(tf, tf.L - 1.0, Y(1.8), 0.02), at(tf, tf.L - 1.0, Y(H_T - 1.4), 0.02), at(tf, 3.6, Y(H_T - 1.4), 0.02), [tf.nx, 0, tf.nz],
-    [[pa, 0], [pb, 0], [pb, 0.75], [pa, 0.75]]);
+  const m0 = 3.6, m1 = tf.L - 1.0, my0 = Y(1.9), my1 = my0 + (m1 - m0); // a square panel
+  quad(B.art, at(tf, m0, my0, 0.06), at(tf, m1, my0, 0.06), at(tf, m1, my1, 0.06), at(tf, m0, my1, 0.06), [tf.nx, 0, tf.nz],
+    [[pa, 0], [pb, 0], [pb, ART_V], [pa, ART_V]]);
+  D.setColor('#cbbfa9'); // the raised stone frame round it
+  slab(D, tf, m0 - 0.3, m1 + 0.3, my0 - 0.3, my0, 0, 0.14, 'ftulr'); slab(D, tf, m0 - 0.3, m1 + 0.3, my1, my1 + 0.3, 0, 0.14, 'ftulr');
+  slab(D, tf, m0 - 0.3, m0, my0, my1, 0, 0.14, 'flr'); slab(D, tf, m1, m1 + 0.3, my0, my1, 0, 0.14, 'flr');
   // steps up to the arcade along the street
   const ps = at(hf, lf / 2, 0, CAN_D * 0.5), yS = heightAt(ps[0], ps[2]);
   if (yF - yS > 0.1) { D.setColor('#9d9a93'); for (let i = 1, n = Math.ceil((yF - yS) / 0.16); i < n; i++) slab(D, hf, 0.4, lf - 0.2, gB, yS + (yF - yS) * i / n, 0, 0.32 * (n - i), 'ft'); }

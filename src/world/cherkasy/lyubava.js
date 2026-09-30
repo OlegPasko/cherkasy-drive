@@ -26,6 +26,7 @@ const G0 = 5.2, TOP = 21.0, PARA = 0.6;          // ground floor (shopfronts), t
 const FZ0 = -221.7, FZ1 = -271.4;                // the boulevard front, south-east end to north-west end (map z)
 const RED_TO = -243.0, GREY_TO = -256.0;         // where the red and the grey pieces end
 const FRONT_X = -72;                             // faces looking +x east of this are the boulevard front
+const BAY_Z = -249.0;                            // middle of the entrance bay, between the ring's steps
 const UNIT = [8, 4.2];                           // banded cladding: metres per repeat
 const DARKGL = '#2f383d', FRAME = '#2a2c2e';
 
@@ -65,7 +66,8 @@ function paintFront(g, r, glow) {
     }
   } else { g.fillStyle = '#000'; g.fillRect(0, 0, W, H); }
   // logo on the grey piece: coloured squares scattered round a ring, the script loop over them
-  const cx = (xr + xg) / 2, cy = 0.33 * H, R = 3.4 * PXM, sq = 1.05 * PXM;
+  // centred on the entrance bay (the ring's 1.4 m step at z -253.2 would hide anything past it)
+  const cx = zPx(BAY_Z), cy = 0.33 * H, R = 3.4 * PXM, sq = 1.05 * PXM;
   for (let i = 0; i < 34; i++) {
     const a = r() * Math.PI * 2, d = Math.sqrt(r()) * R, x = cx + Math.cos(a) * d, y = cy + Math.sin(a) * d * (PXM / PYM) * 1.05;
     g.save(); g.translate(x, y); g.rotate((r() - 0.5) * 0.25);
@@ -79,7 +81,7 @@ function paintFront(g, r, glow) {
   g.bezierCurveTo(cx - 1.4 * PXM, cy - 2.0 * PYM, cx - 0.4 * PXM, cy + 2.4 * PYM, cx + 1.9 * PXM, cy + 3.0 * PYM); g.stroke();
   // «LUBAVA» under it
   g.font = `bold ${(1.9 * PYM) | 0}px "Arial Black", Arial, sans-serif`; g.textAlign = 'center'; g.textBaseline = 'middle';
-  g.fillStyle = '#ffffff'; g.fillText('LUBAVA', cx, 0.8 * H, (xg - xr) * 0.92);
+  g.fillStyle = '#ffffff'; g.fillText('LUBAVA', cx, 0.8 * H, 8.0 * PXM);
 }
 const frontTex = (seed, glow) => canvasTex(2048, 1024, (g) => paintFront(g, rng(seed), glow), { repeat: false, aniso: 16 });
 // banded cladding for the other walls, repeating: 8 m x 4.2 m with a ribbon window row
