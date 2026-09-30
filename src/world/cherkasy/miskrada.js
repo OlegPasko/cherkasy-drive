@@ -12,9 +12,9 @@
 import * as THREE from 'three';
 import { MB } from '../../kit/mesh.js';
 import { nightK } from '../../render/daylight.js';
-import { ringPts, rng, area2 } from './geo.js';
+import { ringPts, rng } from './geo.js';
 import { canvasTex, decal } from './sculpt.js';
-import { wallFaces, at, quad, skin, fbox, fsolid, wallAround, fillOpening, stoneTex, paveTex, paveRect, pack } from './civic.js';
+import { wallFaces, at, quad, skin, plate, fbox, fsolid, wallAround, fillOpening, rampSolid, stoneTex, paveTex, paveRect, pack } from './civic.js';
 
 const OSM_ID = 108383954;
 export const MISKRADA_SKIP = new Set([OSM_ID]);
@@ -129,7 +129,7 @@ export function buildMiskrada({ root, map, solids: S, zips: Z, heightAt }) {
   // arms on the blank panel of the tower's top office storey and the top floor over it
   {
     const m = (NC - 1.5) * CW, ah = 3.9, aw = ah * 256 / 320, y0 = fl(NO) + 0.9;
-    quad(B.arms, at(f, m - aw / 2, y0, 0.08), at(f, m + aw / 2, y0, 0.08), at(f, m + aw / 2, y0 + ah, 0.08), at(f, m - aw / 2, y0 + ah, 0.08), f.N, [[0, 0], [1, 0], [1, 1], [0, 1]]);
+    plate(B.arms, f, m - aw / 2, m + aw / 2, y0, y0 + ah, 0.08);
   }
 
   // ---- canopy over the entrance: a white slab on two tapered granite piers, steps along it
@@ -154,10 +154,8 @@ export function buildMiskrada({ root, map, solids: S, zips: Z, heightAt }) {
     B.det.setColor('#b3b0aa');
     for (let i = 1; i < nS; i++) fbox(B.det, f, c0 + 0.8, c1 - 2.4, gBase, yF - i * rise, dep - 1.3 + (i - 1) * 0.35, dep - 1.3 + i * 0.35, 1 | 4 | 8 | 16);
     // the car: a flat landing, then one ramp down the steps (its plane meets the floor at the landing's edge)
-    const o0 = dep - 1.3, sl = (yF - gFront) / (nS * 0.35);
-    const Q = [[c0 + 0.8, o0], [c1 - 2.4, o0], [c1 - 2.4, o0 + nS * 0.35], [c0 + 0.8, o0 + nS * 0.35]].map(([s, o]) => { const p = at(f, s, 0, o); return [p[0], p[2]]; });
-    const [ox, , oz] = at(f, 0, 0, o0), base = yF + sl * (ox * f.nx + oz * f.nz);
-    S.prism((area2(Q) < 0 ? Q.reverse() : Q).flat(), gBase, base, -sl * f.nx, -sl * f.nz, 'steps');
+    const o0 = dep - 1.3;
+    rampSolid(S, f, c0 + 0.8, c1 - 2.4, o0, o0 + nS * 0.35, yF, gFront, gBase);
     fsolid(S, f, c0, c1 - 1.6, -REC, o0, gBase, yF, 'steps');
   }
 
@@ -248,9 +246,9 @@ export function buildMiskrada({ root, map, solids: S, zips: Z, heightAt }) {
   for (const [w, s, y] of acs) fbox(B.det, w, s - 0.4, s + 0.4, y, y + 0.55, 0, 0.3, 1 | 4 | 8 | 16 | 32);
   // walls: the storeys over the full ring; the ground floor with its front pulled back to the glazing
   const fl0 = f.ax * f.nx + f.az * f.nz, inner = ring.map(([x, z]) => (Math.abs(x * f.nx + z * f.nz - fl0) < 0.3 ? [x - f.nx * REC, z - f.nz * REC] : [x, z]));
-  S.prism((area2(ring) < 0 ? ring.slice().reverse() : ring).flat(), fl(1) - 0.2, yTop, 0, 0, 'wall');
-  S.prism((area2(inner) < 0 ? inner.reverse() : inner).flat(), gBase, fl(1) - 0.2, 0, 0, 'wall');
-  S.prism((area2(high) < 0 ? high.slice().reverse() : high).flat(), yTop - 0.5, yTopT, 0, 0, 'wall');
+  S.prism(ring.flat(), fl(1) - 0.2, yTop, 0, 0, 'wall');
+  S.prism(inner.flat(), gBase, fl(1) - 0.2, 0, 0, 'wall');
+  S.prism(high.flat(), yTop - 0.5, yTopT, 0, 0, 'wall');
 
   // ---- meshes
   const M = {

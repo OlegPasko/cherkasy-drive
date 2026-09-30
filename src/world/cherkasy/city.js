@@ -54,7 +54,7 @@ const SITE_MODULES = import.meta.glob(['./landmarks.js', './frame.js', './restin
   './restaurants.js', './beaches.js', './yachtclub.js', './embankment.js', './prystan.js', './dam.js', './zhuzhoma.js', './shore.js',
   './signs.js', './facadekit.js', './khimikiv.js', './druzhba.js', './billboards.js', './zamkova.js', './kobzar.js', './museum.js', './market.js', './wedding.js', './bohdan.js', './philharmonic.js', './bilyidim.js', './lotus.js', './station.js', './lovebridge.js',
   './simeinyi.js', './fitness34.js', './torhivli.js', './chnu.js', './chdtu.js', './bankinst.js', './khrcity.js',
-  './miskrada.js']);
+  './miskrada.js', './poshtamt.js']);
 async function loadSites() {
   const out = {};
   await Promise.all(Object.entries(SITE_MODULES).map(async ([path, load]) => {
@@ -121,7 +121,7 @@ export async function buildCherkasy({ scene, renderer, onProgress = null, params
   for (const [mod, key] of [['landmarks', 'LANDMARK_SKIP'], ['restinn', 'HERO_SKIP'], ['yalynka', 'TREE_SKIP'], ['restaurants', 'RESTAURANT_SKIP'],
     ['beaches', 'BEACH_SKIP'], ['yachtclub', 'YACHT_SKIP'], ['zhuzhoma', 'ZHU_SKIP'], ['khimikiv', 'KHIM_SKIP'], ['druzhba', 'DRUZHBA_SKIP'], ['kobzar', 'KOBZAR_SKIP'], ['museum', 'MUSEUM_SKIP'], ['market', 'MARKET_SKIP'], ['wedding', 'WEDDING_SKIP'], ['bohdan', 'BOHDAN_SKIP'], ['philharmonic', 'PHIL_SKIP'], ['bilyidim', 'BILYIDIM_SKIP'], ['lotus', 'LOTUS_SKIP'], ['station', 'STATION_SKIP'],
     ['simeinyi', 'SIMEINYI_SKIP'], ['fitness34', 'FIT34_SKIP'], ['torhivli', 'TORHIVLI_SKIP'], ['chnu', 'CHNU_SKIP'], ['chdtu', 'CHDTU_SKIP'], ['bankinst', 'BANK_SKIP'], ['khrcity', 'KHRCITY_SKIP'],
-    ['miskrada', 'MISKRADA_SKIP']]) for (const id of S[mod]?.[key] ?? []) skip.add(id);
+    ['miskrada', 'MISKRADA_SKIP'], ['poshtamt', 'POSHTAMT_SKIP']]) for (const id of S[mod]?.[key] ?? []) skip.add(id);
   let groundDone = false, bldF = 0;
   const report = () => onProgress?.(0.15 + 0.55 * (0.3 * (groundDone ? 1 : 0) + 0.7 * bldF), `Рельєф, вулиці, будинки… ${Math.round(100 * (0.3 * (groundDone ? 1 : 0) + 0.7 * bldF))}%`);
   const groundP = buildGroundAsync({ scene: root, T, map, hf, strip, renderer, mapUrl: url('map.json') }).then((g) => { groundDone = true; report(); return g; });
@@ -142,7 +142,7 @@ export async function buildCherkasy({ scene, renderer, onProgress = null, params
     ['Simeinyi Lux', 'simeinyi', 'buildSimeinyi'], ['Fitness club 3-4', 'fitness34', 'buildFitness34'], ['Budynok torhivli', 'torhivli', 'buildTorhivli'],
     ['ChNU', 'chnu', 'buildChnu'], ['ChDTU', 'chdtu', 'buildChdtu'], ['Banking institute', 'bankinst', 'buildBankInst'],
     ['Khreshchatyk City', 'khrcity', 'buildKhrCity'],
-    ['City council', 'miskrada', 'buildMiskrada']];
+    ['City council', 'miskrada', 'buildMiskrada'], ['Head post office', 'poshtamt', 'buildPoshtamt']];
   const built = list.map(() => null);
   const runSites = async (late) => {
     for (const [i, [label, mod, fn]] of list.entries()) {

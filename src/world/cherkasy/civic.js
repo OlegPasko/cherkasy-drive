@@ -5,8 +5,10 @@
 //     face { ax, az, rx, rz, nx, nz, w, N, R, L, open: [] }: s runs to the viewer's right seen from outside, o outward
 //   at(f, s, y, o = 0) -> [x, y, z];  quad(D, a, b, c, d, n, uv?) (winding picked from n)
 //   skin(D, f, s0, s1, y0, y1, o = 0, uvm = [3, 3])   flat patch in the face plane, uv in metres / uvm
+//   plate(D, f, s0, s1, y0, y1, o)   one whole texture on a rectangle of the face (signs, emblems, reliefs)
 //   fbox(D, f, s0, s1, y0, y1, o0, o1, m = 63)   box in the face frame; m: 1 front, 2 back, 4 left, 8 right, 16 top, 32 bottom
 //   fsolid(S, f, s0, s1, o0, o1, y0, y1, kind, flags = 0)   collision prism over an s / o rectangle
+//   rampSolid(S, f, s0, s1, o0, o1, yHi, yLo, yBase)   one sloped prism over a flight of steps (yHi at o0)
 //   wallAround(D, f, y0, y1, uvm, colour)   the wall between y0 and y1 minus f.open ({ s0, s1, y0, y1 })
 //   fillOpening(B, f, q)   reveals, frame, mullions, glass (B.glass or B.lit); q { s0, s1, y0, y1, dep, frame, glass,
 //     lit, pane, rev, sill, low, lowCol, door }
@@ -62,6 +64,12 @@ export function skin(D, f, s0, s1, y0, y1, o = 0, uvm = [3, 3]) {
   const u0 = s0 / uvm[0], u1 = s1 / uvm[0], v0 = y0 / uvm[1], v1 = y1 / uvm[1];
   quad(D, at(f, s0, y0, o), at(f, s1, y0, o), at(f, s1, y1, o), at(f, s0, y1, o), f.N, [[u0, v0], [u1, v0], [u1, v1], [u0, v1]]);
 }
+// a picture (sign, emblem, relief) on a face: the whole texture over s0..s1 x y0..y1, standing o out of the wall
+const CARD = [[0, 0], [1, 0], [1, 1], [0, 1]];
+export function plate(D, f, s0, s1, y0, y1, o) {
+  const [p, q, u, v] = [[s0, y0], [s1, y0], [s1, y1], [s0, y1]].map(([s, y]) => at(f, s, y, o));
+  quad(D, p, q, u, v, f.N, CARD);
+}
 export function fbox(D, f, s0, s1, y0, y1, o0, o1, m = 63) {
   const P = (s, y, o) => at(f, s, y, o);
   if (m & 1) quad(D, P(s0, y0, o1), P(s1, y0, o1), P(s1, y1, o1), P(s0, y1, o1), f.N);
@@ -70,6 +78,13 @@ export function fbox(D, f, s0, s1, y0, y1, o0, o1, m = 63) {
   if (m & 8) quad(D, P(s1, y0, o0), P(s1, y0, o1), P(s1, y1, o1), P(s1, y1, o0), f.R);
   if (m & 16) quad(D, P(s0, y1, o0), P(s1, y1, o0), P(s1, y1, o1), P(s0, y1, o1), UP);
   if (m & 32) quad(D, P(s0, y0, o0), P(s1, y0, o0), P(s1, y0, o1), P(s0, y0, o1), DOWN);
+}
+// a flight of steps for the car: one sloped prism over the s / o rectangle, yHi at o0 (the landing) down to yLo at o1
+// (the plane runs on a metre past the foot, under the ground, so there is no lip to catch the wheels)
+export function rampSolid(S, f, s0, s1, o0, o1, yHi, yLo, yBase) {
+  const k = (yHi - yLo) / (o1 - o0), d0 = f.ax * f.nx + f.az * f.nz + o0;
+  const P = [[s0, o0], [s1, o0], [s1, o1 + 1], [s0, o1 + 1]].flatMap(([s, o]) => { const p = at(f, s, 0, o); return [p[0], p[2]]; });
+  return S.prism(P, yBase, yHi + k * d0, -k * f.nx, -k * f.nz, 'steps');
 }
 export function fsolid(S, f, s0, s1, o0, o1, y0, y1, kind, flags = 0) {
   const Q = [[s0, o0], [s1, o0], [s1, o1], [s0, o1]].map(([s, o]) => { const p = at(f, s, 0, o); return [p[0], p[2]]; });
