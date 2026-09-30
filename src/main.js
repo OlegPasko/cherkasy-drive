@@ -9,7 +9,8 @@
 //   startGame({ container, overlay? }) -> Promise<ctx>   the game page: world (Cherkasy, or the test world with ?testworld
 //     or when src/world/cherkasy/city.js is absent), the car, HUD and missions as systems (car -> traffic player sync ->
 //     world.update(dt, camera) -> missions -> partners -> explore -> audio -> perf -> hud). ctx gains { world, car, hud, missions, partners, explore, audio, perf }. M opens the city map
-//     (hud.map), which pauses the game until it closes. window.__game = ctx;
+//     (hud.map), which pauses the game until it closes. The loading screen carries the consent card (ui/consent.js): the
+//     loop starts once it is accepted, at once for a returning player. window.__game = ctx;
 //     window.tick(n, dt = 1/60) steps n fixed frames with the real-time loop paused (ctx.start() resumes). ?paused
 //     starts without the loop. In the city the car's last safe spot (on a street) is saved to localStorage every 10 s
 //     and on page hide, and the next start spawns there; ?fresh ignores it and starts at the default spawn;
@@ -43,6 +44,7 @@ import { createTestWorld } from './game/testworld.js';
 import { createHud } from './ui/hud.js';
 import { createPerfHint } from './ui/perfhint.js';
 import { createGameAudio } from './audio/game.js';
+import { showConsent } from './ui/consent.js';
 import { track } from './analytics.js';
 
 export const QUALITY_LEVELS = ['low', 'medium', 'high'];
@@ -179,6 +181,7 @@ async function loadCity(opts) {
 
 export async function startGame({ container = document.getElementById('app') || document.body, overlay = document.getElementById('loading') } = {}) {
   setOverlay(overlay, 'Готуємо рендер…');
+  const consent = showConsent({ overlay }); // the keys and terms, read while the city loads
   const params = new URLSearchParams(globalThis.location?.search || '');
   const ctx = createCore({ container, adaptive: !params.has('noadapt') });
   const { scene, camera, input, renderer } = ctx;
@@ -284,10 +287,13 @@ export async function startGame({ container = document.getElementById('app') || 
   setOverlay(overlay, 'Компілюємо шейдери…');
   ctx.sky.update(0, camera);
   await warmupShaders(ctx.renderer, scene, camera);
-  if (!params.has('paused')) ctx.start();
-  overlay?.classList.add('done');
   track('game_ready', { load_ms: Math.round(performance.now()), quality: ctx.quality });
-  setTimeout(() => overlay?.remove(), 700);
+  consent.ready();
+  consent.accepted.then(() => { // the loop starts only once the terms are accepted (at once for a returning player)
+    if (!params.has('paused')) ctx.start();
+    overlay?.classList.add('done');
+    setTimeout(() => overlay?.remove(), 700);
+  });
   if (typeof window !== 'undefined') {
     window.__game = ctx;
     // deterministic stepping for automated checks: pauses the real-time loop, runs n fixed frames (dt = 1/60 unless

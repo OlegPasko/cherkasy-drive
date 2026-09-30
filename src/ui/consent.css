@@ -1,0 +1,20 @@
+/* the consent card inside #loading (index.html): keys on the left, terms on the right, one button */
+#loading.with-consent { z-index: 40; overflow-y: auto; padding: 24px 16px; box-sizing: border-box; align-content: safe center; }
+#loading.with-consent .title { font-size: 30px; }
+#loading.ready .bar, #loading.ready .msg { display: none; }
+.consent { display: grid; grid-template-columns: minmax(0, 290px) minmax(0, 520px); gap: 18px 28px; justify-content: center;
+  margin-top: 6px; text-align: left; font-size: 13.5px; line-height: 1.45; }
+.consent .c-keys { display: grid; align-content: start; gap: 7px; padding: 14px 16px; border-radius: 10px; background: #ffffff0d; }
+.consent .c-keys .r { display: grid; grid-template-columns: 130px 1fr; align-items: center; gap: 10px; opacity: .9; }
+.consent .k { white-space: nowrap; }
+.consent kbd { display: inline-block; min-width: 1.5em; margin-right: 3px; padding: 1px 6px; border-radius: 4px; text-align: center;
+  font: 600 11.5px/1.5 system-ui, sans-serif; color: #0d1117; background: #e8edf3; box-shadow: 0 2px 0 #9aa6b4; }
+.consent .c-terms h4 { margin: 0 0 8px; font-size: 14px; }
+.consent .c-terms ul { margin: 0; padding-left: 18px; display: grid; gap: 6px; opacity: .85; }
+.consent button { grid-column: 1 / -1; justify-self: center; margin-top: 4px; padding: 11px 28px; border: 0; border-radius: 999px;
+  font: 700 15px system-ui, sans-serif; color: #0d1117; background: #f2c14e; cursor: pointer; transition: opacity .2s, transform .15s; }
+.consent button:hover:not(:disabled) { transform: translateY(-1px); }
+.consent button:disabled { opacity: .45; cursor: progress; }
+.consent button:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
+.consent .c-foot { grid-column: 1 / -1; text-align: center; font-size: 12px; opacity: .45; }
+@media (max-width: 760px) { .consent { grid-template-columns: minmax(0, 520px); } }
