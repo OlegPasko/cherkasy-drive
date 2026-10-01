@@ -3,14 +3,14 @@
 // Each file (mp3 / m4a / wav) is levelled to -14 LUFS, encoded as 160 kbps stereo mp3 into public/assets/radio/, and
 // appended to tracks.json (a second take of the same title becomes "<title> (v2)"). The title is the file's own title
 // tag, else its file name;
-// the artist is always "Oleg Pasko (with Suno)". The game fetches none of it until the player turns the radio on.
+// the artist is always "ANATHEM (with Suno)". The game fetches none of it until the player turns the radio on.
 import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { basename, dirname, extname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const OUT = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'public/assets/radio');
-const ARTIST = 'Oleg Pasko (with Suno)';
+const ARTIST = 'ANATHEM (with Suno)';
 const listFile = join(OUT, 'tracks.json');
 const tracks = existsSync(listFile) ? JSON.parse(readFileSync(listFile, 'utf8')) : [];
 const slug = (t) => t.toLowerCase().normalize('NFKD').replace(/[^\p{L}\p{N}]+/gu, '-').replace(/^-|-$/g, '') || 'track';

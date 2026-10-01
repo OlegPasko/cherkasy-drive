@@ -104,7 +104,7 @@ See `ARCHITECTURE.md` for the module map. Where things live:
     `pax`), positional one-shots, seamless loops, one voice line at a time with ducking;
   - `game.js` – the car's electric motor, drift squeal, fans and wind from car state; the place ambience (city,
     Sosnivka forest from `map.cover.forest`, altitude, day/night); event one-shots; mission lines;
-  - `radio.js` – the car radio (Q on / off, E next; off by default): Oleg's own songs, credited "Oleg Pasko (with
+  - `radio.js` – the car radio (Q on / off, E next; off by default): Oleg's own songs, credited "ANATHEM (with
     Suno)". Nothing is fetched until it is turned on, then only the playing track, streamed. Add songs with
     `node tools/audio/radio.mjs <files…>` (levels, encodes to `public/assets/radio/`, appends to `tracks.json`).
   - `cue.js` – `cue(name, data)`, how world modules (wrecks, trees, people, birds, missions, partners) ask for a sound.
