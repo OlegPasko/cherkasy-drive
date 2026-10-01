@@ -90,7 +90,7 @@ See `ARCHITECTURE.md` for the module map. Where things live:
     builder; unsold ones show the "ваша реклама / @driver_game_bot" placeholder. The header says how to add a real one.
 - `src/npc/` – everything that moves on its own:
   - `lanes.js` – the lane graph and signals;
-  - `vehicles.js` – loads the glb models, instanced fleet, `makeMesh`; the ad tiles on vans, bus sides and backs and roof signs (tile 1 is URBAN's, paid: a quarter of the 12 m buses wear it in URBAN blue, `defaultDress` in `traffic.js`);
+  - `vehicles.js` – loads the glb models, instanced fleet, `makeMesh`; the ad tiles on vans, bus sides and backs and roof signs (tile 1 is URBAN's, paid: a quarter of the 12 m buses wear it in URBAN blue) and `makeUrbanLivery`, the URBAN box-truck livery (sides and back doors) a quarter of the box trucks wear; both are picked in `defaultDress` in `traffic.js`;
   - `traffic.js` and `wrecks.js` – the traffic sim, rigid-body wrecks and dents; the car rams through
     `ram(q)`;
   - `people.js` and `people/` – procedural, GPU-animated pedestrians and pigeons;
@@ -129,7 +129,9 @@ See `ARCHITECTURE.md` for the module map. Where things live:
   - `perfhint.js` – watches the real frame rate; after ~6 s under 40 fps it offers G (simpler graphics, one quality
     step down) in a pill at the bottom, but only once the adaptive resolution has nothing lower left to try. G works any time and goes round (the lowest wraps to the highest); F9 cycles the levels upward.
   - `bigmap.js` – the full-screen map on M: north up, wheel / drag / arrows or the + / − buttons, street names along the streets, sight and
-    partner badges with hover notes, mission markers and the objective. A click on an improved object or a partner asks
+    partner badges with hover notes, mission markers and the objective. A left click elsewhere plants the player's own mark (a yellow flag; a click on it
+    clears it, driving within 25 m clears it too; `cherkasy.mark` in localStorage), which the minimap shows as a flag or a
+    yellow arrow on its rim. A click on an improved object or a partner asks
     "Переміститись сюди?" and moves the car to the road beside it (`hud.onGo` in `main.js`, missions carry on; a partner's
     site stays in its ring in the world); sights are never teleport targets, so the explore quest still needs the drive.
     The game pauses while it is open (`ctx.paused`: only systems added with `{ always: true }` run, nothing renders).

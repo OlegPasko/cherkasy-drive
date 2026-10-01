@@ -24,6 +24,9 @@
 //                                          come out (never again once Shift was used: cherkasy.turbo in localStorage)
 //   hud.setObjective(pos | null)           world position (copied); non-finite -> cleared
 //   hud.setMarkers([{ x, z, color, label }])  replaces the mission markers (minimap discs)
+//   hud.waypoint { x, z } | null           the player's own mark, set by a click on the big map (a click on it clears it;
+//                                          reaching it within WAYPOINT_REACH m clears it too); a flag on the minimap, a
+//                                          yellow arrow on its rim when out of view; kept in localStorage (cherkasy.mark)
 //   hud.setExplore(n, total, flash?)       the "📍 n / total пам’яток" counter under the money (a click opens the map)
 //   hud.setVisible(bool), hud.showHelp(bool), hud.toggleHelp() (also un-hides the HUD), hud.objective (read-only copy or null), hud.visible
 //   hud.mission = { setPanel(on, color?, title?), setText(s), setBar(f | null, label, dmg), setTimer(sec | null),
@@ -49,6 +52,7 @@ const MAP_HZ = 25, DPR_MAX = 1.75;
 const STREET_FONT = '600 9.5px system-ui, -apple-system, "Segoe UI", sans-serif', STREET_STEP = 30, STREET_MAX = 5;
 // the controls card: [group, [[keys, what it does], ...]]; keys: ' / ' separates alternatives, a run of short symbols
 // ('+ −') becomes one keycap each
+const WAYPOINT_REACH = 25; // m: the mark is reached and cleared
 const HELP = [
   ['Їзда', [['W / S', 'газ / гальмо, задній хід'], ['A / D', 'кермо'], ['Space', 'ручник'], ['F', 'сигнал: люди попереду розбігаються'], ['R', 'поставити авто на дорогу'], ['B / Home', 'застряг? повернутись на старт']]],
   ['Політ', [['Shift', 'тримай: крила + реактивна тяга, відрив ~150 км/год'], ['W', 'крейсерська тяга'], ['S', 'повітряне гальмо'],
@@ -56,7 +60,7 @@ const HELP = [
   ['Камера', [['C', 'кабіна / вид ззаду'], ['Миша', 'огляд (клік по грі захоплює курсор)'], ['Esc', 'відпустити курсор']]],
   ['Місії', [['', 'заїдь у стовп світла, щоб узяти виклик'], ['N', 'інший виклик'], ['Backspace', 'скасувати місію'], ['Enter', 'ще раз після невдачі']]],
   ['Мапа', [['M', 'карта міста (гра на паузі)'], ['M / Esc', 'закрити карту'], ['Колесо / + −', 'масштаб'], ['Тягни / ←↑→↓ / WASD', 'рух карти'],
-    ['Space', 'до авто'], ['', 'наведи на значок – опис місця і відстань'], ['', 'під’їдь до кожної пам’ятки: відвідані на мапі з ✓, решта бліді'], ['Клік', 'по рожевому значку – сайт партнера']]],
+    ['Space', 'до авто'], ['Клік', 'по мапі – поставити мітку (жовта стрілка на мінікарті), ще клік по ній – прибрати'], ['', 'наведи на значок – опис місця і відстань'], ['', 'під’їдь до кожної пам’ятки: відвідані на мапі з ✓, решта бліді'], ['Клік', 'по рожевому значку – сайт партнера']]],
   ['Партнери', [['', 'рожеве коло біля будівлі – заїдь, щоб побачити пропозицію'], ['O', 'відкрити сайт партнера']]],
   ['Радіо', [['Q', 'увімкнути / вимкнути (за замовчуванням вимкнене)'], ['E', 'наступний трек']]],
   ['Інше', [['H', 'ця довідка'], ['F2', 'сховати / показати інтерфейс'], ['T', 'час доби: ранок / день / вечір'], ['G', 'графіка простіша (з низької – знову висока)'], ['F9', 'якість графіки (по колу)']]],
@@ -111,6 +115,12 @@ export function createHud({ player, world, camera, container = globalThis.docume
   // ---------------------------------------------------------------- state
   let visible = true, helpOn = false; // the card opens on H only: the consent card on the loading screen already names H
   let objective = null, markers = [];
+  let waypoint = (() => { try { const w = JSON.parse(localStorage.getItem('cherkasy.mark') || 'null'); return w && Number.isFinite(w.x) && Number.isFinite(w.z) ? w : null; } catch { return null; } })();
+  const setWaypoint = (w) => {
+    waypoint = w && Number.isFinite(w.x) && Number.isFinite(w.z) ? { x: w.x, z: w.z } : null;
+    try { if (waypoint) localStorage.setItem('cherkasy.mark', JSON.stringify(waypoint)); else localStorage.removeItem('cherkasy.mark'); } catch { /* storage off */ }
+    mapAcc = 1;
+  };
   let size = { w: 1, h: 1, mw: 1, mh: 1, cw: 1, ch: 1, dpr: 1 };
   let mapAcc = 1;
   const texts = new Map(); // element -> last text (DOM writes only on change)
@@ -144,6 +154,7 @@ export function createHud({ player, world, camera, container = globalThis.docume
   // ---------------------------------------------------------------- map tiles (shared with the big map)
   const painter = createMapPainter({ world, features, doc });
   const bigmap = createBigMap({ painter, player, container, map: world?.cherkasy?.map, getObjective: () => objective, getMarkers: () => markers,
+    getWaypoint: player ? () => waypoint : null, setWaypoint: player ? setWaypoint : null,
     onGo: player ? (p) => hud.onGo?.(p) : null });
   let lastMapMs = 0;
 
@@ -209,6 +220,19 @@ export function createHud({ player, world, camera, container = globalThis.docume
       g.beginPath();
       if (q.clamped) { g.moveTo(0, -7); g.lineTo(6, 5); g.lineTo(-6, 5); } else { g.moveTo(0, -6); g.lineTo(6, 0); g.lineTo(0, 6); g.lineTo(-6, 0); }
       g.closePath(); g.fillStyle = '#ffd24a'; g.fill(); g.lineWidth = 1.2; g.strokeStyle = '#1a1405'; g.stroke();
+      g.restore();
+    }
+    // the player's mark: a small flag, or a yellow arrow on the rim pointing at it
+    if (waypoint) {
+      toMap(waypoint.x, waypoint.z, q, 9);
+      g.save(); g.translate(q.x, q.y); g.lineWidth = 1.4; g.strokeStyle = '#1a1405'; g.fillStyle = '#ffe14d';
+      if (q.clamped) {
+        g.rotate(Math.atan2(q.y - cy, q.x - cx) + Math.PI / 2);
+        g.beginPath(); g.moveTo(0, -9); g.lineTo(7, 6); g.lineTo(0, 3); g.lineTo(-7, 6); g.closePath(); g.fill(); g.stroke();
+      } else {
+        g.beginPath(); g.moveTo(-1, 6); g.lineTo(-1, -9); g.lineTo(8, -5.5); g.lineTo(0, -2); g.closePath(); g.fill(); g.stroke();
+        g.beginPath(); g.arc(-1, 6, 2.2, 0, Math.PI * 2); g.fill(); g.stroke();
+      }
       g.restore();
     }
     // the player: an arrow along the travel direction (the nose when nearly stopped)
@@ -432,6 +456,7 @@ export function createHud({ player, world, camera, container = globalThis.docume
     },
     get visible() { return visible; },
     get objective() { return objective ? objective.clone() : null; },
+    get waypoint() { return waypoint ? { ...waypoint } : null; },
     get helpVisible() { return helpOn; },
     setVisible(v) { visible = !!v; setClass(root, 'hidden', !visible); applyHelp(); if (visible) mapAcc = 1; },
     setExplore(n, total, flash = false) { // the sights counter under the money (explore.js); a new one pops it
@@ -462,6 +487,7 @@ export function createHud({ player, world, camera, container = globalThis.docume
       if (sideT > 0 && (sideT -= dt) <= 0) setClass(el.panel, 'side', true);
       if (bigmap.isOpen) { bigmap.update(dt); mapAcc = 1; return; }
       playT += dt;
+      if (waypoint && Math.hypot(waypoint.x - player.position.x, waypoint.z - player.position.z) < WAYPOINT_REACH) setWaypoint(null); // arrived
       if (!visible) return;
       const f = cameraForward();
       const yaw = -Math.PI / 2 - Math.atan2(f.z, f.x);

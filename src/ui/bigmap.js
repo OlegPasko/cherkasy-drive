@@ -9,7 +9,9 @@
 // Touch: one finger pans, two pinch-zoom (the + / − buttons zoom too, for mice and fingers alike), a tap on a badge shows its card and a second tap opens a partner's site.
 //
 //   createBigMap({ painter, player, container, map? (map.json: region -> zoom-out limit), getObjective() -> Vector3 | null, getMarkers() -> [{ x, z, color, label }],
-//                  home? { x, z }, onGo?(place) (move the car there; main.js) })
+//                  home? { x, z }, onGo?(place) (move the car there; main.js), getWaypoint?() -> { x, z } | null, setWaypoint?(w | null) })
+//     with setWaypoint (hud.js, a car only), a left click that is not a teleport or a partner's site sets the player's mark
+//     there; a click on the mark clears it. The mark draws as a yellow flag (an arrow on the rim with the distance when off view).
 //     player null: the map on its own (mapview.js on phones) – no car, no "to the car", no distances; it opens at home
 //     -> { open(), close(), toggle(), isOpen, update(dt), dispose() }
 // Rendering: a "base" canvas (tiles, footprints, street names, badges) redrawn only when the view, the toggles or the
@@ -34,12 +36,12 @@ const NORTH = enuToWorld(0, 1, 0);
 const ROT = -Math.PI / 2 - Math.atan2(NORTH.z, NORTH.x); // canvas rotation that puts north up
 const fmtDist = (m) => (m >= 1000 ? `${(m / 1000).toFixed(1).replace('.', ',')} км` : `${Math.round(m / 10) * 10} м`);
 
-export function createBigMap({ painter, player, container, map = null, getObjective, getMarkers, home = { x: 0, z: 0 }, onGo = null }) {
+export function createBigMap({ painter, player, container, map = null, getObjective, getMarkers, home = { x: 0, z: 0 }, onGo = null, getWaypoint = null, setWaypoint = null }) {
   const doc = container.ownerDocument;
   const canGo = (p) => !!(player && onGo && p && (p.kind === 'improved' || (p.kind === 'ad' && p.rings?.length))); // buildings only, never a sight
   const touch = !!globalThis.matchMedia?.('(pointer: coarse)').matches;
   const keysHint = touch ? 'пальцем – рух · двома пальцями чи кнопками + і − – масштаб · торкніться значка – опис'
-    : `колесо / + − – масштаб · тягни або стрілки – рух${player ? ' · Пробіл – до авто' : ''} ${player && onGo ? ' · клік по партнеру чи покращеному – переміститись' : ''} · правий клік – покращити місце${player ? ' · M / Esc – закрити' : ''}`;
+    : `колесо / + − – масштаб · тягни або стрілки – рух${player ? ' · Пробіл – до авто' : ''} ${player && onGo ? ' · клік по партнеру чи покращеному – переміститись' : ''}${setWaypoint ? ' · клік по мапі – мітка' : ''} · правий клік – покращити місце${player ? ' · M / Esc – закрити' : ''}`;
   const root = doc.createElement('div');
   root.className = 'bigmap off';
   root.innerHTML = `
@@ -205,6 +207,11 @@ export function createBigMap({ painter, player, container, map = null, getObject
         const hit = pick(e.clientX, e.clientY)?.p || tipFor;
         if (canGo(hit)) showGo(hit, e.clientX, e.clientY);
         else if (tipFor?.url) { track('partner_open', { partner: tipFor.id, via: 'map' }); globalThis.open?.(tipFor.url, '_blank', 'noopener'); }
+        else if (setWaypoint) { // the player's mark: here, or off when the click lands on it
+          const w = getWaypoint?.(), q = w && toScreen(w.x, w.z);
+          if (q && Math.hypot(q.x + 3 - e.clientX, q.y - 10 - e.clientY) < 18) setWaypoint(null); // the flag stands over its point
+          else { const a = toWorld(e.clientX, e.clientY); setWaypoint({ x: a.x, z: a.z }); track('map_mark'); }
+        }
       } else { // a tap shows the badge's card; tapping the same badge again asks to move there, or opens the site
         const hit = pick(e.clientX, e.clientY, 10);
         mouse = hit ? { x: hit.x, y: hit.y } : null; // the badge's centre: the card stays on it while nothing moves
@@ -444,6 +451,25 @@ export function createBigMap({ painter, player, container, map = null, getObject
       g.beginPath(); g.arc(c.x, c.y, 11, 0, Math.PI * 2); g.fillStyle = m.color || '#f5c52e'; g.fill();
       g.lineWidth = 2; g.strokeStyle = 'rgba(10,14,22,.9)'; g.stroke();
       g.fillStyle = '#0d1117'; g.fillText(String(m.label || '').slice(0, 2), c.x, c.y + 0.5);
+    }
+    const wp = getWaypoint?.();
+    if (wp) { // the player's mark: a flag planted on the point, or an arrow on the rim with the distance
+      const o = toScreen(wp.x, wp.z), oc = clampToView(o.x, o.y, 26);
+      g.save(); g.translate(oc.x, oc.y); g.lineWidth = 2; g.strokeStyle = '#1a1405'; g.fillStyle = '#ffe14d';
+      if (!oc.clamped) {
+        g.beginPath(); g.arc(0, 0, 4, 0, Math.PI * 2); g.fill(); g.stroke();
+        g.beginPath(); g.moveTo(-1, 0); g.lineTo(-1, -24); g.lineTo(14, -18); g.lineTo(0, -12); g.closePath(); g.fill(); g.stroke();
+      } else {
+        g.rotate(Math.atan2(oc.y - H / 2, oc.x - W / 2) + Math.PI / 2);
+        g.beginPath(); g.moveTo(0, -13); g.lineTo(10, 8); g.lineTo(0, 4); g.lineTo(-10, 8); g.closePath(); g.fill(); g.stroke();
+      }
+      g.restore();
+      if (me && (oc.clamped || Math.hypot(o.x - me.x, o.y - me.y) > 60)) {
+        const d = fmtDist(Math.hypot(wp.x - P.x, wp.z - P.z));
+        g.font = `700 13px ${LABEL_FONT}`; g.textAlign = 'center'; g.textBaseline = 'middle';
+        const ty = oc.y + (oc.y > H - 60 ? -34 : oc.clamped ? 26 : 16);
+        g.lineWidth = 3; g.strokeStyle = 'rgba(14,20,32,.9)'; g.strokeText(d, oc.x, ty); g.fillStyle = '#fff1a0'; g.fillText(d, oc.x, ty);
+      }
     }
     const obj = getObjective?.();
     if (obj && me) { // straight line from the car to the objective (a flying car can take it)
