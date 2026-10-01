@@ -32,7 +32,7 @@ See `ARCHITECTURE.md` for the module map. Where things live:
   - Shadows use three's `SunLight` with 2 cascades.
 - `src/kit/` – mesh building blocks:
   - `mesh.js` – `MeshBuilder`/`MB`, `M4`, `hexLin`;
-  - `logo.js` – brand SVGs from `public/assets/brand/` as recoloured textures (the Everlabs plate on the car, roof signs);
+  - `logo.js` – brand SVGs from `public/assets/brand/` as recoloured textures (the Everlabs plate on the car, roof signs), or in their own colours (`color: null`, the Торс disc);
   - `batch.js` – spatial tiles;
   - `instances.js` – LOD pools;
   - `textures.js` – procedural textures.
@@ -77,7 +77,9 @@ See `ARCHITECTURE.md` for the module map. Where things live:
     whose footprints get highlighted, and for partners the site `url` (with `utm_source=driver.ck.ua`) and the pitch
     lines. `world.places` is the resolved list. Only paid placements are ads: today U space (the south tower of the
     Rest Inn block) and Everlabs (the offices over the hotel next to it, a lit logo on the roof), both built in
-    `restinn.js`; the other hand-built venues stay in the world unadvertised.
+    `restinn.js`, and Торс (the rehabilitation centre at бульвар Шевченка 266: `tors.js` hangs its lit logo disc on the
+    OSM block's roof and its door with a fascia on the annex; a site's `partners` gives the ring its door and glow); the
+    other hand-built venues stay in the world unadvertised.
   - `balloon.js` – a hot-air balloon in the pixel tower's colours, its band offering the space on it for a donation (the
     bot's `ad-balloon` flow): it hangs over the Rose Valley fountain, then drifts at a walker's pace along the Dnipro shore,
     over the water, to the river station and back (wall-clock paced); it bobs, turns and fires its burner (a night glow).

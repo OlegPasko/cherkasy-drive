@@ -23,7 +23,8 @@
 //   collision (the collision world: pushBox / pushCylinder / topAt / disable ...), geoDebug { enabled, update }
 //   buildings: [{ min, max, id }], footprints: [{ poly, h, kind, name }], getMapFeatures() (minimap)
 //   places: [{ id, kind ('sight' | 'ad'), name, note, icon, url, pitch, x, z, rings, door?, glow?(k) }]  map icons, highlighted
-//     footprints (places.js); door / glow come from the hand-built partner site (restinn.js) and feed game/partners.js
+//     footprints (places.js); door / glow come from the hand-built partner site (restinn.js, tors.js: a site's `partners`)
+//     and feed game/partners.js
 //   textures, materials { facade, detail, ground }, cherkasy { map, ground, hf, B, sites, setCam([x,y,z,tx,ty,tz] | null) }
 //   bridgeLimit null, bridgeDeckY() null, propAnchors() / grabbables() [], grabProp() null, releaseProp()  (unused hooks)
 //   update(dt, camera)   everything per frame (water, trees, LOD, landmarks, traffic, people, debris)
@@ -59,7 +60,7 @@ const SITE_MODULES = import.meta.glob(['./landmarks.js', './frame.js', './restin
   './hoteldnipro.js', './dniproplaza.js', './depot.js', './politekhkoledzh.js',
   './podatkova.js', './school17.js', './kinoukraina.js', './chnu3.js',
   './miskrada.js', './poshtamt.js', './oblbiblioteka.js', './medakademia.js', './balloon.js', './andriy.js', './boyan.js',
-  './delikat.js', './atb.js', './mcdonalds.js']);
+  './delikat.js', './atb.js', './mcdonalds.js', './tors.js']);
 async function loadSites() {
   const out = {};
   await Promise.all(Object.entries(SITE_MODULES).map(async ([path, load]) => {
@@ -140,7 +141,7 @@ export async function buildCherkasy({ scene, renderer, onProgress = null, params
   const groundP = buildGroundAsync({ scene: root, T, map, hf, strip, renderer, mapUrl: url('map.json') }).then((g) => { groundDone = true; report(); return g; });
   const bldP = buildCityBuildings({ root, map, hf, solids: collision, zips, skip, facadeMat, detailMat, useWorkers: !params.has('noworkers'),
     onProgress: (f) => { bldF = f; report(); } });
-  // landmarks, hero buildings and the hand-built sites ({ update?, clear?(x, z), spots?, footprints?, parked? }). Those that
+  // landmarks, hero buildings and the hand-built sites ({ update?, clear?(x, z), spots?, footprints?, parked?, partners? }). Those that
   // do not read `ground` build while its workers run (heightAt is the same height field), one per task so the worker
   // replies get through; the rest (GROUND_SITES) follow once it is in. The list order stays the order of `sites`.
   const base = { root, T, map, solids: collision, zips, heightAt: hf.heightAt, ground: null, geo, facadeMat, detailMat };
@@ -161,7 +162,7 @@ export async function buildCherkasy({ scene, renderer, onProgress = null, params
     ['Tax office', 'podatkova', 'buildPodatkova'], ['School 17', 'school17', 'buildSchool17'], ['Kino Ukraina', 'kinoukraina', 'buildKinoUkraina'], ['ChNU building 3', 'chnu3', 'buildChnu3'],
     ['City council', 'miskrada', 'buildMiskrada'], ['Head post office', 'poshtamt', 'buildPoshtamt'], ['Regional library', 'oblbiblioteka', 'buildOblBiblioteka'], ['Medical academy', 'medakademia', 'buildMedAkademia'],
     ['Balloon', 'balloon', 'buildBalloon'], ['St Andrew church', 'andriy', 'buildAndriy'], ['Boyan monument', 'boyan', 'buildBoyan'],
-    ['Delikat on Blahovisna', 'delikat', 'buildDelikat'], ['ATB on Shevchenka 239', 'atb', 'buildAtb'], ["McDonald's", 'mcdonalds', 'buildMcDonalds']];
+    ['Delikat on Blahovisna', 'delikat', 'buildDelikat'], ['ATB on Shevchenka 239', 'atb', 'buildAtb'], ["McDonald's", 'mcdonalds', 'buildMcDonalds'], ['Tors sign', 'tors', 'buildTors']];
   const built = list.map(() => null);
   const runSites = async (late) => {
     for (const [i, [label, mod, fn]] of list.entries()) {
@@ -275,7 +276,10 @@ export async function buildCherkasy({ scene, renderer, onProgress = null, params
     propAnchors: () => [], grabbables: () => [], grabProp: () => null, releaseProp: () => {},
     buildings: B.boxes, footprints: B.footprints,
     getMapFeatures: () => mapFeatures(map, B),
-    places: guard('places', () => resolvePlaces(map, geo).map((q) => Object.assign(q, hero.partners?.[q.id])), []), // + the hand-built door / glow
+    places: guard('places', () => { // + the hand-built door / glow (Rest Inn, and any site that returns `partners`)
+      const partners = Object.assign({}, ...sites.map((x) => x.partners), hero.partners);
+      return resolvePlaces(map, geo).map((q) => Object.assign(q, partners[q.id]));
+    }, []),
     textures: T, materials: { facade: facadeMat, detail: detailMat, ground: ground.root.children[0]?.material ?? null },
     cherkasy: { map, ground, hf, B, sites, landmarks, setCam: (c) => { forced = c; } },
     update(dt, camera) {

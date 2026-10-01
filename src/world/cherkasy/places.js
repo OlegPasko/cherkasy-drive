@@ -26,6 +26,10 @@ export const PLACES = [
     bld: [129420363], cut: [BELOW_USPACE, EVERLABS_CUT], url: 'https://everlabs.com/?utm_source=driver.ck.ua',
     pitch: ['Трансформуємо бізнес із AI', 'Впроваджуємо AI у ваші продукти та процеси', 'Веб і мобільна розробка',
       'Від ідеї до робочого прототипу за лічені дні', 'AI-інструменти × досвідчена команда', '13+ років, понад 100 запущених проєктів', 'Рейтинг 5.0 на Clutch'] },
+  { id: 'tors', kind: 'ad', name: 'Торс', note: 'Фізична реабілітація · бульвар Шевченка, 266', icon: '🤸', bld: [274691767],
+    url: 'https://www.instagram.com/cfrn_tors_che/?utm_source=driver.ck.ua',
+    pitch: ['Центр фізичної реабілітації і навчання', 'Відновлення після травм і операцій', 'Лікування болю в спині, суглобах і м’язах',
+      'Індивідуальні програми реабілітації'] },
   // rebuilt on request, not landmarks (a landmark goes with the sights below)
   { id: 'khimikiv44', kind: 'improved', name: 'Покращений об’єкт', note: 'просп. Хіміків, 44', issue: 1, bld: [108980190] },
   { id: 'khrcity', kind: 'improved', name: 'Покращений об’єкт', note: 'вул. Остафія Дашковича, 19', bld: [6287196] },
