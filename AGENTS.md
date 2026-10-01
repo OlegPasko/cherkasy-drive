@@ -52,7 +52,8 @@ See `ARCHITECTURE.md` for the module map. Where things live:
   - more hand-built sights: `market` (the round covered market), `bilyidim` (Budynok rad), `kobzar`, `museum` (local
     history), `philharmonic` (with the «Висока нота» violinist), `wedding` (Palace of weddings), `bohdan` (the
     Khmelnytsky monument; it shares its bronze helpers with the others), `boyan` (the Boyan monument on площа 700-річчя Черкас: the seated
-    singer, the three spears, the granite pool with jets), `lotus` (White Lotus temple on its slope), `lovebridge` (Bridge of Lovers over a carved
+    singer, the three spears, the granite pool with jets), `su7` (the Су-7БКЛ memorial at the park 30-річчя Перемоги entrance by the Смілянська roundabout: the jet climbing
+    on its slanted pylon over the white wedge and the red granite plinth, in the 2020 blue-and-yellow stripes), `lotus` (White Lotus temple on its slope), `lovebridge` (Bridge of Lovers over a carved
     ravine), `andriy` (the church of St Andrew the First-Called by the Mytnytsia roundabout, with its gate belfry,
     brick fence and thujas), `station` (railway station, platforms, footbridge, parked trains) and `station_rails` (the whole `rails`
     layer: track, level crossings, catenary on the electrified lines). Several shape the terrain with a guarded

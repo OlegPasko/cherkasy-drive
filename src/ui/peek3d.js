@@ -19,7 +19,7 @@ const SITES = {
   embankment: ['embankment', 'buildEmbankment'], sosnivka: ['beaches', 'buildBeaches'], kazbet: ['beaches', 'buildBeaches'],
   mytnbeach: ['beaches', 'buildBeaches'], kobzar: ['kobzar', 'buildKobzar'], museum: ['museum', 'buildMuseum', 'shapeMuseum'],
   market: ['market', 'buildMarket'], wedding: ['wedding', 'buildWedding'], bohdan: ['bohdan', 'buildBohdan'],
-  boyan: ['boyan', 'buildBoyan', 'levelBoyan'], philharmonic: ['philharmonic', 'buildPhilharmonic', 'shapePhilharmonic'],
+  boyan: ['boyan', 'buildBoyan', 'levelBoyan'], su7: ['su7', 'buildSu7', 'levelSu7'], philharmonic: ['philharmonic', 'buildPhilharmonic', 'shapePhilharmonic'],
   bilyidim: ['bilyidim', 'buildBilyiDim', 'shapeBilyiDim'], lotus: ['lotus', 'buildLotus', 'shapeLotus'],
   station: ['station', 'buildStation', 'levelStation'], lovebridge: ['lovebridge', 'buildLoveBridge', 'shapeLoveBridge'], bridge: ['dam', 'buildDam'],
   khimikiv44: ['khimikiv', 'buildKhimikiv'], khrcity: ['khrcity', 'buildKhrCity', 'shapeKhrCity'], spartak: ['spartak', 'buildSpartak'],
