@@ -29,6 +29,7 @@ const fixesOf = (issue) => issue.labels.map((l) => /^rework-(\d)$/.exec(l.name |
 const hasLabel = (issue, name) => issue.labels.some((l) => (l.name || l) === name);
 const btn = (text, data) => ({ text, data });
 const clip = (s, n) => (s.length > n ? s.slice(0, n - 1) + '…' : s);
+const MEDIA = 'https://everlabs-file-uploads.fra1.digitaloceanspaces.com/driver-bot/'; // the bot's public files (photos, the team's screenshots)
 const plain = (md) => md.replace(/<!--[\s\S]*?-->/g, '').replace(/!\[[^\]]*\]\(([^)]+)\)/g, '$1').trim();
 
 // the steps; `input` is what the step waits for, `q` is the question the guardrail checks a typed reply against
@@ -483,7 +484,16 @@ function createBot({ tg, gh, store, jev, proof, moderate = null, adminChat = nul
     if (event === 'issue_comment' && p.action === 'created') {
       const body = p.comment.body || '';
       if (body.includes(BOT_MARK) || body.trim().startsWith('//') || p.comment.user?.type === 'Bot') return 'skipped';
-      return to(T.GH_COMMENT(n, title, esc(clip(plain(body), 3500))), [[btn('✍️ Відповісти', `s:${n}`), btn('📋 Заявка', `i:${n}`)]]);
+      // pictures in the comment (markdown or <img>) hosted in the bot's own Spaces folder go as photos above the text;
+      // anything else stays a link in the text
+      const pics = [], text = plain(body.replace(/!\[[^\]]*\]\((https:[^)\s]+)\)|<img[^>]*src="(https:[^"]+)"[^>]*>/g, (m, a, b) => {
+        const u = a || b;
+        if (!u.startsWith(MEDIA) || pics.length >= 10) return m;
+        pics.push(u); return '';
+      })).replace(/\n{3,}/g, '\n\n');
+      if (pics.length === 1) await tg.photo(chat, pics[0]).catch(() => {});
+      else if (pics.length) await tg.call('sendMediaGroup', { chat_id: chat, media: pics.map((u) => ({ type: 'photo', media: u })) }).catch(() => {});
+      return to(T.GH_COMMENT(n, title, esc(clip(text, 3500))), [[btn('✍️ Відповісти', `s:${n}`), btn('📋 Заявка', `i:${n}`)]]);
     }
     if (event === 'issues' && p.action === 'closed') {
       if (issue.state_reason === 'not_planned') return to(T.GH_CLOSED(n), [[btn(T.SAY, `s:${n}`)]]);

@@ -198,6 +198,13 @@ const buttons = (m) => (m.kb || []).flat().map((b) => b.data || b.url);
   assert.match(last(f).text, /прийнято/);
   await f.bot.onGitHub('issue_comment', { action: 'created', issue: i, comment: { body: 'Дякую, виправимо до п\'ятниці', user: { type: 'User' } } });
   assert.match(last(f).text, /Відповідь по заявці #1/); assert.match(last(f).text, /п'ятниці/);
+  { // the team's screenshots in a comment go as an album above the text; foreign images stay links
+    const M = 'https://everlabs-file-uploads.fra1.digitaloceanspaces.com/driver-bot/media/team/x/';
+    const k = f.sent.length;
+    await f.bot.onGitHub('issue_comment', { action: 'created', issue: i, comment: { body: `Готово!\n\n![a](${M}a.jpg)\n<img src="${M}b.jpg" width="320">\n![c](https://example.com/c.jpg)`, user: { type: 'User' } } });
+    assert.equal(f.sent[k].text, '[sendMediaGroup]');
+    assert.match(last(f).text, /Готово!/); assert.doesNotMatch(last(f).text, /a\.jpg|b\.jpg/); assert.match(last(f).text, /example\.com\/c\.jpg/);
+  }
   const n = f.sent.length;
   await f.bot.onGitHub('issue_comment', { action: 'created', issue: i, comment: { body: '// internal note', user: { type: 'User' } } });
   await f.bot.onGitHub('issue_comment', { action: 'created', issue: i, comment: { body: 'x <!-- bot -->', user: { type: 'User' } } });

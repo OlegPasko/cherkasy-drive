@@ -95,6 +95,8 @@ Flows:
   own actions, and the bot files issues with Oleg's token, so the reliable alert is the admin chat (`ADMIN_CHAT_ID`):
   "🆕 #N …" with a GitHub button. The assignment is for the "Assigned to me" filter.
 - **A comment goes to the player** as "💬 Відповідь по заявці #N". Write in Ukrainian; the text is sent as is.
+  Pictures in it that live in the bot's Spaces folder (`driver-bot/…`, e.g. the team's screenshots uploaded to
+  `media/team/…`) go to the player as photos (an album for several) above the text; other image links stay links.
 - **A comment that starts with `//` is internal.** The player never sees it.
 - **The `in-progress` label** sends "🔧 Заявку взяли в роботу".
 - **Close as completed:**
