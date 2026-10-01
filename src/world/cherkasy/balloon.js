@@ -3,8 +3,9 @@
 // the valley's round fountain, then drifts at a walker's pace (1.3 m/s) down the Dnipro, 45 m out over the water along
 // the shore, to the river station and back – about an hour each way, paced by the wall clock so every player sees it
 // in the same place. The envelope wears the Zhuzhomy 4 "pixel" tower's palette (maroon / red / orange / yellow cells on
-// white, zhuzhoma.js) and an equator band that sells the space on it: "Реклама на кулі – за донат" + the bot's handle
-// (the bot's `ad-balloon` flow). It bobs and turns slowly so the band reads from every side; at night the burner
+// white, zhuzhoma.js) and an equator band sold through the bot's `ad-balloon` flow: today U space's (the office tower at
+// Nadpilna 252, restinn.js) – their logo (public/assets/brand/uspace.svg, white on their near-black) over the offer, the
+// address and the phone, three times round. It bobs and turns slowly so the band reads from every side; at night the burner
 // fires now and then and the envelope glows from inside.
 //   buildBalloon({ root, heightAt }) -> { update(dt), clear(x, z), balloon: { x, z, y } } | null
 // No collision: the solids grid is static and the balloon keeps moving (the car flies through it).
@@ -35,7 +36,9 @@ const BAND = [0.47, 0.71];         // the lettered band, as a share of the profi
 // the pixel tower's palette: weight, colour (null = white), as in zhuzhoma.js
 const CELLS = [[6.5, null], [2.2, '#7a2a44'], [1.1, '#b8404f'], [1.6, '#dd7a43'], [1.3, '#e6bd46']];
 const WHITE = '#efede7', MAROON = '#7a2a44';
-const TEXT = ['РЕКЛАМА НА КУЛІ', '– ЗА ДОНАТ –'], HANDLE = '@driver_game_bot';
+// the band's ad: U space (a paid placement, see places.js)
+const AD = { bg: '#111827', fg: '#f3f4f6', accent: '#e6bd46', logo: 'uspace', logoAspect: 58 / 206,
+  lines: ['Комфортні офіси з резервним живленням,', 'ефективним опаленням і вентиляцією'], contact: 'Надпільна, 252 · +38 (093) 098-80-80' };
 
 // radius (share of R) over height (share of H) from the throat up: a teardrop with the widest point at ~2/3
 const PROFILE = [[0.15, 0], [0.24, 0.05], [0.42, 0.15], [0.62, 0.27], [0.8, 0.39], [0.93, 0.5], [0.99, 0.6], [1, 0.67],
@@ -64,6 +67,7 @@ export function buildBalloon({ root, heightAt }) {
 
   // envelope skin: gores round (u), rows up (v); the lathe's v runs along the spaced points, i.e. arc length
   const W = 2048, Hh = 1024;
+  let logoAt = null;
   const skin = canvasTex(W, Hh, (g) => {
     const gw = W / GORES, rh = Hh / ROWS;
     g.fillStyle = WHITE; g.fillRect(0, 0, W, Hh);
@@ -73,21 +77,31 @@ export function buildBalloon({ root, heightAt }) {
       g.fillStyle = c; g.fillRect(i * gw / 2, Hh - (j + 1) * rh, gw / 2 + 1, rh + 1);
     }
     g.fillStyle = MAROON; g.fillRect(0, Hh * (1 - 0.06), W, Hh * 0.06); // the scoop round the throat
-    // the band: white with maroon rules, the offer three times round (a third of the girth faces the viewer)
+    // the band: the advertiser's colour with maroon rules, the ad three times round (a third of the girth faces the viewer)
     const b0 = Hh * (1 - BAND[1]), b1 = Hh * (1 - BAND[0]), bh = b1 - b0;
-    g.fillStyle = '#fbfaf6'; g.fillRect(0, b0, W, bh);
+    g.fillStyle = AD.bg; g.fillRect(0, b0, W, bh);
     g.fillStyle = MAROON; g.fillRect(0, b0, W, bh * 0.07); g.fillRect(0, b1 - bh * 0.07, W, bh * 0.07);
     g.textAlign = 'center'; g.textBaseline = 'middle';
+    const font = (w, px) => `${w} ${Math.round(px)}px system-ui, "Helvetica Neue", Arial, sans-serif`;
     for (const k of [0, 1, 2]) {
-      const cx = W * (1 / 6 + k / 3), font = (w, px) => `${w} ${Math.round(px)}px system-ui, "Helvetica Neue", Arial, sans-serif`;
-      g.fillStyle = MAROON; g.font = font(900, bh * 0.27);
-      g.fillText(TEXT[0], cx, b0 + bh * 0.27, W * 0.27); g.fillText(TEXT[1], cx, b0 + bh * 0.55, W * 0.27);
-      g.fillStyle = '#d0672f'; g.font = font(800, bh * 0.17);
-      g.fillText(HANDLE, cx, b0 + bh * 0.8, W * 0.25);
+      const cx = W * (1 / 6 + k / 3);
+      g.fillStyle = AD.fg; g.font = font(600, bh * 0.085); // kept to a quarter of the girth: the band's curve hides the rest
+      g.fillText(AD.lines[0], cx, b0 + bh * 0.54, W * 0.22); g.fillText(AD.lines[1], cx, b0 + bh * 0.65, W * 0.22);
+      g.fillStyle = AD.accent; g.font = font(800, bh * 0.1);
+      g.fillText(AD.contact, cx, b0 + bh * 0.81, W * 0.24);
     }
+    logoAt = (img) => { // the logo, once its SVG has loaded: white on the band, over the offer
+      const lh = bh * 0.32, lw = lh / AD.logoAspect;
+      for (const k of [0, 1, 2]) g.drawImage(img, W * (1 / 6 + k / 3) - lw / 2, b0 + bh * 0.1, lw, lh);
+    };
     g.fillStyle = 'rgba(60,40,40,0.35)'; // load-tape seams between the gores
     for (let i = 0; i < GORES; i++) g.fillRect(i * gw - 1, 0, 3, Hh);
   }, { repeat: false });
+  if (typeof Image !== 'undefined') {
+    const img = new Image();
+    img.onload = () => { logoAt(img); skin.needsUpdate = true; };
+    img.src = `${import.meta.env?.BASE_URL ?? '/'}assets/brand/${AD.logo}.svg`;
+  }
   const envMat = new THREE.MeshStandardMaterial({ map: skin, emissiveMap: skin, emissive: 0xffb070, emissiveIntensity: 0, roughness: 0.75, side: THREE.DoubleSide });
   const envMesh = new THREE.Mesh(env, envMat);
   envMesh.castShadow = true;

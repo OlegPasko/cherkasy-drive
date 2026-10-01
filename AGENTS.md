@@ -80,8 +80,8 @@ See `ARCHITECTURE.md` for the module map. Where things live:
     `restinn.js`, and Торс (the rehabilitation centre at бульвар Шевченка 266: `tors.js` hangs a small lit logo disc on the
     OSM block's wall toward the boulevard and its door with a fascia on the annex; a site's `partners` gives the ring its door and glow); the
     other hand-built venues stay in the world unadvertised.
-  - `balloon.js` – a hot-air balloon in the pixel tower's colours, its band offering the space on it for a donation (the
-    bot's `ad-balloon` flow): it hangs over the Rose Valley fountain, then drifts at a walker's pace along the Dnipro shore,
+  - `balloon.js` – a hot-air balloon in the pixel tower's colours, its band sold through the bot's `ad-balloon` flow, today U space's
+  ad (logo `public/assets/brand/uspace.svg`, the offer, the address and the phone): it hangs over the Rose Valley fountain, then drifts at a walker's pace along the Dnipro shore,
     over the water, to the river station and back (wall-clock paced); it bobs, turns and fires its burner (a night glow).
   - `billboards.js` – roadside billboards sold through the bot: the `BILLBOARDS` list (spot, facing, art) and the
     builder; unsold ones show the "ваша реклама / @driver_game_bot" placeholder. The header says how to add a real one.
