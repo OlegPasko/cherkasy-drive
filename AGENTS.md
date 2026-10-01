@@ -32,7 +32,7 @@ See `ARCHITECTURE.md` for the module map. Where things live:
   - Shadows use three's `SunLight` with 2 cascades.
 - `src/kit/` – mesh building blocks:
   - `mesh.js` – `MeshBuilder`/`MB`, `M4`, `hexLin`;
-  - `logo.js` – brand SVGs from `public/assets/brand/` as recoloured textures (the Everlabs plate on the car, roof signs), or in their own colours (`color: null`, the Торс disc);
+  - `logo.js` – brand SVGs from `public/assets/brand/` as recoloured textures (the Everlabs plate on the car, roof signs), or in their own colours (`color: null`, the Торс disc, the URBAN letters); a new logo adds its aspect to `ASPECT`;
   - `batch.js` – spatial tiles;
   - `instances.js` – LOD pools;
   - `textures.js` – procedural textures.
@@ -78,8 +78,11 @@ See `ARCHITECTURE.md` for the module map. Where things live:
     lines. `world.places` is the resolved list. Only paid placements are ads: today U space (the south tower of the
     Rest Inn block) and Everlabs (the offices over the hotel next to it, a lit logo on the roof), both built in
     `restinn.js`, and Торс (the rehabilitation centre at бульвар Шевченка 266: `tors.js` hangs a small lit logo disc on the
-    OSM block's wall toward the boulevard and its door with a fascia on the annex; a site's `partners` gives the ring its door and glow); the
-    other hand-built venues stay in the world unadvertised.
+    OSM block's wall toward the boulevard and its door with a fascia on the annex; a site's `partners` gives the ring its door and glow), and
+    URBAN (street food, Надпільна 252/1А: `urban.js` builds the whole one-storey brick shop row with the «Маркет води» unit, the
+    lettering, blue awnings and bins, and – a proof of concept, not real – a steel stair up to a roof terrace with thujas, tables
+    and umbrellas; a new building OSM lacks, placed by its `SITE` line, mirrored by `URBAN_RING` for the maps, its lot levelled by
+    `levelUrban`); the other hand-built venues stay in the world unadvertised.
   - `balloon.js` – a hot-air balloon in the pixel tower's colours, its band sold through the bot's `ad-balloon` flow, today U space's
   ad (logo `public/assets/brand/uspace.svg`, the offer, the address and the phone): it hangs over the Rose Valley fountain, then drifts at a walker's pace along the Dnipro shore,
     over the water, to the river station and back (wall-clock paced); it bobs, turns and fires its burner (a night glow).
@@ -87,7 +90,7 @@ See `ARCHITECTURE.md` for the module map. Where things live:
     builder; unsold ones show the "ваша реклама / @driver_game_bot" placeholder. The header says how to add a real one.
 - `src/npc/` – everything that moves on its own:
   - `lanes.js` – the lane graph and signals;
-  - `vehicles.js` – loads the glb models, instanced fleet, `makeMesh`;
+  - `vehicles.js` – loads the glb models, instanced fleet, `makeMesh`; the ad tiles on vans, bus sides and backs and roof signs (tile 1 is URBAN's, paid: a quarter of the 12 m buses wear it in URBAN blue, `defaultDress` in `traffic.js`);
   - `traffic.js` and `wrecks.js` – the traffic sim, rigid-body wrecks and dents; the car rams through
     `ram(q)`;
   - `people.js` and `people/` – procedural, GPU-animated pedestrians and pigeons;

@@ -6,7 +6,7 @@
 //     .userData.aspect: height / width of the whole texture
 import * as THREE from 'three';
 
-const ASPECT = { everlabs: 78 / 392, tors: 1 }; // viewBox h / w, so the texture has its final shape before the file arrives
+const ASPECT = { everlabs: 78 / 392, tors: 1, urban: 256 / 543 }; // viewBox h / w, so the texture has its final shape before the file arrives
 const url = (name) => `${import.meta.env?.BASE_URL ?? '/'}assets/brand/${name}.svg`;
 
 function tinted(img, w, h, color) { // the logo alone, every pixel set to `color` at its own alpha

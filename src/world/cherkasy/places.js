@@ -5,16 +5,19 @@
 // Each is anchored on OSM buildings (their footprints get highlighted on the map) or on a lat / lon / map point.
 //   PLACES: [{ id, kind: 'sight' | 'ad' | 'improved', name, note?, issue? (GitHub issue of the request), icon (emoji), logo? (public/assets/brand/<logo>.svg), url?,
 //             pitch?: [headline, line, ...], bld?: [OSM building ids], cut?: { p: [x, z], n: [nx, nz] } or a list of them
-//             (only the part of the footprints on the +n side of every cut), ll?: [lat, lon], xz?: [x, z] }]
+//             (only the part of the footprints on the +n side of every cut), ring?: flat ring [x, z, …] (a footprint OSM
+//             does not have yet), ll?: [lat, lon], xz?: [x, z] }]
 //   resolvePlaces(map, geo) -> [{ id, kind, name, note, icon, logo, url, pitch, x, z, rings: [flat ring, ...] }]
 //     geo: FRAME_OF(map) (lat / lon -> x / z); places whose anchor cannot be found are dropped
 //   USPACE_CUT: the line between the REST INN hotel and the U space office tower in OSM way 129420363 (restinn.js);
 //   EVERLABS_CUT: the north end of the Everlabs offices over the hotel (the section next to the tower)
 //   clipRing(flat ring, cut) -> flat ring (the part on the +n side; [] when nothing is left)
+//   URBAN_RING: the URBAN shop row's footprint (urban.js SITE; a new building OSM does not have)
 // the south end of the Rest Inn block (past the step in its east wall), square to the long Nadpilna façade
 export const USPACE_CUT = { p: [-756.4, 1438.4], n: [0.0123, 0.9999] };
 export const EVERLABS_CUT = { p: [-756.9, 1398.4], n: [0.0123, 0.9999] };
 const BELOW_USPACE = { p: USPACE_CUT.p, n: USPACE_CUT.n.map((v) => -v) };
+export const URBAN_RING = [-751.5, 1369.5, -728.5, 1369.5, -728.5, 1379.7, -751.5, 1379.7];
 
 export const PLACES = [
   // partners (paid placements; the other hand-built venues stay in the world but are not advertised)
@@ -30,6 +33,9 @@ export const PLACES = [
     url: 'https://www.instagram.com/cfrn_tors_che/?utm_source=driver.ck.ua',
     pitch: ['Центр фізичної реабілітації і навчання', 'Відновлення після травм і операцій', 'Лікування болю в спині, суглобах і м’язах',
       'Індивідуальні програми реабілітації'] },
+  { id: 'urban', kind: 'ad', name: 'URBAN', note: 'Шаурма · street food · Надпільна, 252/1А', icon: '🌯', logo: 'urban',
+    ring: URBAN_RING, url: 'https://www.instagram.com/urban_252/?utm_source=driver.ck.ua',
+    pitch: ['Загортаємо в лаваш все, що ти любиш', 'Ще й без майонезу!', 'Wraps, bowls і напої', 'Пн–Пт 9:00–22:00, Сб–Нд 10:00–21:30'] },
   // rebuilt on request, not landmarks (a landmark goes with the sights below)
   { id: 'khimikiv44', kind: 'improved', name: 'Покращений об’єкт', note: 'просп. Хіміків, 44', issue: 1, bld: [108980190] },
   { id: 'khrcity', kind: 'improved', name: 'Покращений об’єкт', note: 'вул. Остафія Дашковича, 19', bld: [6287196] },
@@ -121,7 +127,7 @@ export function resolvePlaces(map, geo) {
   for (const b of map?.buildings || []) if (want.has(b.id) && b.p?.length >= 6) byId.set(b.id, b.p);
   const out = [];
   for (const q of PLACES) {
-    const rings = (q.bld || []).map((id) => byId.get(id)).filter(Boolean).map((r) => [].concat(q.cut || []).reduce(clipRing, r)).filter((r) => r.length);
+    const rings = [...(q.ring ? [q.ring] : []), ...(q.bld || []).map((id) => byId.get(id)).filter(Boolean).map((r) => [].concat(q.cut || []).reduce(clipRing, r)).filter((r) => r.length)];
     let at = q.xz || (q.ll && geo ? geo.toXZ(q.ll[0], q.ll[1]) : null);
     if (!at && rings.length) { // the biggest footprint's centre
       const c = rings.map(ringCentre);
