@@ -2,7 +2,7 @@
 // Data (c) OpenStreetMap contributors, ODbL. Run: node tools/cherkasy/fetch_osm.mjs [part...]
 import { writeFileSync, mkdirSync, existsSync } from 'node:fs';
 
-export const BBOX = [49.395, 31.985, 49.468, 32.115]; // south, west, north, east
+export const BBOX = [49.395, 31.965, 49.49, 32.115]; // south, west, north, east
 const b = BBOX.join(',');
 const PARTS = {
   buildings: `way["building"](${b}); relation["building"](${b}); way["building:part"](${b});`,

@@ -127,7 +127,8 @@ See `ARCHITECTURE.md` for the module map. Where things live:
     The game pauses while it is open (`ctx.paused`: only systems added with `{ always: true }` run, nothing renders).
 - `src/ui/consent.js` and `consent.css` – the consent card on the loading screen: the main keys and the terms (an
   entertainment game, toy people not modelled on real residents, toy crashes, open-data city with nothing military or
-  live). The loop starts once it is accepted; acceptance is stored as `cherkasy.consent` = the `TERMS` version, so bump
+  live). Any key (browser shortcuts aside) or a click anywhere accepts it, a press during the load as soon as the game is
+  ready; the game reads keys by `e.code`, so a Cyrillic layout works the same. The loop starts once it is accepted; acceptance is stored as `cherkasy.consent` = the `TERMS` version, so bump
   `TERMS` when the text changes materially and everyone sees it again.
 - `src/ui/botlink.js` – links into the Telegram bot: the "Бот" chip next to H, the "🔔 Новини" chip (`?start=sub`), the H card line, the big-map button,
   the right-click menu (improve / advertise at that point) and the partner card line.

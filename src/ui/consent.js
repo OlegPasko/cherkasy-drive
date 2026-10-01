@@ -1,10 +1,11 @@
 // The consent card on the loading screen: the main keys, and the terms the player accepts by starting (an entertainment
 // game, toy people and cars not modelled on real residents, toy crashes, the city from open data with nothing military
 // and nothing live, not for navigation or safety). It shows while the city loads, so it costs no waiting; the button
-// unlocks when the game is ready. Acceptance is stored per TERMS version, so a returning player skips it until the
+// unlocks when the game is ready; any key or a click anywhere starts it then (a press during the load starts it as soon as
+// it is ready). Keys are matched by e.code everywhere in the game, so the layout (Cyrillic or Latin) does not matter. Acceptance is stored per TERMS version, so a returning player skips it until the
 // terms change. The keys card in the game (H) stays the full list.
 //   showConsent({ overlay }) -> { accepted: Promise<void>, ready(), needed: bool }
-//     overlay: the #loading element (its .msg keeps the load progress); ready() enables the button (Enter works too)
+//     overlay: the #loading element (its .msg keeps the load progress); ready() enables the button and any key / click
 import './consent.css';
 
 const KEY = 'cherkasy.consent', TERMS = 1;
@@ -34,27 +35,37 @@ export function showConsent({ overlay }) {
     <div class="c-keys">${KEYS.map(([k, t]) => `<div class="r"><span class="k">${kbd(k)}</span><span>${t}</span></div>`).join('')}</div>
     <div class="c-terms"><h4>Запускаючи гру, ви погоджуєтесь, що:</h4><ul>${POINTS.map((p) => `<li>${p}</li>`).join('')}</ul></div>
     <button type="button" disabled>Завантаження…</button>
-    <div class="c-next">У грі натисніть <kbd>H</kbd>, щоб побачити всі клавіші керування.</div>
+    <div class="c-next">Натисніть будь-яку клавішу або клацніть, щоб почати: починаючи гру, ви даєте згоду з цими умовами.<br>
+      Розкладка не важлива – кирилиця теж працює. У грі <kbd>H</kbd> покаже всі клавіші керування.</div>
     <div class="c-foot">Відкритий код, GNU AGPL-3.0</div>`;
   overlay.classList.add('with-consent');
   overlay.querySelector('.bar')?.after(card);
   const btn = card.querySelector('button');
 
-  let go, isReady = false;
+  let go, isReady = false, wanted = false, done = false;
   const accepted = new Promise((r) => { go = r; });
   const accept = () => {
-    if (!isReady) return;
+    if (done) return;
+    if (!isReady) { wanted = true; btn.textContent = 'Запуск…'; return; }
+    done = true;
     try { localStorage.setItem(KEY, String(TERMS)); } catch { /* storage off */ }
     removeEventListener('keydown', onKey, true);
+    overlay.removeEventListener('click', accept);
     go();
   };
-  const onKey = (e) => { if (e.code === 'Enter' || e.code === 'NumpadEnter') { e.preventDefault(); e.stopImmediatePropagation(); accept(); } };
-  btn.addEventListener('click', accept);
+  // any key starts, but browser shortcuts (Cmd+R, Ctrl+Shift+I, F5, F12, Tab focus) and bare modifiers stay theirs;
+  // the starting key is swallowed so it does not also act in the game
+  const onKey = (e) => {
+    if (e.metaKey || e.ctrlKey || e.altKey || /^(Meta|Control|Alt|OS|Tab|F\d+)/.test(e.code)) return;
+    e.preventDefault(); e.stopImmediatePropagation(); accept();
+  };
+  overlay.addEventListener('click', accept);
   addEventListener('keydown', onKey, true);
   return {
     accepted, needed: true,
     ready() {
       isReady = true;
+      if (wanted) return accept();
       btn.disabled = false; btn.textContent = 'Погоджуюсь – поїхали';
       overlay.classList.add('ready');
       btn.focus({ preventScroll: true });
