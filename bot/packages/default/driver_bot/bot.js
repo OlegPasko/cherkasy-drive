@@ -326,14 +326,20 @@ function createBot({ tg, gh, store, jev, proof, moderate = null, adminChat = nul
     if (!text && !photos.length) return;
     if (text && !(await guard(c, c.s.step === 'fix' ? 'What should be fixed in the finished game object or ad?' : 'A message to the team about this request', text))) return;
     const body = [text || '', ...photos.map((u) => `<img src="${u}" width="320">`)].join('\n\n') + `\n\n${BOT_MARK}`;
+    // the comment goes out with Oleg's token, so GitHub never notifies him of it: the admin chat hears it instead
+    const tellAdmin = (head) => adminChat && gh.get(n).catch(() => null)
+      .then((iss) => tg.send(adminChat, [`${head} · <b>#${n}</b>`, esc(clip(text || '', 1500)), photos.length ? `📎 фото: ${photos.length}` : ''].filter(Boolean).join('\n'),
+        iss?.html_url ? [[{ text: 'Відкрити в GitHub', url: iss.html_url }]] : undefined)).catch(() => {});
     if (c.s.step === 'fix') {
       await gh.comment(n, `${T.GH_FIX(k, '')}${body}`);
       await gh.labels(n, [`rework-${k}`], ['confirmed']);
       await gh.state(n, 'open');
+      tellAdmin(`🛠 Правка ${k} від гравця`);
       c.s.step = null; c.s.ctx = null;
       return tg.send(c.chat, T.FIX_SENT(n, k), [[btn(T.MENU_BTN, 'm'), btn('📋 Мої заявки', 'my')]]);
     }
     await gh.comment(n, `${T.GH_SAY('')}${body}`);
+    tellAdmin('💬 Гравець відповів');
     c.s.step = null; c.s.ctx = null;
     return tg.send(c.chat, T.SAY_SENT(n), [[btn(T.MENU_BTN, 'm'), btn('📋 Мої заявки', 'my')]]);
   }

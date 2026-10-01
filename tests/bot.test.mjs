@@ -205,6 +205,8 @@ const buttons = (m) => (m.kb || []).flat().map((b) => b.data || b.url);
   await f.bot.onUpdate(tap('s:1'));
   await f.bot.onUpdate(msg('Ще й на мості через Дніпро'));
   assert.match(i.comments.at(-1), /Користувач/); assert.match(i.comments.at(-1), /мості/);
+  await new Promise((r) => setTimeout(r, 0));
+  assert.ok(f.sent.some((x) => x.chat === 1 && /Гравець відповів/.test(x.text) && /мості/.test(x.text)), 'the admin chat hears the reply');
   // reply-to-message shortcut
   await f.bot.onUpdate(msg('І ще одне', { reply_to_message: { from: { is_bot: true }, text: '💬 Відповідь по заявці #1' } }));
   assert.match(i.comments.at(-1), /І ще одне/);

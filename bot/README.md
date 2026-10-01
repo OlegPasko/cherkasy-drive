@@ -104,6 +104,8 @@ Flows:
   - for the other kinds, a "done" message only.
 - **Close as not planned** sends "закрито без виконання".
 - **Bot comments** (player replies, fixes, confirmations) carry `<!-- bot -->` and are never echoed back.
+- **A player's reply or fix request** also goes to the admin chat ("💬 Гравець відповів · #N" / "🛠 Правка k від гравця",
+  the text and a GitHub button): the bot comments with Oleg's token, so GitHub itself never notifies him.
 - **Photos** are public files in Spaces (`everlabs-file-uploads/driver-bot/media/<mid>/…`, `mid` a random id per chat,
   never the chat id), shown inline in the issue.
 - **The issues are public**, so they carry no player names and no chat ids: the footer says only "Від гравця через
