@@ -105,6 +105,9 @@ has been rebuilt on request:
   Hovering (or tapping) the footprint shows the name and the `note` (the address).
 - Keep `name: 'Покращений об’єкт'`; `issue` is the request's issue number. It is not a sight and not in the quest.
 
+Either way, add the place to `SITES` in `src/ui/peek3d.js` (`<place id>: ['<module>', 'build<Name>', '<terrain hook>?']`),
+so a phone can open its 3D view from the map (a second tap on it at `?mobile`).
+
 ## 6. Verify
 
 - The dev server runs at `http://127.0.0.1:5174`.

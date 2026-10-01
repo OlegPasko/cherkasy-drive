@@ -147,7 +147,12 @@ See `ARCHITECTURE.md` for the module map. Where things live:
 - `src/mapview.js` and `ui/mapview.css` – the phone page: `index.html` sends touch-only devices and phone user agents here
   instead of the game (`?mobile` / `?desktop` force either). It loads only `map.json` + `map_buildings.json` and opens the
   big map with no car (`createBigMap({ player: null })`; one finger pans, two pinch (or the + / − buttons), a tap shows a badge's card and a
-  second tap opens a partner's site), under a card that says the ride is on a computer.
+  second tap opens a partner's site), under a card that says the ride is on a computer. A second tap on a sight or an improved
+  object with a hand-built model opens `ui/peek3d.js`: the map centres on it, and the site module the game uses (the `SITES`
+  table there: place id -> module, builder, terrain hook) builds it on its own, cropped to a disc round the place, on the
+  map's tiles draped over the DEM with the OSM neighbours as a white massing model. It rises out of the map, then one finger turns it and two
+  zoom. three.js, the textures, `dem.bin` and the module load only on the first peek, and the game never imports it; a new hand-built
+  object joins by a line in `SITES`. `__mapview.peek.tick(n)` steps it by hand (a hidden tab has no frames).
 - `bot/` – `@driver_game_bot`, a DigitalOcean Function (Node 24, one npm dep: `unpdf`) outside the game bundle. It turns
   requests (object improvement, ads, billboard, van livery, balloon – paid as a minimum donation to the 3D forge's monobank jar and proven by a screenshot or receipt; free ideas and feedback) into GitHub issues in
   this repo and relays comments and statuses back to Telegram. It uses Jev as the guardrail on typed input and to judge donation proofs (read by Gemma on Darkbloom, DeepSeek as the fallback), and

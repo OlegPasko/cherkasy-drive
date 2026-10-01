@@ -7,9 +7,11 @@
 // With a car and onGo, a click on an improved object or a partner's badge asks "Переміститись сюди?"; yes (or Enter)
 // calls onGo(place). The partner's site stays in its ring in the world (game/partners.js). Sights are never teleport targets: the explore quest counts them.
 // Touch: one finger pans, two pinch-zoom (the + / − buttons zoom too, for mice and fingers alike), a tap on a badge shows its card and a second tap opens a partner's site.
+// With peek (mapview.js on phones: ui/peek3d.js), a second tap (or a click) on a place it has a model for centres the map on it and opens its 3D view.
 //
 //   createBigMap({ painter, player, container, map? (map.json: region -> zoom-out limit), getObjective() -> Vector3 | null, getMarkers() -> [{ x, z, color, label }],
-//                  home? { x, z }, onGo?(place) (move the car there; main.js), getWaypoint?() -> { x, z } | null, setWaypoint?(w | null) })
+//                  home? { x, z }, onGo?(place) (move the car there; main.js), getWaypoint?() -> { x, z } | null, setWaypoint?(w | null),
+//                  peek? { has(place), open(place) } (the 3D view of a place) })
 //     with setWaypoint (hud.js, a car only), a left click that is not a teleport or a partner's site sets the player's mark
 //     there; a click on the mark clears it. The mark draws as a yellow flag (an arrow on the rim with the distance when off view).
 //     player null: the map on its own (mapview.js on phones) – no car, no "to the car", no distances; it opens at home
@@ -36,7 +38,7 @@ const NORTH = enuToWorld(0, 1, 0);
 const ROT = -Math.PI / 2 - Math.atan2(NORTH.z, NORTH.x); // canvas rotation that puts north up
 const fmtDist = (m) => (m >= 1000 ? `${(m / 1000).toFixed(1).replace('.', ',')} км` : `${Math.round(m / 10) * 10} м`);
 
-export function createBigMap({ painter, player, container, map = null, getObjective, getMarkers, home = { x: 0, z: 0 }, onGo = null, getWaypoint = null, setWaypoint = null }) {
+export function createBigMap({ painter, player, container, map = null, getObjective, getMarkers, home = { x: 0, z: 0 }, onGo = null, getWaypoint = null, setWaypoint = null, peek = null }) {
   const doc = container.ownerDocument;
   const canGo = (p) => !!(player && onGo && p && (p.kind === 'improved' || (p.kind === 'ad' && p.rings?.length))); // buildings only, never a sight
   const touch = !!globalThis.matchMedia?.('(pointer: coarse)').matches;
@@ -155,6 +157,10 @@ export function createBigMap({ painter, player, container, map = null, getObject
     go.style.left = `${Math.max(8, Math.min(x - 120, W - 260))}px`; go.style.top = `${Math.max(8, Math.min(y + 14, H - 150))}px`;
     go.classList.add('on');
   }
+  function openPeek(p) { // the map comes to the place under the 3D view (and is there when it closes)
+    tcx = p.x; tcz = p.z; anchor = null; ts = Math.max(ts, 1.2); mouse = null;
+    peek.open(p);
+  }
   function goYes() { const p = goFor; hideGo(); if (!p) return; track('teleport', { place: p.id }); onGo(p); }
   go.querySelector('[data-a="yes"]').addEventListener('click', goYes);
   go.querySelector('[data-a="no"]').addEventListener('click', hideGo);
@@ -206,6 +212,7 @@ export function createBigMap({ painter, player, container, map = null, getObject
       if (!drag.touch) { // what is under the pointer now, not the last frame's hover (a slow frame, a click without a move)
         const hit = pick(e.clientX, e.clientY)?.p || tipFor;
         if (canGo(hit)) showGo(hit, e.clientX, e.clientY);
+        else if (hit && peek?.has(hit)) openPeek(hit);
         else if (tipFor?.url) { track('partner_open', { partner: tipFor.id, via: 'map' }); globalThis.open?.(tipFor.url, '_blank', 'noopener'); }
         else if (setWaypoint) { // the player's mark: here, or off when the click lands on it
           const w = getWaypoint?.(), q = w && toScreen(w.x, w.z);
@@ -216,6 +223,7 @@ export function createBigMap({ painter, player, container, map = null, getObject
         const hit = pick(e.clientX, e.clientY, 10);
         mouse = hit ? { x: hit.x, y: hit.y } : null; // the badge's centre: the card stays on it while nothing moves
         if (hit && hit.p === drag.tip && canGo(hit.p)) showGo(hit.p, hit.x, hit.y);
+        else if (hit && hit.p === drag.tip && peek?.has(hit.p)) openPeek(hit.p);
         else if (hit && hit.p === drag.tip && hit.p.url) { track('partner_open', { partner: hit.p.id, via: 'map' }); globalThis.open?.(hit.p.url, '_blank', 'noopener'); }
       }
     }
@@ -539,6 +547,7 @@ export function createBigMap({ painter, player, container, map = null, getObject
       el.tip.classList.toggle('ad', best.p.kind === 'ad');
       el.tip.classList.toggle('imp', best.p.kind === 'improved');
       el.tipU.textContent = canGo(best.p) ? (touch ? 'Торкніться ще раз – переміститись сюди' : 'Клік – переміститись сюди')
+        : peek?.has(best.p) ? (touch ? 'Торкніться ще раз – 3D-модель' : 'Клік – 3D-модель')
         : best.p.url ? (touch ? 'Торкніться значка ще раз – відкриється сайт' : 'Клік по значку – відкриє сайт у новій вкладці') : '';
     }
     const P = player?.position;

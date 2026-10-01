@@ -54,6 +54,7 @@ the Dnipro, +z south-east, origin at Soborna square).
         bigmap.js             full-screen city map (M): zoom / pan, street names, sights, partners, missions;
                               right click -> the Telegram bot at that point
         botlink.js            t.me links into @driver_game_bot (game x/z -> lat/lon for the /start payload)
+        peek3d.js             the phone map's 3D peek: one hand-built site built on its own over the map (mapview.js only)
 
     bot/                      the Telegram bot (DigitalOcean Function, nodejs:24): requests -> GitHub issues,
                               issue comments / statuses -> the player; see bot/README.md

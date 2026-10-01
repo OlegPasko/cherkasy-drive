@@ -2,11 +2,14 @@
 // Only map.json + map_buildings.json are loaded (no DEM, no workers, no three.js scene); the big map opens full screen
 // with the sights, the partners (a tap shows the card, a second tap opens the site) and the bot link, and a card says
 // the ride itself is on a computer. index.html picks this or main.js (touch-only or a phone UA; ?mobile / ?desktop force either).
-//   startMapView({ container = document.body }) -> Promise<{ map (bigmap), painter }>
+// A second tap on a sight or an improved object opens its hand-built model in 3D over the map (ui/peek3d.js: three.js and
+// the model load only then).
+//   startMapView({ container = document.body }) -> Promise<{ map (bigmap), painter, peek }>
 import './ui/hud.css';
 import './ui/mapview.css';
 import { createMapPainter } from './ui/mapdraw.js';
 import { createBigMap } from './ui/bigmap.js';
+import { createPeek } from './ui/peek3d.js';
 import { resolvePlaces } from './world/cherkasy/places.js';
 import { FRAME_OF } from './world/cherkasy/frame.js';
 
@@ -33,9 +36,11 @@ export async function startMapView({ container = document.body } = {}) {
   const [map, buildings] = await Promise.all([asset('map.json'), asset('map_buildings.json')]);
   map.buildings = buildings;
 
-  const world = { cherkasy: { map }, places: resolvePlaces(map, FRAME_OF(map)) };
+  const geo = FRAME_OF(map);
+  const world = { cherkasy: { map }, places: resolvePlaces(map, geo) };
   const painter = createMapPainter({ world });
-  const bigmap = createBigMap({ painter, player: null, container, map });
+  const peek = createPeek({ container, map, painter, geo });
+  const bigmap = createBigMap({ painter, player: null, container, map, peek });
   bigmap.open();
 
   const ui = document.createElement('div');
@@ -59,6 +64,6 @@ export async function startMapView({ container = document.body } = {}) {
   requestAnimationFrame(frame);
   loading?.classList.add('done');
   setTimeout(() => loading?.remove(), 700);
-  if (typeof window !== 'undefined') window.__mapview = { map: bigmap, painter };
-  return { map: bigmap, painter };
+  if (typeof window !== 'undefined') window.__mapview = { map: bigmap, painter, peek };
+  return { map: bigmap, painter, peek };
 }

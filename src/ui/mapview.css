@@ -35,3 +35,29 @@
   .bm-scale { right: 16px; bottom: auto; top: 108px; }
   .bm-keys { display: block; width: calc(100% - 24px); text-align: center; font-size: 11px; white-space: normal; } /* hud.css hides it this narrow */
 }
+
+/* the 3D peek of a place (src/ui/peek3d.js): a transparent canvas over the dimmed map, the name on top */
+.peek { position: fixed; inset: 0; z-index: 40; background: radial-gradient(circle at 50% 55%, rgba(8, 12, 20, .25), rgba(8, 12, 20, .78));
+  transition: opacity .3s; color: #e8edf3; font: 14px/1.4 system-ui, -apple-system, sans-serif; }
+.peek.off { opacity: 0; pointer-events: none; }
+.pk-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; opacity: 0; transition: opacity .25s; }
+.peek.ready .pk-canvas { opacity: 1; }
+.pk-head { position: absolute; left: 12px; right: 12px; top: max(12px, env(safe-area-inset-top)); display: flex; align-items: center; gap: 10px;
+  padding: 10px 12px; border-radius: 14px; background: rgba(14, 20, 32, .9); border: 1px solid rgba(255, 255, 255, .14);
+  box-shadow: 0 8px 26px rgba(0, 0, 0, .45); }
+.pk-icon { font-size: 26px; line-height: 1; }
+.pk-head > div { flex: 1; min-width: 0; }
+.pk-head b { display: block; font-size: 16px; color: #fff; }
+.pk-note { display: block; font-size: 12.5px; color: #aab6c8; }
+.pk-note:empty { display: none; }
+.pk-close { flex: none; width: 40px; height: 40px; border-radius: 50%; border: 1px solid rgba(255, 255, 255, .2); background: rgba(34, 44, 64, .95);
+  color: #fff; font: 600 17px system-ui, sans-serif; cursor: pointer; }
+.pk-wait { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); display: flex; flex-direction: column; align-items: center; gap: 12px;
+  text-align: center; color: #c9d3e4; pointer-events: none; }
+.peek.ready .pk-wait { display: none; }
+.pk-wait i { width: 34px; height: 34px; border-radius: 50%; border: 3px solid rgba(242, 193, 78, .25); border-top-color: #f2c14e; animation: pk-spin .8s linear infinite; }
+.peek.failed .pk-wait i { display: none; }
+@keyframes pk-spin { to { transform: rotate(360deg); } }
+.pk-hint { position: absolute; left: 50%; bottom: max(18px, env(safe-area-inset-bottom)); transform: translateX(-50%); white-space: nowrap; font-size: 12px;
+  color: #c9d3e4; padding: 6px 12px; border-radius: 999px; background: rgba(12, 17, 28, .7); opacity: 0; transition: opacity .4s 1.6s; pointer-events: none; }
+.peek.ready .pk-hint { opacity: 1; }
