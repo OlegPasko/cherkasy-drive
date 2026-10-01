@@ -19,7 +19,7 @@ import { signedArea2, ringArea, vertexMean, asCCW, asCW, simplify, boundsOf, poi
 const RAW = (n) => JSON.parse(readFileSync(new URL(`./raw/${n}.json`, import.meta.url))).elements;
 export const FRAME = { lat0: 49.4445, lon0: 32.0600, rot: 49.4 };
 // playable region (the main city: river bank .. pr. Khimikiv, Sosnivka .. the port / Sady) and the land/water extent
-export const REGION = { x0: -4300, x1: 1900, z0: -3500, z1: 4800 };
+export const REGION = { x0: -4300, x1: 1900, z0: -4100, z1: 4800 }; // z0 reaches past vul. Oleksiia Panchenka into the pines (issue #6)
 const LAND = { x0: REGION.x0 - 25000, x1: REGION.x1 + 25000, z0: REGION.z0 - 25000, z1: REGION.z1 + 25000 };
 
 const KY = 111320, KX = 111320 * Math.cos(FRAME.lat0 * Math.PI / 180);
@@ -137,6 +137,11 @@ const hashStr = (s) => { let h = 2166136261; for (let i = 0; i < s.length; i++) 
 
 // ------------------------------------------------------------------------------------------------ land cover
 const landEls = RAW('land'), waterEls = RAW('water'), poiEls = RAW('poi'), roadEls = RAW('roads'), bldEls = RAW('buildings');
+// local tag fixes for OSM objects whose tags mislead the guesses (checked against photos); merged over the OSM tags
+const TAG_FIX = {
+  146190229: { 'building:levels': '2', 'roof:shape': 'gabled', 'roof:colour': '#d9774f' }, // the sports complex on vul. Oleksiia Panchenka (issue #6): a low hall, not a 9-storey block
+};
+for (const e of bldEls) if (TAG_FIX[e.id]) e.tags = { ...e.tags, ...TAG_FIX[e.id] };
 const COVER = { // OSM tag -> cover kind
   'landuse=grass': 'grass', 'leisure=garden': 'grass', 'leisure=park': 'park', 'landuse=recreation_ground': 'grass', 'natural=grassland': 'grass',
   'landuse=meadow': 'grass', 'landuse=village_green': 'grass', 'landuse=flowerbed': 'flowers', 'leisure=playground': 'play', 'landuse=cemetery': 'grass',
@@ -473,9 +478,29 @@ for (const c of coverPolys) {
 }
 const asphaltCut = asphalt.flatMap(p => [p.outer, ...p.holes]);
 const minus = (polys, cut) => clip(polys.flatMap(p => [p.outer, ...p.holes]), cut, ClipperLib.ClipType.ctDifference);
+// a running track mapped as a filled oval would paint over its whole infield (and z-fight the pitch on it): keep a 9 m
+// lane band along its edges and make the infield a pitch (no trees on it)
+function inset(polys, d) {
+  const co = new ClipperLib.ClipperOffset(2, 25), sol = new ClipperLib.Paths();
+  co.AddPaths(polys.flatMap(p => [p.outer, ...p.holes]).map(toC), ClipperLib.JoinType.jtRound, ClipperLib.EndType.etClosedPolygon);
+  co.Execute(sol, -d * SC);
+  return sol.map(fromC);
+}
+if (cover.track) {
+  const T = union(cover.track.flatMap(p => [p.outer, ...p.holes]));
+  cover.pitch = union([...(cover.pitch || []), ...union(inset(T, 9))].flatMap(p => [p.outer, ...p.holes])); // the infield is the pitch
+  cover.track = clip(minus(T, inset(T, 9)).flatMap(p => [p.outer, ...p.holes]), (cover.pitch || []).flatMap(p => [p.outer, ...p.holes]), ClipperLib.ClipType.ctDifference);
+}
+// the ground drapes each cover kind on its own a fraction of a millimetre apart, so overlapping kinds flicker: sports
+// surfaces are cut out of the lawns, sand and dirt they lie on (a stadium's grass, a park), and out of the land below
+{
+  const sport = [...(cover.pitch || []), ...(cover.track || [])].flatMap(p => [p.outer, ...p.holes]);
+  if (sport.length) for (const k of ['grass', 'park', 'orchard', 'sand', 'dirt', 'scrub', 'wet', 'play']) if (cover[k]) cover[k] = minus(cover[k], sport);
+}
 const coverOut = {};
 for (const [k, P] of Object.entries(cover)) coverOut[k] = polysToRings(simp(minus(clipRegion(union(P.flatMap(p => [p.outer, ...p.holes])), 800), [...asphaltCut, ...walks.flatMap(p => [p.outer, ...p.holes])]), 0.2));
-const landCut = minus(land, asphaltCut);
+// the base land is cut under pitches and tracks too: drawn over it they would cross it on uneven ground
+const landCut = minus(land, [...asphaltCut, ...[...(cover.pitch || []), ...(cover.track || [])].flatMap(p => [p.outer, ...p.holes])]);
 const coverLu = {}; // landuse zones for the generator (residential / industrial / commercial): building styles by district
 for (const c of coverPolys) if (c.k === 'resid' || c.k === 'industrial' || c.k === 'comm') (coverLu[c.k] ??= []).push(flat(dp(c.outer, 1, true)));
 
