@@ -10,8 +10,9 @@
 //     fleet.begin(); fleet.add(type, lod, matrixElements[16], paint[3] linear rgb, brake 0..1, seed); fleet.end()
 //     fleet.stats() -> { drawn, byLod: [n0, n1, n2], meshes }; fleet.dispose()
 //   paintOf(colour) -> [r, g, b] linear (accepts [r,g,b], THREE.Color, 0xrrggbb)
-// Per-instance attributes: aPaint (vec3, applied to PAINT parts only), aMisc (x brake, y ad tile 0..7; tiles 5..7 also
-// swap the box truck's red "your ad here" side for the Telegram-blue one). The material
+// Per-instance attributes: aPaint (vec3, applied to PAINT parts only), aMisc (x brake, y ad tile 0..7 from adTile(seed);
+// tiles 5..7 also swap the box truck's red "your ad here" side for the Telegram-blue one).
+//   AD_URBAN, URBAN_BLUE, adSeedFor(tile) -> a seed that shows exactly that tile, adTile(seed) -> 0..7 The material
 // reads per-vertex aPart and aAO (converted from TEXCOORD_1 / COLOR_0 at load).
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
@@ -47,6 +48,17 @@ export function paintOf(c) {
   return [0.6, 0.6, 0.6];
 }
 
+// ------------------------------------------------------------------------------------------ ad tiles
+// Eight ad tiles in the atlas (2 x 4). A seed in [0, 1) or any positive one picks among the seven unpaid ones; tile 1 is
+// URBAN's, paid for a quarter of the city buses (traffic.js), so only adSeedFor(AD_URBAN), a negative seed, shows it.
+export const AD_URBAN = 1, URBAN_BLUE = '#1b2496';
+export const adSeedFor = (tile) => -1 - tile;
+export function adTile(seed) {
+  if (seed < 0) return -1 - seed;
+  const t = Math.floor((((seed * 7.31) % 1) + 1) % 1 * 7);
+  return t >= AD_URBAN ? t + 1 : t;
+}
+
 // ------------------------------------------------------------------------------------------ procedural atlas
 // Painted over the atlas regions the generators' UVs point at (2048 px layout, drawn at 1024 px): flat swatches, lamp
 // housings, grilles, Ukrainian plates, the roof sign, route boards, bus ads, van / truck sides, interiors behind glass.
@@ -61,6 +73,7 @@ export function makeVehicleAtlas() {
   if (typeof document === 'undefined') return null;
   const cv = Object.assign(document.createElement('canvas'), { width: 1024, height: 1024 });
   const g = cv.getContext('2d'); g.scale(0.5, 0.5);
+  const tex = Object.assign(new THREE.CanvasTexture(cv), { colorSpace: THREE.SRGBColorSpace, flipY: false, anisotropy: 4 });
   const box = (x0, y0, x1, y1, paint) => { g.fillStyle = paint; g.fillRect(x0, y0, x1 - x0, y1 - y0); };
   const SANS = '"Arial Narrow", "Helvetica Neue", Arial, sans-serif';
   const text = (t, x, y, w, font, fill) => {
@@ -127,13 +140,22 @@ export function makeVehicleAtlas() {
   g.fillStyle = '#c4201c'; g.beginPath(); g.arc(1150, 1925, 58, 0, 7); g.fill();
   g.fillStyle = '#ffffff'; g.beginPath(); g.moveTo(1112, 1922); g.lineTo(1186, 1892); g.lineTo(1172, 1960); g.lineTo(1152, 1940); g.lineTo(1140, 1954); g.lineTo(1138, 1934); g.fill();
   text('tg: @driver_game_bot', 1600, 1928, 760, `bold 104px ${SANS}`, '#c4201c');
-  const ADS = [['#b8281c', '#ffe08a', 'ПІЦА «ДНІПРО»', 'доставка за 30 хвилин'], ['#f1ecdf', '#1d1d1d', 'ВІСТІ ЧЕРКАС', 'щоранку свіжі новини'],
+  const ADS = [['#b8281c', '#ffe08a', 'ПІЦА «ДНІПРО»', 'доставка за 30 хвилин'], 'urban',
     ['#6a1420', '#f3dca0', 'ДРАМТЕАТР', 'сезон відкрито'], ['#17488f', '#ffffff', 'ЕНЕРГОЗБУТ', 'заощаджуй світло'],
     null, ['#1f7a3e', '#ffffff', 'СОНЯЧНА ЕНЕРГІЯ', 'панелі для дому'],
     ['#1b2a5a', '#ffd24a', 'ЮРИДИЧНА ДОПОМОГА', '0 800 55 01 10'], ['#e36a12', '#1d1d1d', 'СПОРТМАРКЕТ', 'біжи містом']];
   ADS.forEach((ad, i) => {
     const x = 1024 + (i % 2) * 512, y = Math.floor(i / 2) * 170;
-    if (!ad) { // the ad slot sells itself (1 in 8 vans, bus backs and roof signs): Telegram blue, the bot on a white strip
+    if (ad === 'urban') { // the paid URBAN tile (AD_URBAN): their blue, the logo once its file loads, what and where
+      box(x, y, x + 512, y + 170, URBAN_BLUE);
+      text('ШАУРМА', x + 424, y + 52, 160, `bold 46px ${SANS}`, '#ffffff');
+      text('Надпільна', x + 424, y + 100, 160, `30px ${SANS}`, '#dfe3ff'); text('252/1А', x + 424, y + 136, 160, `bold 34px ${SANS}`, '#ffffff');
+      const img = new Image();
+      img.onload = () => { g.drawImage(img, x + 14, y + 12, 146 / 256 * 543 * 0.94, 146 * 0.94); tex.needsUpdate = true; };
+      img.src = `${import.meta.env?.BASE_URL ?? '/'}assets/brand/urban.svg`;
+      return;
+    }
+    if (!ad) { // the ad slot sells itself (1 in 7 vans, bus backs and roof signs): Telegram blue, the bot on a white strip
       box(x, y, x + 512, y + 170, '#229ed9'); box(x + 12, y + 120, x + 500, y + 162, '#ffffff');
       text('ТУТ ВАША РЕКЛАМА', x + 256, y + 50, 472, `bold 64px ${SANS}`, '#ffffff');
       text('Замовляйте рекламу в бота', x + 256, y + 98, 460, `bold 30px ${SANS}`, '#eaf6fd');
@@ -145,7 +167,7 @@ export function makeVehicleAtlas() {
     text(t1, x + 256, y + 70, 470, `bold 66px ${SANS}`, fg); text(t2, x + 256, y + 132, 440, `36px ${SANS}`, fg);
   });
   for (const [x, y, c] of SWATCH) box(x - 16, y - 16, x + 16, y + 16, c);
-  return Object.assign(new THREE.CanvasTexture(cv), { colorSpace: THREE.SRGBColorSpace, flipY: false, anisotropy: 4 });
+  return tex;
 }
 
 // ------------------------------------------------------------------------------------------ material
@@ -274,7 +296,7 @@ export function makeModels(geos, material = createVehicleMaterial(null), atlas =
       const mesh = new THREE.InstancedMesh(g, material, 1);
       mesh.setMatrixAt(0, new THREE.Matrix4());
       g.attributes.aPaint.array.set(paintOf(colour));
-      g.attributes.aMisc.array[1] = Math.floor(((seed * 7.31) % 1 + 1) % 1 * 8);
+      g.attributes.aMisc.array[1] = adTile(seed);
       mesh.castShadow = mesh.receiveShadow = true; mesh.frustumCulled = false; mesh.name = `vehicle-${type}`;
       return { mesh, g, type, dispose() { mesh.parent?.remove(mesh); g.dispose(); mesh.dispose(); } };
     },
@@ -342,7 +364,7 @@ export function createFleet(scene, models, opts = {}) {
       b.mesh.instanceMatrix.array.set(m, i * 16);
       const P = b.geo.attributes.aPaint.array, M = b.geo.attributes.aMisc.array;
       P[i * 3] = paint[0]; P[i * 3 + 1] = paint[1]; P[i * 3 + 2] = paint[2];
-      M[i * 3] = brake; M[i * 3 + 1] = Math.floor((((seed * 7.31) % 1) + 1) % 1 * 8);
+      M[i * 3] = brake; M[i * 3 + 1] = adTile(seed);
       byLod[lod]++;
     },
     end() {

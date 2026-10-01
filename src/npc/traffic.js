@@ -16,7 +16,7 @@
 //   createSignalProps(scene, signals, phaseAt(axis)) -> { update() } posts with 3-lamp heads that follow the phase
 import * as THREE from 'three';
 import { pathAt } from './lanes.js';
-import { VTYPES, createFleet } from './vehicles.js';
+import { VTYPES, createFleet, AD_URBAN, URBAN_BLUE, adSeedFor } from './vehicles.js';
 import { createWrecks, pushBox } from './wrecks.js';
 
 const PER_M = 0.03;            // cars per metre of lane at density 1 and road-class weight 1
@@ -30,6 +30,7 @@ const lin = (c) => [(c >> 16) & 255, (c >> 8) & 255, c & 255].map(s => Math.pow(
 const PAINT = [0xd9d9d6, 0xe4e4e0, 0xcfd0cc, 0xa7abaf, 0x9a9ea2, 0xb8babc, 0x85898d, 0x5d6064, 0x44474b, 0x2a2c30, 0x121314, 0x17181a,
   0x1d2d4c, 0x27416b, 0x3a5a86, 0x6e1a1a, 0x8a1f1f, 0x5a1624, 0xa8382c, 0x9b8f75, 0x2f4531, 0x4c6146, 0x6f7f8a, 0x3f2f26].map(lin);
 const MARSH = [0xf0c419, 0xe9b90e, 0xf2f1ec, 0xe8e6de].map(lin), BUSES = [0xeae7dc, 0xdcdad2, 0x3f7fbf].map(lin);
+const URBAN = lin(parseInt(URBAN_BLUE.slice(1), 16));
 const BOGDAN = [0xf5bc00, 0xf2b705, 0xf7c414].map(lin); // the yellow Cherkasy-built Bogdans
 const TROLLEY = [0x2a64b0, 0x2f70c0, 0x1f5a9e, 0xe0c020].map(lin), LIGHT = [0xe4e4e0, 0xd8d8d4, 0xcfd0cc, 0xb8babc, 0x9a9ea2].map(lin);
 const CAB = [0xe8b820, 0xf0c419, 0xecece8].map(lin), BRIGHT = [0xd9661f, 0xd8a526, 0x7fa83a, 0x5f93c9, 0x8a6a3c, 0xb8322a].map(lin);
@@ -38,7 +39,7 @@ function rngOf(seed) { let s = (seed * 2654435761) >>> 0 || 1; return () => ((s 
 const pick = (a, r) => a[Math.floor(r * a.length) % a.length];
 
 // default Ukrainian street mix: mostly private cars; marshrutkas and buses in the curb lane of the main roads, the
-// buses half 12 m city buses, half yellow Bogdan midibuses
+// buses half 12 m city buses, half yellow Bogdan midibuses; a quarter of the 12 m buses (trolleys too) are URBAN's paid ones
 export function defaultDress(c, L) {
   const r = c.rng(), r2 = c.rng(), curb = L.lane === L.nl - 1;
   let type, color = pick(PAINT, r2), tag = 0;
@@ -54,6 +55,7 @@ export function defaultDress(c, L) {
     else if (type.startsWith('taxi')) color = pick(CAB, r2);
     else if (!VTYPES[type].big && c.rng() < 0.08) color = pick(BRIGHT, c.rng());
   }
+  if (type === 'bus' && c.rng() < 0.25) { color = URBAN; c.adSeed = adSeedFor(AD_URBAN); } // URBAN's paid quarter of the buses: their blue, their ad
   const T = VTYPES[type];
   c.type = type; c.len = T.len; c.wid = T.wid; c.h = T.h; c.color = color; c.tag = tag;
   c.v0 = (L.main ? 12.5 : 8.5) - (T.big || tag ? 1.5 : 0) + c.rng() * 3;
