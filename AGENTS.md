@@ -51,7 +51,8 @@ See `ARCHITECTURE.md` for the module map. Where things live:
   - `zamkova.js` – Zamkova hora: the hilltop lift (`shapeZamkova`, the terrain hook in `city.js`), platform, wall, monuments;
   - more hand-built sights: `market` (the round covered market), `bilyidim` (Budynok rad), `kobzar`, `museum` (local
     history), `philharmonic` (with the «Висока нота» violinist), `wedding` (Palace of weddings), `bohdan` (the
-    Khmelnytsky monument), `lotus` (White Lotus temple on its slope), `lovebridge` (Bridge of Lovers over a carved
+    Khmelnytsky monument; it shares its bronze helpers with the others), `boyan` (the Boyan monument on площа 700-річчя Черкас: the seated
+    singer, the three spears, the granite pool with jets), `lotus` (White Lotus temple on its slope), `lovebridge` (Bridge of Lovers over a carved
     ravine), `andriy` (the church of St Andrew the First-Called by the Mytnytsia roundabout, with its gate belfry,
     brick fence and thujas), `station` (railway station, platforms, footbridge, parked trains) and `station_rails` (the whole `rails`
     layer: track, level crossings, catenary on the electrified lines). Several shape the terrain with a guarded

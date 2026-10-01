@@ -58,7 +58,7 @@ const SITE_MODULES = import.meta.glob(['./landmarks.js', './frame.js', './restin
   './budivelnyk.js', './grandmarket.js', './epicentr.js', './dytlikarnya.js',
   './hoteldnipro.js', './dniproplaza.js', './depot.js', './politekhkoledzh.js',
   './podatkova.js', './school17.js', './kinoukraina.js', './chnu3.js',
-  './miskrada.js', './poshtamt.js', './oblbiblioteka.js', './medakademia.js', './balloon.js', './andriy.js']);
+  './miskrada.js', './poshtamt.js', './oblbiblioteka.js', './medakademia.js', './balloon.js', './andriy.js', './boyan.js']);
 async function loadSites() {
   const out = {};
   await Promise.all(Object.entries(SITE_MODULES).map(async ([path, load]) => {
@@ -113,6 +113,7 @@ export async function buildCherkasy({ scene, renderer, onProgress = null, params
   if (S.station?.levelStation) guard('station terrain', () => S.station.levelStation(hf)); // the station yard, level
   if (S.lovebridge?.shapeLoveBridge && geo) guard('Bridge of Lovers terrain', () => S.lovebridge.shapeLoveBridge(hf, map, geo)); // the ravine under the bridge, before ground + buildings
   if (S.dniproplaza?.shapeDniproPlaza) guard('Dnipro Plaza terrain', () => S.dniproplaza.shapeDniproPlaza(hf, map)); // the mall's lot and forecourt, level
+  if (S.boyan?.levelBoyan && geo) guard('Boyan square terrain', () => S.boyan.levelBoyan(hf, map, geo)); // the square round the pool, level
   const strip = guard('shore strip', () => { const s = S.shore?.shoreStrip?.(map); return s ? { A: s.A, B: s.B, y0: S.shore.STRIP.y0, y1: S.shore.STRIP.y1 } : null; });
   if (S.signs?.ukrainianSigns) T.signs = guard('signs', () => S.signs.ukrainianSigns()); // storefront bands in Ukrainian
   const facadeMat = createFacadeMaterial(T), detailMat = createDetailMaterial(T);
@@ -131,7 +132,7 @@ export async function buildCherkasy({ scene, renderer, onProgress = null, params
     ['budivelnyk', 'BUD_SKIP'], ['grandmarket', 'GRANDMARKET_SKIP'], ['epicentr', 'EPICENTR_SKIP'], ['dytlikarnya', 'DYTLIK_SKIP'],
     ['hoteldnipro', 'HOTEL_SKIP'], ['dniproplaza', 'DP_SKIP'], ['depot', 'DEPOT_SKIP'], ['politekhkoledzh', 'POLITEKH_SKIP'],
     ['podatkova', 'PODATKOVA_SKIP'], ['school17', 'SCHOOL17_SKIP'], ['kinoukraina', 'KINO_SKIP'], ['chnu3', 'CHNU3_SKIP'],
-    ['miskrada', 'MISKRADA_SKIP'], ['poshtamt', 'POSHTAMT_SKIP'], ['oblbiblioteka', 'OBLBIB_SKIP'], ['medakademia', 'MEDAKAD_SKIP'], ['andriy', 'ANDRIY_SKIP']]) for (const id of S[mod]?.[key] ?? []) skip.add(id);
+    ['miskrada', 'MISKRADA_SKIP'], ['poshtamt', 'POSHTAMT_SKIP'], ['oblbiblioteka', 'OBLBIB_SKIP'], ['medakademia', 'MEDAKAD_SKIP'], ['andriy', 'ANDRIY_SKIP'], ['boyan', 'BOYAN_SKIP']]) for (const id of S[mod]?.[key] ?? []) skip.add(id);
   let groundDone = false, bldF = 0;
   const report = () => onProgress?.(0.15 + 0.55 * (0.3 * (groundDone ? 1 : 0) + 0.7 * bldF), `Рельєф, вулиці, будинки… ${Math.round(100 * (0.3 * (groundDone ? 1 : 0) + 0.7 * bldF))}%`);
   const groundP = buildGroundAsync({ scene: root, T, map, hf, strip, renderer, mapUrl: url('map.json') }).then((g) => { groundDone = true; report(); return g; });
@@ -157,7 +158,7 @@ export async function buildCherkasy({ scene, renderer, onProgress = null, params
     ['Hotel Dnipro', 'hoteldnipro', 'buildHotelDnipro'], ['Dnipro Plaza', 'dniproplaza', 'buildDniproPlaza'], ["DEPO't Center", 'depot', 'buildDepot'], ['Polytechnic college', 'politekhkoledzh', 'buildPolitekh'],
     ['Tax office', 'podatkova', 'buildPodatkova'], ['School 17', 'school17', 'buildSchool17'], ['Kino Ukraina', 'kinoukraina', 'buildKinoUkraina'], ['ChNU building 3', 'chnu3', 'buildChnu3'],
     ['City council', 'miskrada', 'buildMiskrada'], ['Head post office', 'poshtamt', 'buildPoshtamt'], ['Regional library', 'oblbiblioteka', 'buildOblBiblioteka'], ['Medical academy', 'medakademia', 'buildMedAkademia'],
-    ['Balloon', 'balloon', 'buildBalloon'], ['St Andrew church', 'andriy', 'buildAndriy']];
+    ['Balloon', 'balloon', 'buildBalloon'], ['St Andrew church', 'andriy', 'buildAndriy'], ['Boyan monument', 'boyan', 'buildBoyan']];
   const built = list.map(() => null);
   const runSites = async (late) => {
     for (const [i, [label, mod, fn]] of list.entries()) {

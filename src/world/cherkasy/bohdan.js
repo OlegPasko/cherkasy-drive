@@ -14,6 +14,8 @@
 // (with both groups ~8k verts of bronze) with the face modelled into the head surface; the bronze carries a vertex-colour patina (patina()).
 //   BOHDAN_SKIP: empty (no OSM building is replaced)
 //   buildBohdan({ root, map, solids, heightAt }) -> { update(dt), clear(x, z), spots } | null
+//   Shared with the other bronze monuments (boyan.js): graniteTex(), slabTex(), floodlit(mat, lamps, reach, key),
+//   put(dst, src, T), mapper(m4), sweep(s, path, sec, seg, { caps, wob }), ell(s, c, r, rot, seg, rows), patina(geo).
 // The site frame: a (across, +a = the viewer's right = world +z) and d (toward the boulevard = world -x) from ORIGIN.
 import * as THREE from 'three';
 import { MB, M4 } from '../../kit/mesh.js';
@@ -36,7 +38,7 @@ const PAVE = [-37, 1262, -13.4, 1298], SETTS = [-13.4, 1250, -12.2, 1292]; // wo
 const BED = [-13.2, 1250, -0.8, 1292];
 
 // ------------------------------------------------------------------------------------------------ textures
-const graniteTex = () => {
+export const graniteTex = () => {
   const t = canvasTex(256, 256, (c, w, h) => {
     const r = rng(1595);
     c.fillStyle = '#b4b0a8'; c.fillRect(0, 0, w, h);
@@ -53,7 +55,7 @@ const graniteTex = () => {
   return t;
 };
 // 4 m of the square: light 0.5 m slabs with a darker band every 4 m both ways (the 2012 repaving)
-const slabTex = () => canvasTex(512, 512, (c, w, h) => {
+export const slabTex = () => canvasTex(512, 512, (c, w, h) => {
   const r = rng(1657), n = 8, s = w / n;
   for (let i = 0; i < n; i++) for (let j = 0; j < n; j++) {
     const band = i === 0 || j === 0, v = (band ? 168 : 196) + (r() - 0.5) * 12;
@@ -84,7 +86,7 @@ const inscriptionTex = () => canvasTex(1024, 224, (c, w, h) => {
 
 // Floodlight wash: emissive scaled per fragment by how squarely it faces the projector points (and how near they are),
 // so the lit side of the bronze glows and the back stays dark; the emissive intensity itself follows nightK.
-function floodlit(mat, lamps, reach) {
+export function floodlit(mat, lamps, reach, key = 'bohdan') {
   const n = lamps.length, U = { uFlood: { value: lamps.map((p) => new THREE.Vector3(...p)) }, uReach: { value: reach } };
   mat.onBeforeCompile = (sh) => {
     Object.assign(sh.uniforms, U);
@@ -99,18 +101,18 @@ function floodlit(mat, lamps, reach) {
     totalEmissiveRadiance *= wash;
   }`);
   };
-  mat.customProgramCacheKey = () => `bohdan-flood-${n}`;
+  mat.customProgramCacheKey = () => `${key}-flood-${n}`;
   return mat;
 }
 
 // append src's surface to dst with every point mapped by T([x, y, z]) -> [x, y, z]
-function put(dst, src, T) {
+export function put(dst, src, T) {
   const base = dst.v;
   for (let i = 0; i < src.xyz.length; i += 3) dst.xyz.push(...T([src.xyz[i], src.xyz[i + 1], src.xyz[i + 2]]));
   for (const t of src.tri) dst.tri.push(t + base);
   return dst;
 }
-const mapper = (m) => { const v = new THREE.Vector3(); return (p) => v.set(p[0], p[1], p[2]).applyMatrix4(m).toArray(); };
+export const mapper = (m) => { const v = new THREE.Vector3(); return (p) => v.set(p[0], p[1], p[2]).applyMatrix4(m).toArray(); };
 // horizontal ring of an ellipse (rx across, rz deep) at height y, centre shifted by dx / dz; wob(angle) scales the radius
 const ring = (y, rx, rz, { dx = 0, dz = 0, n = 16, wob = null } = {}) => Array.from({ length: n }, (_, k) => {
   const a = -k / n * PI * 2, s = wob ? wob(a) : 1;
@@ -135,7 +137,7 @@ const sgBox = (s, x, z, y0, y1, hx, hz, rr = 0.03) => s.loft([rrect(y0, hx, hz, 
 
 // sweep a section along a polyline (parallel-transport frames, as SG.tube): sec[i] = r or [across, thick];
 // wob(u, i) scales the section's radius at u = 0..1 round it (folds, fur, knuckles)
-function sweep(s, path, sec, seg = 10, { caps = true, wob = null } = {}) {
+export function sweep(s, path, sec, seg = 10, { caps = true, wob = null } = {}) {
   const P = path.map((p) => new THREE.Vector3(...p)), last = P.length - 1;
   const tan = new THREE.Vector3(), bin = new THREE.Vector3(), q = new THREE.Vector3();
   let nrm = null;
@@ -154,7 +156,7 @@ function sweep(s, path, sec, seg = 10, { caps = true, wob = null } = {}) {
   return s.loft(rings, { cap0: caps, cap1: caps });
 }
 // an ellipsoid turned by (rx, ry, rz) radians about its own centre
-const ell = (s, c, r, rot = [0, 0, 0], seg = 12, rows = 8) =>
+export const ell = (s, c, r, rot = [0, 0, 0], seg = 12, rows = 8) =>
   put(s, new SG().ellipsoid([0, 0, 0], r, seg, rows), mapper(new THREE.Matrix4().compose(new THREE.Vector3(...c), new THREE.Quaternion().setFromEuler(new THREE.Euler(...rot)), new THREE.Vector3(1, 1, 1))));
 // a lumpy ring: centre (dx, dz), half sizes rx / rz, per-angle height offset dy(a) and radius factor w(a)
 const hring = (y, rx, rz, { dx = 0, dz = 0, n = 20, dy = null, w = null, e = 1 } = {}) => Array.from({ length: n }, (_, k) => {
@@ -312,7 +314,7 @@ function hetman() {
 
 // Bronze patina as vertex colour: dark statuary bronze, a grey-green bloom on what faces the sky and the rain runs
 // over, a warmer, rubbed brown on the forward-standing forms; a slow noise keeps it from looking painted.
-function patina(geo) {
+export function patina(geo) {
   const P = geo.attributes.position, N = geo.attributes.normal, col = new Float32Array(P.count * 3);
   const base = [0.105, 0.082, 0.056], green = [0.13, 0.155, 0.11], warm = [0.2, 0.14, 0.075];
   for (let i = 0; i < P.count; i++) {
