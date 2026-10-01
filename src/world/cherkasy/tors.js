@@ -1,10 +1,10 @@
 // OWNER: cherkasy. Partner sign: Центр фізичної реабілітації і навчання «Торс», bul. Shevchenka 266 (OSM way 274691767,
 // «Облагробуд», a 5-storey commercial block whose long east wall faces the boulevard, with a one-storey annex, way
 // 395532917, along the middle of that wall). The buildings keep their OSM extrusion; this module only hangs the partner's
-// branding on them: the round logo (public/assets/brand/tors.svg, in its own colours) as a disc lightbox on a steel frame
-// over the block's roof edge toward the boulevard, and on the annex front a glazed door under a dark fascia with the logo
-// and the name. Both are lit at dusk and brighten (with a soft pink wash under the disc, like the partner badge on the
-// map) as the car comes near.
+// branding on them, kept modest: the round logo (public/assets/brand/tors.svg, in its own colours) as a small disc
+// lightbox flat on the block's wall toward the boulevard, just over the annex roof, and on the annex front a glazed door
+// under a dark fascia with the logo and the name. Both are lit at dusk and brighten (with a soft pink wash round the
+// disc, like the partner badge on the map) as the car comes near.
 //   TORS_SKIP: empty (no OSM building is replaced)
 //   buildTors({ root, map, solids, heightAt }) -> { update(dt), partners: { tors } } | null
 //     tors: { door: { x, y, z, nx, nz } (the pavement in front of the door; nx / nz: outward), glow(0..1) (light-up) }
@@ -17,8 +17,8 @@ export const TORS_SKIP = new Set();
 
 const OSM_ID = 274691767, ANNEX_ID = 395532917;
 const ROAD = 'бульвар Шевченка';
-const ROOF = 18.1;     // buildings.js 'public', 5 levels: plinth 0.6 + 5 x 3.5 m over its g0; the parapet adds 0.9 m
-const DISC = 6.2;      // roof disc diameter, metres
+const DISC = 3.2;      // wall disc diameter, metres
+const WALL_Y = 11.3;   // its centre over the block's g0: on the third-floor band, over the annex eaves (~3.4 m) and the boulevard's crowns
 const FASCIA = [6.4, 0.9, 2.35]; // width, height, bottom edge over the annex floor (its eaves are at ~3.4 m)
 
 function textTex(aspect) { // the fascia's name panel (height / width = aspect): white «ТОРС» over what it is, on the logo's near-black
@@ -79,17 +79,14 @@ export function buildTors({ root, map, solids, heightAt }) {
   const box = (F, w, h, d, s, y, o, mat) => put(F, new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat), s, y + h / 2, o);
   const logo = logoTexture('tors', { width: 1024, color: null, pad: 0 });
 
-  // ---- the roof disc: a dark drum with the logo on its face, on two legs and a cross bar behind the parapet
-  const discMat = litMat(logo, 0.35, 1.5, 1.3, { roughness: 0.3 });
-  const R = DISC / 2, sMid = E.L / 2, yR = E.g0 + ROOF, yC = yR + 1.4 + R, oD = -1.4;
-  put(E, new THREE.Mesh(new THREE.CylinderGeometry(R + 0.06, R + 0.06, 0.35, 64, 1).rotateX(Math.PI / 2), rim), sMid, yC, oD);
-  put(E, new THREE.Mesh(new THREE.CircleGeometry(R, 64), discMat), sMid, yC, oD + 0.18, false); // a circle's uv maps the square logo upright
-  for (const ds of [-1.6, 1.6]) box(E, 0.16, yC - yR - 0.4, 0.16, sMid + ds, yR, oD - 0.4, steel);
-  box(E, 3.8, 0.14, 0.14, sMid, yC - R * 0.55, oD - 0.4, steel);
-  solids?.obox?.(...E.xz(sMid, oD - 0.2), R, 0.4, E.ang, yR, yC + R, 'sign');
-  // the pink wash on the top floor under the disc (the partner light-up)
+  // ---- the wall disc: a shallow drum with the logo on its face, flat on the block's wall over the annex roof
+  const discMat = litMat(logo, 0.3, 1.3, 1.1, { roughness: 0.3 });
+  const R = DISC / 2, sMid = E.L / 2, yC = E.g0 + WALL_Y;
+  put(E, new THREE.Mesh(new THREE.CylinderGeometry(R + 0.05, R + 0.05, 0.16, 48, 1).rotateX(Math.PI / 2), rim), sMid, yC, 0.08);
+  put(E, new THREE.Mesh(new THREE.CircleGeometry(R, 48), discMat), sMid, yC, 0.165, false); // a circle's uv maps the square logo upright
+  // the pink wash on the wall round the disc (the partner light-up)
   const wash = new THREE.MeshBasicMaterial({ color: 0x000000, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false, fog: false });
-  put(E, new THREE.Mesh(new THREE.PlaneGeometry(DISC + 4, 2.4), wash), sMid, yR - 0.4, 0.08, false).renderOrder = 2;
+  put(E, new THREE.Mesh(new THREE.PlaneGeometry(DISC + 2.4, DISC + 1.2), wash), sMid, yC, 0.04, false).renderOrder = 2;
 
   // ---- the street door: dark glass in a steel frame, the fascia over it (the logo disc + the name panel)
   const D = A || E, sD = D.L / 2, g = D.g0 - 0.15; // the annex floor sits at its g0 - 0.15 (buildings.js floorY)
