@@ -16,7 +16,7 @@
 //   createSignalProps(scene, signals, phaseAt(axis)) -> { update() } posts with 3-lamp heads that follow the phase
 import * as THREE from 'three';
 import { pathAt } from './lanes.js';
-import { VTYPES, createFleet, AD_URBAN, URBAN_BLUE, adSeedFor } from './vehicles.js';
+import { VTYPES, createFleet, AD_URBAN, LIVERY_URBAN, URBAN_BLUE, adSeedFor } from './vehicles.js';
 import { createWrecks, pushBox } from './wrecks.js';
 
 const PER_M = 0.03;            // cars per metre of lane at density 1 and road-class weight 1
@@ -39,7 +39,8 @@ function rngOf(seed) { let s = (seed * 2654435761) >>> 0 || 1; return () => ((s 
 const pick = (a, r) => a[Math.floor(r * a.length) % a.length];
 
 // default Ukrainian street mix: mostly private cars; marshrutkas and buses in the curb lane of the main roads, the
-// buses half 12 m city buses, half yellow Bogdan midibuses; a quarter of the 12 m buses (trolleys too) are URBAN's paid ones
+// buses half 12 m city buses, half yellow Bogdan midibuses; a quarter of the 12 m buses (trolleys too) and of the box
+// trucks are URBAN's paid ones
 export function defaultDress(c, L) {
   const r = c.rng(), r2 = c.rng(), curb = L.lane === L.nl - 1;
   let type, color = pick(PAINT, r2), tag = 0;
@@ -56,6 +57,7 @@ export function defaultDress(c, L) {
     else if (!VTYPES[type].big && c.rng() < 0.08) color = pick(BRIGHT, c.rng());
   }
   if (type === 'bus' && c.rng() < 0.25) { color = URBAN; c.adSeed = adSeedFor(AD_URBAN); } // URBAN's paid quarter of the buses: their blue, their ad
+  else if (type === 'truck' && c.rng() < 0.25) c.adSeed = adSeedFor(LIVERY_URBAN); // and a quarter of the box trucks in their livery
   const T = VTYPES[type];
   c.type = type; c.len = T.len; c.wid = T.wid; c.h = T.h; c.color = color; c.tag = tag;
   c.v0 = (L.main ? 12.5 : 8.5) - (T.big || tag ? 1.5 : 0) + c.rng() * 3;

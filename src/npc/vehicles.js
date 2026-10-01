@@ -12,7 +12,8 @@
 //   paintOf(colour) -> [r, g, b] linear (accepts [r,g,b], THREE.Color, 0xrrggbb)
 // Per-instance attributes: aPaint (vec3, applied to PAINT parts only), aMisc (x brake, y ad tile 0..7 from adTile(seed);
 // tiles 5..7 also swap the box truck's red "your ad here" side for the Telegram-blue one).
-//   AD_URBAN, URBAN_BLUE, adSeedFor(tile) -> a seed that shows exactly that tile, adTile(seed) -> 0..7 The material
+//   AD_URBAN, URBAN_BLUE, adSeedFor(tile) -> a seed that shows exactly that tile, adTile(seed) -> 0..7 (8 = LIVERY_URBAN:
+//   a box truck in the URBAN livery, makeUrbanLivery() -> CanvasTexture | null, read by the material as uUrban) The material
 // reads per-vertex aPart and aAO (converted from TEXCOORD_1 / COLOR_0 at load).
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
@@ -52,6 +53,7 @@ export function paintOf(c) {
 // Eight ad tiles in the atlas (2 x 4). A seed in [0, 1) or any positive one picks among the seven unpaid ones; tile 1 is
 // URBAN's, paid for a quarter of the city buses (traffic.js), so only adSeedFor(AD_URBAN), a negative seed, shows it.
 export const AD_URBAN = 1, URBAN_BLUE = '#1b2496';
+export const LIVERY_URBAN = 8; // not an atlas tile: a box truck in the URBAN livery (sides and back, makeUrbanLivery)
 export const adSeedFor = (tile) => -1 - tile;
 export function adTile(seed) {
   if (seed < 0) return -1 - seed;
@@ -170,27 +172,83 @@ export function makeVehicleAtlas() {
   return tex;
 }
 
+// The URBAN box-truck livery in the café's own style (the window films on Nadpilna 252/1A): their blue, the logo, the
+// slanted orange / pale-blue bands with «URBAN · WRAPS · BOWLS · DRINKS» running along them. One 1024 canvas: the box side
+// (1024 x 512, both sides read it the way the red ad side is read) on top, the back doors (512 x 512) below.
+export function makeUrbanLivery() {
+  if (typeof document === 'undefined') return null;
+  const cv = Object.assign(document.createElement('canvas'), { width: 1024, height: 1024 }), g = cv.getContext('2d');
+  const tex = Object.assign(new THREE.CanvasTexture(cv), { colorSpace: THREE.SRGBColorSpace, flipY: false, anisotropy: 4 });
+  const SANS = '"Arial Narrow", "Helvetica Neue", Arial, sans-serif';
+  const bands = (x0, y0, w, h, y, k) => { // two slanted lettered bands across a panel, clipped to it
+    g.save(); g.beginPath(); g.rect(x0, y0, w, h); g.clip();
+    for (const [dy, bg, fg] of [[0, '#ef6a2e', '#ffffff'], [k * 0.15, '#c9d4ff', URBAN_BLUE]]) {
+      g.save(); g.translate(x0 + w / 2, y + dy); g.rotate(-0.06);
+      g.fillStyle = bg; g.fillRect(-w, -k * 0.06, w * 2, k * 0.12);
+      g.fillStyle = fg; g.font = `bold italic ${Math.round(k * 0.075)}px ${SANS}`; g.textAlign = 'center'; g.textBaseline = 'middle';
+      g.fillText('URBAN · WRAPS · BOWLS · DRINKS · URBAN · WRAPS · BOWLS · DRINKS · URBAN · WRAPS · BOWLS', 0, 2);
+      g.restore();
+    }
+    g.restore();
+  };
+  const draw = (logo) => {
+    g.fillStyle = URBAN_BLUE; g.fillRect(0, 0, 1024, 1024);
+    // side: logo over the bands, what and where under them
+    bands(0, 0, 1024, 512, 316, 512);
+    if (logo) g.drawImage(logo, 512 - 235, 14, 470, 470 * 256 / 543);
+    g.fillStyle = '#ffffff'; g.font = `bold 46px ${SANS}`; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.fillText('ШАУРМА · STREET FOOD · НАДПІЛЬНА, 252/1А', 512, 478);
+    // back doors: logo, bands, the address
+    bands(0, 512, 512, 512, 512 + 316, 512);
+    if (logo) g.drawImage(logo, 256 - 190, 512 + 40, 380, 380 * 256 / 543);
+    g.fillStyle = '#ffffff'; g.font = `bold 36px ${SANS}`;
+    g.fillText('НАДПІЛЬНА, 252/1А', 256, 512 + 470);
+    tex.needsUpdate = true;
+  };
+  draw(null);
+  const img = new Image();
+  img.onload = () => draw(img);
+  img.src = `${import.meta.env?.BASE_URL ?? '/'}assets/brand/urban.svg`;
+  return tex;
+}
+
 // ------------------------------------------------------------------------------------------ material
 export function createVehicleMaterial(atlas) {
   const mat = new THREE.MeshStandardMaterial({ map: atlas || null, color: atlas ? 0xffffff : 0xb8b8b8, roughness: 0.55, metalness: 0 });
-  const night = { value: 0 };
+  const night = { value: 0 }, livery = atlas ? makeUrbanLivery() : null;
   mat.userData.night = night;
+  if (livery) mat.defines = { URBAN_LIVERY: '' };
   mat.onBeforeCompile = (sh) => {
     sh.uniforms.uNight = night;
+    if (livery) sh.uniforms.uUrban = { value: livery };
     sh.vertexShader = sh.vertexShader
       .replace('#include <common>', `#include <common>
 attribute float aPart; attribute float aAO; attribute vec3 aPaint; attribute vec3 aMisc;
-varying float vPart; varying float vAO; varying vec3 vPaint; varying vec3 vMisc;`)
+varying float vPart; varying float vAO; varying vec3 vPaint; varying vec3 vMisc; varying vec3 vUrb;`)
       .replace('#include <uv_vertex>', `#include <uv_vertex>
-vPart = aPart; vAO = aAO; vPaint = aPaint; vMisc = aMisc;
+vPart = aPart; vAO = aAO; vPaint = aPaint; vMisc = aMisc; vUrb = vec3(0.0);
+#ifdef URBAN_LIVERY
+// the URBAN truck (aMisc.y 8): its box sides (the ad-side atlas rect) and the back doors (the box's -x face, mapped
+// from the model position: z -1.1..1.1, y 1.03..3.45) read the livery canvas instead
+if (aMisc.y > 7.5 && aPart < 0.5) {
+  if (uv.x >= 0.5 && uv.y >= 0.75) vUrb = vec3((uv.x - 0.5) * 2.0, (uv.y - 0.75) * 2.0, 1.0);
+  else if (normal.x < -0.9 && position.y > 0.95) vUrb = vec3(clamp(position.z / 2.2 + 0.5, 0.0, 1.0) * 0.5, 0.5 + clamp((3.45 - position.y) / 2.42, 0.0, 1.0) * 0.5, 1.0);
+}
+#endif
 #ifdef USE_MAP
 if (abs(aPart - 15.0) < 0.5 && uv.x >= 0.5) vMapUv += vec2(mod(aMisc.y, 2.0) * 0.25, floor(aMisc.y / 2.0) * 0.083);
 else if (aPart < 0.5 && uv.x >= 0.5 && uv.y >= 0.75 && aMisc.y > 4.5) vMapUv.y -= 0.25; // truck side: red -> blue ad slot
 #endif`);
     sh.fragmentShader = sh.fragmentShader
       .replace('#include <common>', `#include <common>
-uniform float uNight; varying float vPart; varying float vAO; varying vec3 vPaint; varying vec3 vMisc;`)
+uniform float uNight; varying float vPart; varying float vAO; varying vec3 vPaint; varying vec3 vMisc; varying vec3 vUrb;
+#ifdef URBAN_LIVERY
+uniform sampler2D uUrban;
+#endif`)
       .replace('#include <map_fragment>', `#include <map_fragment>
+#ifdef URBAN_LIVERY
+if (vUrb.z > 0.5) diffuseColor.rgb = texture2D(uUrban, vUrb.xy).rgb;
+#endif
 int part = int(vPart + 0.5);
 vec3 texel = diffuseColor.rgb;
 if (part == 1) diffuseColor.rgb *= vPaint;
