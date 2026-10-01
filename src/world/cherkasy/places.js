@@ -50,6 +50,7 @@ export const PLACES = [
   { id: 'poshtamt', kind: 'improved', name: 'Покращений об’єкт', note: 'вул. Байди Вишневецького, 34', bld: [157506758] },
   { id: 'oblbiblioteka', kind: 'improved', name: 'Покращений об’єкт', note: 'вул. Байди Вишневецького, 8', bld: [155354151, 1076511725] },
   { id: 'medakademia', kind: 'improved', name: 'Покращений об’єкт', note: 'вул. Хрещатик, 215', bld: [155354150] },
+  { id: 'mcdonalds', kind: 'improved', name: 'Покращений об’єкт', note: 'McDonald’s · Смілянська, 31', issue: 12, bld: [104299459] },
   // sights
   { id: 'mykhailo', kind: 'sight', name: 'Свято-Михайлівський собор', icon: '⛪', bld: [242469769] },
   { id: 'troitsky', kind: 'sight', name: 'Свято-Троїцький собор', icon: '⛪', bld: [157432721] },
