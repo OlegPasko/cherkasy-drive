@@ -52,7 +52,8 @@ See `ARCHITECTURE.md` for the module map. Where things live:
   - more hand-built sights: `market` (the round covered market), `bilyidim` (Budynok rad), `kobzar`, `museum` (local
     history), `philharmonic` (with the «Висока нота» violinist), `wedding` (Palace of weddings), `bohdan` (the
     Khmelnytsky monument), `lotus` (White Lotus temple on its slope), `lovebridge` (Bridge of Lovers over a carved
-    ravine), `station` (railway station, platforms, footbridge, parked trains) and `station_rails` (the whole `rails`
+    ravine), `andriy` (the church of St Andrew the First-Called by the Mytnytsia roundabout, with its gate belfry,
+    brick fence and thujas), `station` (railway station, platforms, footbridge, parked trains) and `station_rails` (the whole `rails`
     layer: track, level crossings, catenary on the electrified lines). Several shape the terrain with a guarded
     `shape*` / `level*` hook next to `shapeZamkova`. A site builder that reads `ground` must be listed in `GROUND_SITES`
     in `city.js`; the others build while the ground workers run.

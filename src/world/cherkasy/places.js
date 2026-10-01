@@ -53,6 +53,7 @@ export const PLACES = [
   // sights
   { id: 'mykhailo', kind: 'sight', name: 'Свято-Михайлівський собор', icon: '⛪', bld: [242469769] },
   { id: 'troitsky', kind: 'sight', name: 'Свято-Троїцький собор', icon: '⛪', bld: [157432721] },
+  { id: 'andriy', kind: 'sight', name: 'Храм Андрія Первозванного', note: 'Митниця · вул. Героїв Дніпра, 48', icon: '⛪', bld: [159326530] },
   { id: 'tvtower', kind: 'sight', name: 'Телевежа', note: '196 м', icon: '📡', bld: [412764704] },
   { id: 'chimney', kind: 'sight', name: 'Митницька труба', note: '150 м', icon: '🏭', bld: [879198835] },
   { id: 'druzhba', kind: 'sight', name: 'Палац культури «Дружба народів»', note: 'бульвар Шевченка, 249', icon: '🏛️', bld: [104299448] },
