@@ -20,8 +20,8 @@ async function tg(method, params) {
 }
 await tg('setWebhook', { url, secret_token: env.TELEGRAM_WEBHOOK_SECRET, allowed_updates: ['message', 'callback_query'], drop_pending_updates: true });
 await tg('setMyCommands', { commands: [{ command: 'start', description: 'Головне меню' }, { command: 'my', description: 'Мої заявки' }, { command: 'news', description: 'Новини гри раз на день' }, { command: 'stop', description: 'Відписатись від новин' }] });
-await tg('setMyShortDescription', { short_description: 'Cherkasy Drive: покращити об\'єкт у грі, замовити рекламу, запропонувати ідею.' });
-await tg('setMyDescription', { description: 'Бот гри Cherkasy Drive – Черкаси, які ми будуємо разом. Тут можна замовити покращення будинку чи скверу в грі, рекламу закладу, білборд або повітряну кулю, запропонувати ідею чи повідомити про баг. Статуси й відповіді приходять сюди.' });
+await tg('setMyShortDescription', { short_description: 'Cherkasy Drive – гра на driver.ck.ua (на комп\'ютері). Тут: покращити об\'єкт, реклама, ідеї.' });
+await tg('setMyDescription', { description: 'Бот гри Cherkasy Drive – Черкаси, які ми будуємо разом. Сама гра – на driver.ck.ua, у браузері на комп\'ютері чи ноутбуці (з телефона – лише мапа міста). Тут можна замовити покращення будинку чи скверу в грі, рекламу закладу, білборд або повітряну кулю, запропонувати ідею чи повідомити про баг. Статуси й відповіді приходять сюди.' });
 
 const LABELS = [
   ['object-improvement', 'c5def5', 'Бот: покращення об\'єкта'], ['ad', 'ff4f8b', 'Бот: реклама закладу'], ['ad-billboard', 'ff8fb8', 'Бот: білборд'],

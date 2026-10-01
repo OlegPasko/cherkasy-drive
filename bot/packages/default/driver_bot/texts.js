@@ -34,8 +34,11 @@ const T = {
 💡 <b>Запропонувати ідею чи залишити відгук</b> – безкоштовно
 📋 <b>Мої заявки</b> – статуси й відповіді приходять сюди
 
+🎮 <b>Грати:</b> <a href="https://driver.ck.ua/">driver.ck.ua</a> – у браузері на комп'ютері чи ноутбуці. З телефона відкриється лише мапа міста з пам'ятками.
+
 ${DONATE}`,
   MENU: 'Що робимо?',
+  PLAY_BTN: '🎮 Грати – driver.ck.ua',
 
   // news: the daily post (bot/broadcast.mjs) at 21:00 Kyiv, only on days when something new reached the game
   NEWS_ON: '🔔 Підписатись на новини гри', NEWS_OFF: '🔕 Відписатись від новин',

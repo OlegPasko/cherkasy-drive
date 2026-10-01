@@ -44,7 +44,8 @@ const STEPS = {
   ad_art: { input: 'art', next: 'confirm', back: 'ad_photos', q: 'A note about the advertising artwork', text: (d) => T.AD_ART(d.kind), kb: () => [[btn(T.ART_SKIP, 'n')], [btn(T.BACK, 'b')]] },
   fb_text: { input: 'text', field: 'text', next: 'confirm', back: 'menu', kind: true, q: 'What is missing in the game, what do you like or dislike, or what bug did you notice?', text: () => T.FB_TEXT, kb: () => [[btn(T.BACK, 'b')]] },
 };
-const MENU_KB = [[btn('🏠 Покращити об\'єкт', 'imp')], [btn('📣 Реклама в грі', 'ad')], [btn('💡 Ідея або відгук', 'fb')], [btn('📋 Мої заявки', 'my')]];
+// the game's own address first: players from a phone asked where the game is (#5)
+const MENU_KB = [[{ text: T.PLAY_BTN, url: 'https://driver.ck.ua/' }], [btn('🏠 Покращити об\'єкт', 'imp')], [btn('📣 Реклама в грі', 'ad')], [btn('💡 Ідея або відгук', 'fb')], [btn('📋 Мої заявки', 'my')]];
 const menuKb = (s) => [...MENU_KB, [s?.sub ? btn(T.NEWS_OFF, 'nw:0') : btn(T.NEWS_ON, 'nw:1')]];
 
 function createBot({ tg, gh, store, jev, proof, moderate = null, adminChat = null, gameUrl = 'https://driver.ck.ua/', geo = GEO }) {
