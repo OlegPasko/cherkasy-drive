@@ -68,8 +68,9 @@ See `ARCHITECTURE.md` for the module map. Where things live:
     `podatkova` (tax office, Хрещатик 235), `school17`, `kinoukraina` (Ukraina cinema), `chnu3` (ЧНУ building 3),
     `epicentr`, `grandmarket`, `dytlikarnya` (regional children's hospital), `budivelnyk` and `spartak` (sports palaces),
     `lyubava`, `pioner`, `slavutych`, `dniproplaza` and `depot` (malls), `hoteldnipro` and `politekhkoledzh` (the
-    polytechnic college in the old wine warehouse). `mcdonalds` (McDonald's, Смілянська 31: the McDrive lane, the terrace
-    and the pylon) is built and marked the same way. They share five small wall kits: `civic.js`, `blockkit.js`,
+    polytechnic college in the old wine warehouse). Two supermarkets from issue #12 are built the same way and marked `improved`:
+    `delikat` («Делікат», Благовісна 300) and `atb` (АТБ, бульвар Шевченка 239), and so is
+    `mcdonalds` (McDonald's, Смілянська 31: the McDrive lane, the terrace and the pylon). They share five small wall kits: `civic.js`, `blockkit.js`,
     `bldkit.js`, `shellkit.js` and `slabkit.js` (walls per footprint edge, windows with reveals, collision, mesh wrap-up).
   - `places.js` – the sights, the paying partners (kind `ad`) and the non-landmark objects rebuilt on request (kind
     `improved`: a grey footprint only, "Покращений об’єкт" in the big map's legend) for both maps: icon, name, note, the OSM buildings
