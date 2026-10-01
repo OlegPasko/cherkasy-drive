@@ -29,6 +29,7 @@
   .bm-title { font-size: 26px; }
   .bm-sub { font-size: 11px; }
   .bm-north { right: 16px; top: 60px; width: 38px; height: 38px; }
+  .bm-zoom { right: 12px; }
   .bm-legend { left: 12px; right: 12px; bottom: 34px; gap: 6px; }
   .bm-legend button, .bm-legend .bm-bot { font-size: 12.5px; }
   .bm-scale { right: 16px; bottom: auto; top: 108px; }

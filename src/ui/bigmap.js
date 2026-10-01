@@ -6,7 +6,7 @@
 // car) and the car itself. A right click offers the Telegram bot at that point (improve this object / advertise here). The game is expected to pause while it is open (main.js reads hud.map.isOpen).
 // With a car and onGo, a click on an improved object or a partner's badge asks "Переміститись сюди?"; yes (or Enter)
 // calls onGo(place). The partner's site stays in its ring in the world (game/partners.js). Sights are never teleport targets: the explore quest counts them.
-// Touch: one finger pans, two pinch-zoom, a tap on a badge shows its card and a second tap opens a partner's site.
+// Touch: one finger pans, two pinch-zoom (the + / − buttons zoom too, for mice and fingers alike), a tap on a badge shows its card and a second tap opens a partner's site.
 //
 //   createBigMap({ painter, player, container, map? (map.json: region -> zoom-out limit), getObjective() -> Vector3 | null, getMarkers() -> [{ x, z, color, label }],
 //                  home? { x, z }, onGo?(place) (move the car there; main.js) })
@@ -38,7 +38,7 @@ export function createBigMap({ painter, player, container, map = null, getObject
   const doc = container.ownerDocument;
   const canGo = (p) => !!(player && onGo && p && (p.kind === 'improved' || (p.kind === 'ad' && p.rings?.length))); // buildings only, never a sight
   const touch = !!globalThis.matchMedia?.('(pointer: coarse)').matches;
-  const keysHint = touch ? 'пальцем – рух · двома пальцями – масштаб · торкніться значка – опис'
+  const keysHint = touch ? 'пальцем – рух · двома пальцями чи кнопками + і − – масштаб · торкніться значка – опис'
     : `колесо / + − – масштаб · тягни або стрілки – рух${player ? ' · Пробіл – до авто' : ''} ${player && onGo ? ' · клік по партнеру чи покращеному – переміститись' : ''} · правий клік – покращити місце${player ? ' · M / Esc – закрити' : ''}`;
   const root = doc.createElement('div');
   root.className = 'bigmap off';
@@ -47,6 +47,7 @@ export function createBigMap({ painter, player, container, map = null, getObject
     <div class="bm-vignette"></div>
     <div class="bm-head"><div class="bm-title">ЧЕРКАСИ</div><div class="bm-sub">карта міста</div></div>
     <div class="bm-north"><i></i><span>Пн</span></div>
+    <div class="bm-zoom"><button data-z="in" aria-label="Наблизити">+</button><button data-z="out" aria-label="Віддалити">−</button></div>
     <div class="bm-legend">
       <button data-k="sights"><span class="dot sight"></span>Пам’ятки<em class="bm-seen"></em></button>
       <button data-k="ads"><span class="dot ad"></span>Партнери</button>
@@ -65,7 +66,7 @@ export function createBigMap({ painter, player, container, map = null, getObject
   const cv = $('.bm-canvas'), g = cv.getContext('2d');
   const base = doc.createElement('canvas'), bg = base.getContext('2d');
   let chromeBoxes = [];
-  const chrome = ['.bm-head', '.bm-north', '.bm-legend', '.bm-scale', '.bm-keys'].map($);
+  const chrome = ['.bm-head', '.bm-north', '.bm-zoom', '.bm-legend', '.bm-scale', '.bm-keys'].map($);
   const seenEl = $('.bm-seen');
   const el = { scaleI: $('.bm-scale i'), scaleT: $('.bm-scale span'), tip: $('.bm-tip'), tipB: $('.bm-tip b'), tipS: $('.bm-tip span'), tipE: $('.bm-tip em'), tipU: $('.bm-tip u') };
 
@@ -231,6 +232,11 @@ export function createBigMap({ painter, player, container, map = null, getObject
   const onResize = () => { if (isOpen) measure(); };
   const onBlur = () => { keys.clear(); drag = null; pinch = null; fingers.clear(); }; // a key released in another window never sends its keyup
   cv.addEventListener('wheel', onWheel, { passive: false });
+  for (const b of root.querySelectorAll('.bm-zoom button')) b.addEventListener('click', () => { zoomAt(b.dataset.z === 'in' ? 1.6 : 1 / 1.6); b.blur(); }); // no focus left behind for Enter / Space
+  // iOS Safari may still read two fingers as a page zoom (and cancel the pointers) despite touch-action: keep the gestures on the map
+  const keep = (e) => { if (isOpen) e.preventDefault(); };
+  cv.addEventListener('touchmove', keep, { passive: false });
+  for (const t of ['gesturestart', 'gesturechange']) doc.addEventListener(t, keep, { passive: false });
   cv.addEventListener('pointerdown', onDown);
   cv.addEventListener('pointermove', onMove);
   cv.addEventListener('pointerup', onUp);
@@ -580,7 +586,7 @@ export function createBigMap({ painter, player, container, map = null, getObject
     get isOpen() { return isOpen; },
     dispose() {
       globalThis.removeEventListener?.('keydown', onKey, true); globalThis.removeEventListener?.('keyup', onKey, true);
-      globalThis.removeEventListener?.('resize', onResize); globalThis.removeEventListener?.('blur', onBlur); root.remove();
+      for (const t of ['gesturestart', 'gesturechange']) doc.removeEventListener(t, keep); globalThis.removeEventListener?.('resize', onResize); globalThis.removeEventListener?.('blur', onBlur); root.remove();
     },
   };
 }

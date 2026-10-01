@@ -176,6 +176,10 @@
 .bm-north i { position: absolute; left: 50%; top: 5px; margin-left: -6px; width: 12px; height: 16px; background: #ff6a55;
   clip-path: polygon(50% 0, 100% 100%, 50% 78%, 0 100%); }
 .bm-north span { position: absolute; left: 0; right: 0; bottom: 5px; text-align: center; font: 700 11px system-ui, sans-serif; letter-spacing: .06em; }
+.bm-zoom { position: absolute; right: 32px; top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; gap: 8px; }
+.bm-zoom button { width: 44px; height: 44px; border-radius: 12px; cursor: pointer; font: 600 24px/1 system-ui, sans-serif; color: #fff;
+  background: rgba(12, 17, 28, .82); border: 1px solid rgba(255, 255, 255, .22); box-shadow: 0 4px 14px rgba(0, 0, 0, .4); touch-action: manipulation; }
+.bm-zoom button:hover { background: rgba(34, 44, 64, .95); }
 .bm-legend { position: absolute; left: 32px; bottom: 26px; display: flex; gap: 8px; flex-wrap: wrap; }
 .bm-legend button { font: 600 13px system-ui, sans-serif; color: #c9d3e4; background: rgba(12, 17, 28, .82); cursor: pointer;
   border: 1px solid rgba(255, 255, 255, .16); border-radius: 999px; padding: 7px 14px 7px 11px; display: flex; align-items: center; gap: 7px;
@@ -232,7 +236,7 @@
 .bm-tip u:empty { display: none; }
 @media (max-width: 720px) {
   .bm-head { left: 16px; top: 14px; } .bm-title { font-size: 26px; }
-  .bm-legend { left: 16px; bottom: 44px; } .bm-scale { right: 16px; bottom: 50px; } .bm-north { right: 16px; top: 14px; }
+  .bm-legend { left: 16px; bottom: 44px; } .bm-scale { right: 16px; bottom: 50px; } .bm-north { right: 16px; top: 14px; } .bm-zoom { right: 16px; }
   .bm-keys { display: none; }
 }
 

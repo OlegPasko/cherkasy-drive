@@ -23,7 +23,7 @@ const CARD = `
     </div>
     <a class="mv-anyway" href="?desktop">Все одно спробувати гру</a>
   </div>
-  <button class="mv-pill">💻 Гра – на комп'ютері</button>`;
+  <button class="mv-pill">💻 Як пограти?</button>`;
 
 export async function startMapView({ container = document.body } = {}) {
   const loading = document.getElementById('loading');

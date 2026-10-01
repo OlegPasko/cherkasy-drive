@@ -125,7 +125,7 @@ See `ARCHITECTURE.md` for the module map. Where things live:
     street for both maps.
   - `perfhint.js` – watches the real frame rate; after ~6 s under 40 fps it offers G (simpler graphics, one quality
     step down) in a pill at the bottom, but only once the adaptive resolution has nothing lower left to try. G works any time and goes round (the lowest wraps to the highest); F9 cycles the levels upward.
-  - `bigmap.js` – the full-screen map on M: north up, wheel / drag / arrows, street names along the streets, sight and
+  - `bigmap.js` – the full-screen map on M: north up, wheel / drag / arrows or the + / − buttons, street names along the streets, sight and
     partner badges with hover notes, mission markers and the objective. A click on an improved object or a partner asks
     "Переміститись сюди?" and moves the car to the road beside it (`hud.onGo` in `main.js`, missions carry on; a partner's
     site stays in its ring in the world); sights are never teleport targets, so the explore quest still needs the drive.
@@ -141,7 +141,7 @@ See `ARCHITECTURE.md` for the module map. Where things live:
   sends the game events listed in its header (missions, partner clicks, sights, load time).
 - `src/mapview.js` and `ui/mapview.css` – the phone page: `index.html` sends touch-only devices and phone user agents here
   instead of the game (`?mobile` / `?desktop` force either). It loads only `map.json` + `map_buildings.json` and opens the
-  big map with no car (`createBigMap({ player: null })`; one finger pans, two pinch, a tap shows a badge's card and a
+  big map with no car (`createBigMap({ player: null })`; one finger pans, two pinch (or the + / − buttons), a tap shows a badge's card and a
   second tap opens a partner's site), under a card that says the ride is on a computer.
 - `bot/` – `@driver_game_bot`, a DigitalOcean Function (Node 24, one npm dep: `unpdf`) outside the game bundle. It turns
   requests (object improvement, ads, billboard, van livery, balloon – paid as a minimum donation to the 3D forge's monobank jar and proven by a screenshot or receipt; free ideas and feedback) into GitHub issues in
