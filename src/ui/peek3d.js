@@ -37,6 +37,7 @@ const SITES = {
   ekvator: ['ekvator', 'buildEkvator', 'levelEkvator'], sportlife: ['sportlife', 'buildSportLife'],
   gerb: ['gerb', 'buildGerb'],
   zamkpark: ['zamkovapark', 'buildZamkovaPark', 'peekZamkovaPark'], kupershtein: ['zamkovapark', 'buildZamkovaPark', 'peekZamkovaPark'],
+  perlyna: ['perlyna', 'buildPerlyna', 'levelPerlyna'],
   avrora: ['avrora', 'buildAvrora'],
 };
 const MODULES = import.meta.glob('../world/cherkasy/*.js'); // lazy: a module's chunk loads on its first peek

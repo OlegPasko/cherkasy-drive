@@ -65,6 +65,7 @@ const SITE_MODULES = import.meta.glob(['./landmarks.js', './frame.js', './restin
   './podatkova.js', './school17.js', './kinoukraina.js', './chnu3.js',
   './miskrada.js', './poshtamt.js', './oblbiblioteka.js', './medakademia.js', './balloon.js', './yacht.js', './plane.js', './andriy.js', './boyan.js',
   './delikat.js', './atb.js', './mcdonalds.js', './tors.js', './urban.js', './su7.js', './overpass.js', './catcafe.js', './praska.js', './delikat399.js', './glassrotunda.js', './ekvator.js', './sportlife.js',
+  './perlyna.js',
   './khimbridge.js', './railbridge.js', './gerb.js', './avrora.js']);
 async function loadSites() {
   const out = {};
@@ -144,6 +145,7 @@ export async function buildCherkasy({ scene, renderer, onProgress = null, params
   if (S.dniproplaza?.shapeDniproPlaza) guard('Dnipro Plaza terrain', () => S.dniproplaza.shapeDniproPlaza(hf, map)); // the mall's lot and forecourt, level
   if (S.boyan?.levelBoyan && geo) guard('Boyan square terrain', () => S.boyan.levelBoyan(hf, map, geo)); // the square round the pool, level
   if (S.urban?.levelUrban) guard('URBAN terrain', () => S.urban.levelUrban(hf)); // the shop row's lot, level
+  if (S.perlyna?.levelPerlyna) guard('Perlyna Dnipra terrain', () => S.perlyna.levelPerlyna(hf)); // the new block's lot, level
   if (S.ekvator?.levelEkvator) guard('Ekvator terrain', () => S.ekvator.levelEkvator(hf, map)); // the drift lot and the hall, level
   if (S.su7?.levelSu7 && geo) guard('Su-7 square terrain', () => S.su7.levelSu7(hf, map, geo)); // the square round the plinth, level
   if (S.overpass?.shapeOverpass && geo) guard('Dakhnivska overpass terrain', () => S.overpass.shapeOverpass(hf, map, geo)); // the cutting under the bridge
@@ -167,6 +169,7 @@ export async function buildCherkasy({ scene, renderer, onProgress = null, params
     ['podatkova', 'PODATKOVA_SKIP'], ['school17', 'SCHOOL17_SKIP'], ['kinoukraina', 'KINO_SKIP'], ['chnu3', 'CHNU3_SKIP'],
     ['miskrada', 'MISKRADA_SKIP'], ['poshtamt', 'POSHTAMT_SKIP'], ['oblbiblioteka', 'OBLBIB_SKIP'], ['medakademia', 'MEDAKAD_SKIP'], ['andriy', 'ANDRIY_SKIP'], ['boyan', 'BOYAN_SKIP'],
     ['delikat', 'DELIKAT_SKIP'], ['atb', 'ATB_SKIP'], ['mcdonalds', 'MCDONALDS_SKIP'], ['urban', 'URBAN_SKIP'], ['su7', 'SU7_SKIP'], ['catcafe', 'CATCAFE_SKIP'], ['praska', 'PRASKA_SKIP'], ['delikat399', 'DELIKAT399_SKIP'], ['glassrotunda', 'ROTUNDA_SKIP'],
+    ['perlyna', 'PERLYNA_SKIP'],
     ['ekvator', 'EKVATOR_SKIP'], ['sportlife', 'SPORTLIFE_SKIP'], ['zamkovapark', 'ZAMKPARK_SKIP'], ['avrora', 'AVRORA_SKIP']]) for (const id of S[mod]?.[key] ?? []) skip.add(id);
   let groundDone = false, bldF = 0;
   const report = () => onProgress?.(0.15 + 0.55 * (0.3 * (groundDone ? 1 : 0) + 0.7 * bldF), `Рельєф, вулиці, будинки… ${Math.round(100 * (0.3 * (groundDone ? 1 : 0) + 0.7 * bldF))}%`);
@@ -202,6 +205,7 @@ export async function buildCherkasy({ scene, renderer, onProgress = null, params
     ['Coat of arms stele', 'gerb', 'buildGerb'],
     ['CatCafe block', 'catcafe', 'buildCatCafe'], ['Flatiron on Dashkovycha 4', 'praska', 'buildPraska'],
     ['Delikat on Shevchenka 399/2', 'delikat399', 'buildDelikat399'], ['Glass rotunda on Shevchenka', 'glassrotunda', 'buildGlassRotunda'],
+    ['Perlyna Dnipra', 'perlyna', 'buildPerlyna'],
     ['Ekvator', 'ekvator', 'buildEkvator'], ['Sport Life at Mytnytsia', 'sportlife', 'buildSportLife'], ['Avrora on Smilianska', 'avrora', 'buildAvrora']];
   const built = list.map(() => null);
   const runSites = async (late) => {

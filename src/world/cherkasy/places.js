@@ -13,11 +13,14 @@
 //   EVERLABS_CUT: the north end of the Everlabs offices over the hotel (the section next to the tower)
 //   clipRing(flat ring, cut) -> flat ring (the part on the +n side; [] when nothing is left)
 //   URBAN_RING: the URBAN shop row's footprint (urban.js SITE; a new building OSM does not have)
+//   PERLYNA_RING: the footprint of ЖК «Перлина Дніпра» (perlyna.js; not in OSM yet)
 // the south end of the Rest Inn block (past the step in its east wall), square to the long Nadpilna façade
 export const USPACE_CUT = { p: [-756.4, 1438.4], n: [0.0123, 0.9999] };
 export const EVERLABS_CUT = { p: [-756.9, 1398.4], n: [0.0123, 0.9999] };
 const BELOW_USPACE = { p: USPACE_CUT.p, n: USPACE_CUT.n.map((v) => -v) };
 export const URBAN_RING = [-751.5, 1369.5, -728.5, 1369.5, -728.5, 1379.7, -751.5, 1379.7];
+// ЖК «Перлина Дніпра»: a new block OSM does not have yet (perlyna.js PERLYNA_OUTLINE)
+export const PERLYNA_RING = [813.4, 939.2, 759.5, 904.6, 748.5, 921.8, 786.3, 946.1, 768, 974.8, 783.9, 985];
 
 export const PLACES = [
   // partners (paid placements; the other hand-built venues stay in the world but are not advertised)
@@ -73,6 +76,7 @@ export const PLACES = [
   { id: 'ekvator', kind: 'improved', name: 'Покращений об’єкт', note: 'ТЦ «Екватор» · просп. Хіміків, 74', issue: 25, bld: [147261886] },
   { id: 'sportlife', kind: 'improved', name: 'Покращений об’єкт', note: 'Sport Life · вул. Козацька, 2', issue: 25, bld: [159700781] },
   { id: 'avrora', kind: 'improved', name: 'Покращений об’єкт', note: 'Аврора · вул. Смілянська, 144/2', issue: 26, bld: [415321196] },
+  { id: 'perlyna', kind: 'improved', name: 'Покращений об’єкт', note: 'ЖК «Перлина Дніпра» · вул. Героїв Дніпра, 77', ring: PERLYNA_RING },
   // sights
   { id: 'mykhailo', kind: 'sight', name: 'Свято-Михайлівський собор', icon: '⛪', bld: [242469769] },
   { id: 'troitsky', kind: 'sight', name: 'Свято-Троїцький собор', icon: '⛪', bld: [157432721] },

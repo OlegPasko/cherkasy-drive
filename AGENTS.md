@@ -124,6 +124,9 @@ See `ARCHITECTURE.md` for the module map. Where things live:
     `avrora` (the «Аврора» multimarket in the old wholesale-market hall at Смілянська 144/2: the yellow portal with the shop's own sign,
     the old wing's docks, the yard, the car park with bays the traffic sim parks in), `improved`; the map region's x0 moved out to reach it. They share five small wall kits: `civic.js`, `blockkit.js`,
     `bldkit.js`, `shellkit.js` and `slabkit.js` (walls per footprint edge, windows with reveals, collision, mesh wrap-up).
+    `perlyna` (ЖК «Перлина Дніпра», Героїв Дніпра 77, under construction, `improved`): a 17-storey L of two sections built
+    as rendered, on its own outline (`PERLYNA_RING` in `places.js`; not in OSM yet), its lot levelled by `levelPerlyna`; the
+    upper storeys carry a tiling facade texture with lit-window and glass twins.
   - `places.js` – the sights, the paying partners (kind `ad`) and the non-landmark objects rebuilt on request (kind
     `improved`: a grey footprint only, "Покращений об’єкт" in the big map's legend) for both maps: icon, name, note, the OSM buildings
     whose footprints get highlighted, and for partners the site `url` (with `utm_source=driver.ck.ua`) and the pitch
