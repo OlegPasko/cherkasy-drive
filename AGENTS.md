@@ -105,6 +105,12 @@ See `ARCHITECTURE.md` for the module map. Where things live:
   - `balloon.js` – a hot-air balloon in the pixel tower's colours, its band sold through the bot's `ad-balloon` flow, today U space's
   ad (logo `public/assets/brand/uspace.svg`, the offer, the address and the phone): it hangs over the Rose Valley fountain, then drifts at a walker's pace along the Dnipro shore,
     over the water, to the river station and back (wall-clock paced); it bobs, turns and fires its burner (a night glow).
+  - `yacht.js` – an 11 m cruising sloop (white hull, navy boot stripe, teak deck, bellied main and jib, rigging as lines, a
+    Ukrainian flag) sailing a ~2 km loop of open water off the Rose Valley, short of the yacht club, at 2.5 m/s (a lap in ~13 min,
+    wall-clock paced like the balloon). A fixed cross-river breeze trims it: boom and jib go to leeward by the point of sail and
+    cross over at the loop's ends, it heels, bobs, the sails flog head to wind; a foam wake; masthead and red / green bow lights
+    by `nightK`. Its `collide(p, r, h)` (hull box + mast) joins `world.collideDynamic` after the traffic, so the car cannot
+    drive or fly through it. Five draw calls, ~3.1k vertices; `tests/yacht.test.mjs`.
   - `bannerplane.js` – a banner-towing Super Cub (Cub yellow, black stripe) with a short 14 x 4.5 m banner on a 45 m line:
     one 13 km closed loop (a spline) at ~190 m, down the Dnipro off the beaches and the embankment to the river station,
     back over bul. Shevchenka and the centre, a lap in ~8 min, wall-clock paced like the balloon. It banks into the turns, the
