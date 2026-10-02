@@ -214,6 +214,11 @@ See `ARCHITECTURE.md` for the module map. Where things live:
     stepped corner to corner away from the street, joined by pale-brick stair cores, a standing-seam metal top storey,
     hipped roofs, the street section on columns over an open car port the car can drive into, yard doors under steel
     canopies, the yellow gas pipe, the yard fence and gate; `tests/nadpilna249.test.mjs`. `improved`.
+    `taraskova5` (the new ten-storey block at вул. Тараскова 5, Перемога, as the lun.ua photos show it built; OSM's 11-Б and
+    11-А, `improved`): six sections squared up from the OSM outlines, each on its own floor level down the slope – white
+    render, canted ribbon-glazed bays with olive spandrels on the upper floors, graphite panels over the top storeys, gables
+    with nested olive / grey Г-stripes, yard entrances under dark canopies, and a graphite shop podium on a raised terrace
+    along Тараскова; `tests/taraskova5.test.mjs`.
   - `places.js` – the sights, the paying partners (kind `ad`) and the non-landmark objects rebuilt on request (kind
     `improved`: a grey footprint only, "Покращений об’єкт" in the big map's legend) for both maps: icon, name, note, the OSM buildings
     whose footprints get highlighted, and for partners the site `url` (with `utm_source=driver.ck.ua`) and the pitch
