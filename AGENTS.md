@@ -128,6 +128,9 @@ See `ARCHITECTURE.md` for the module map. Where things live:
     an L of two sections over a black glass podium, the round bronze curtain-glass corner, white render, a dark top and a wavy crown frame) is `improved` too.
     `hd34` is a new build OSM lacks, `improved` too: the nine-storey block at Героїв Дніпра 34 (four sections, built as
     rendered on lun.ua), laid out in its own plan frame from the pin `HD34_LL`; places.js keeps its outline as `HD34_RING`.
+    `hrafskyi` (ЖК «Графський», Байди Вишневецького 68 / Добровольчих Батальйонів 201–203: ten 15- and 17-storey brick
+    sections round one yard and the corner shop podium; a window or loggia stack is one pane whose texture holds eight
+    storeys with their own lit pattern; `tests/hrafskyi.test.mjs`), `improved`.
   - `places.js` – the sights, the paying partners (kind `ad`) and the non-landmark objects rebuilt on request (kind
     `improved`: a grey footprint only, "Покращений об’єкт" in the big map's legend) for both maps: icon, name, note, the OSM buildings
     whose footprints get highlighted, and for partners the site `url` (with `utm_source=driver.ck.ua`) and the pitch
