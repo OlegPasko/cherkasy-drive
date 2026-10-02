@@ -180,6 +180,10 @@ See `ARCHITECTURE.md` for the module map. Where things live:
     outline `NARB10_RING` placed from the site plan and replacing the old houses on the lot: four storeys of red brick
     and a dark standing-seam mansard, glazed bays with white slab bands, a steep gable roof with brick gables and
     chimneys, canopies, the street fence) is `improved` too.
+    `parkovyi` (ЖК «Парковий квартал», Івана Кожедуба 59 at Вергая, `improved`): the seven ten-storey OSM sections (буд 1–5 in
+    service, the NE and SE wings planned) as the lun.ua renders show them – white / chocolate storey bands and turquoise runs
+    from a paint atlas (one quad per zone strip), window and loggia stacks, glazed bay loggias on the Кожедуба front, banded
+    blind gables – and the yard (driveway, round playground plaza, paths, pitch) on one draped texture; `tests/parkovyi.test.mjs`.
   - `places.js` – the sights, the paying partners (kind `ad`) and the non-landmark objects rebuilt on request (kind
     `improved`: a grey footprint only, "Покращений об’єкт" in the big map's legend) for both maps: icon, name, note, the OSM buildings
     whose footprints get highlighted, and for partners the site `url` (with `utm_source=driver.ck.ua`) and the pitch
