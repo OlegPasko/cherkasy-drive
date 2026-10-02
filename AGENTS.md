@@ -134,6 +134,10 @@ See `ARCHITECTURE.md` for the module map. Where things live:
     `perlyna` (ЖК «Перлина Дніпра», Героїв Дніпра 77, under construction, `improved`): a 17-storey L of two sections built
     as rendered, on its own outline (`PERLYNA_RING` in `places.js`; not in OSM yet), its lot levelled by `levelPerlyna`; the
     upper storeys carry a tiling facade texture with lit-window and glass twins.
+    `ridnyidim` (ЖК «Рідний Дім», Надпільна 222 / Байди Вишневецького 101–103, `improved`): the five ten-storey OSM slabs as
+    the lun.ua renders show them – colour zones down the long fronts with orange, green or teal accents, framed loggia
+    stacks, shops on the west ground floors, balconies on the gables – and two playgrounds with pergolas in each yard on a
+    draped paving / lawn / rubber floor; `tests/ridnyidim.test.mjs`.
   - `places.js` – the sights, the paying partners (kind `ad`) and the non-landmark objects rebuilt on request (kind
     `improved`: a grey footprint only, "Покращений об’єкт" in the big map's legend) for both maps: icon, name, note, the OSM buildings
     whose footprints get highlighted, and for partners the site `url` (with `utm_source=driver.ck.ua`) and the pitch
