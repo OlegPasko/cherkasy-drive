@@ -114,6 +114,7 @@ export const PLACES = [
   { id: 'shev22', kind: 'improved', name: 'Покращений об’єкт', note: 'Новобудова · бульвар Шевченка, 22', ring: SHEV22_RING },
   { id: 'shev184', kind: 'improved', name: 'Покращений об’єкт', note: 'Новобудова · бульвар Шевченка, 184–186', ring: SHEV184_RING },
   { id: 'comfortpark', kind: 'improved', name: 'Покращений об’єкт', note: 'ЖК «Комфорт Парк» · вул. В’ячеслава Чорновола, 243/1', bld: [411921795] },
+  { id: 'zhktemp', kind: 'improved', name: 'Покращений об’єкт', note: 'ЖК «Темп» · вул. Юрія Іллєнка, 4', bld: [117808102, 996032042] },
   // sights
   { id: 'mykhailo', kind: 'sight', name: 'Свято-Михайлівський собор', icon: '⛪', bld: [242469769] },
   { id: 'troitsky', kind: 'sight', name: 'Свято-Троїцький собор', icon: '⛪', bld: [157432721] },
