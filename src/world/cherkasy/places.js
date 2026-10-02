@@ -92,6 +92,7 @@ export const PLACES = [
   { id: 'voldim', kind: 'improved', name: 'Покращений об’єкт', note: 'ЖК VOLDIM · вул. Володимира Великого, 41/3', bld: [1198239247] },
   { id: 'ridnyidim', kind: 'improved', name: 'Покращений об’єкт', note: 'ЖК «Рідний Дім» · вул. Надпільна, 222', bld: [1430800366, 1430800367, 1318431924, 973321830, 1430800368] },
   { id: 'olimp', kind: 'improved', name: 'Покращений об’єкт', note: 'ЖК «Олімп» · вул. Сумгаїтська, 15/5', bld: [21402178] },
+  { id: 'harmony', kind: 'improved', name: 'Покращений об’єкт', note: 'Клубний комплекс Harmony · просп. Перемоги, 69', bld: [1507392909] },
   // sights
   { id: 'mykhailo', kind: 'sight', name: 'Свято-Михайлівський собор', icon: '⛪', bld: [242469769] },
   { id: 'troitsky', kind: 'sight', name: 'Свято-Троїцький собор', icon: '⛪', bld: [157432721] },

@@ -157,6 +157,10 @@ See `ARCHITECTURE.md` for the module map. Where things live:
     `olimp` (ЖК «Олімп», Сумгаїтська 15/5, the four OSM parts of relation 21402178: an L of sections on the Квіткова
     corner, cream panels with AC baskets and white-framed loggia stacks over a dark stone shop storey, the glazed bow on
     the chamfer, the drive-through under section 2) is `improved` too.
+    `harmony` (house 1 of the club complex Harmony, просп. Перемоги 69, the only finished one: four storeys on the OSM outline,
+    the avenue front bay by bay from the developer's photos – graphite-framed window bays, recessed white bays with timber
+    strips, white pilasters under dark caps, a graphite shop storey –, white ends, the yard side still bare brick; its lot
+    levelled by `levelHarmony`; `tests/harmony.test.mjs`) is `improved` too.
   - `places.js` – the sights, the paying partners (kind `ad`) and the non-landmark objects rebuilt on request (kind
     `improved`: a grey footprint only, "Покращений об’єкт" in the big map's legend) for both maps: icon, name, note, the OSM buildings
     whose footprints get highlighted, and for partners the site `url` (with `utm_source=driver.ck.ua`) and the pitch
