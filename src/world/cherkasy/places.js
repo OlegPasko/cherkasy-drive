@@ -73,6 +73,7 @@ export const PLACES = [
   { id: 'ekvator', kind: 'improved', name: 'Покращений об’єкт', note: 'ТЦ «Екватор» · просп. Хіміків, 74', issue: 25, bld: [147261886] },
   { id: 'sportlife', kind: 'improved', name: 'Покращений об’єкт', note: 'Sport Life · вул. Козацька, 2', issue: 25, bld: [159700781] },
   { id: 'avrora', kind: 'improved', name: 'Покращений об’єкт', note: 'Аврора · вул. Смілянська, 144/2', issue: 26, bld: [415321196] },
+  { id: 'voldim', kind: 'improved', name: 'Покращений об’єкт', note: 'ЖК VOLDIM · вул. Володимира Великого, 41/3', bld: [1198239247] },
   // sights
   { id: 'mykhailo', kind: 'sight', name: 'Свято-Михайлівський собор', icon: '⛪', bld: [242469769] },
   { id: 'troitsky', kind: 'sight', name: 'Свято-Троїцький собор', icon: '⛪', bld: [157432721] },
