@@ -180,6 +180,10 @@ See `ARCHITECTURE.md` for the module map. Where things live:
     outline `NARB10_RING` placed from the site plan and replacing the old houses on the lot: four storeys of red brick
     and a dark standing-seam mansard, glazed bays with white slab bands, a steep gable roof with brick gables and
     chimneys, canopies, the street fence) is `improved` too.
+    `ambrosa35` (the 9-storey block of «Надія» at Сергія Амброса 35 on the Різдвяна corner, on the OSM outline, built face by
+    face from the lun.ua renders: a teal shop storey, white render with green / sand spandrels and orange-green «8» frames,
+    orange-banded loggia stacks, the bowed glazed corner bay under a green crown, the sand stair core recessed in the yard
+    front, the blank north-west end with its orange triangle; `tests/ambrosa35.test.mjs`) is `improved` too.
   - `places.js` – the sights, the paying partners (kind `ad`) and the non-landmark objects rebuilt on request (kind
     `improved`: a grey footprint only, "Покращений об’єкт" in the big map's legend) for both maps: icon, name, note, the OSM buildings
     whose footprints get highlighted, and for partners the site `url` (with `utm_source=driver.ck.ua`) and the pitch

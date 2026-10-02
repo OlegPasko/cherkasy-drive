@@ -105,6 +105,7 @@ export const PLACES = [
   { id: 'hoholia204', kind: 'improved', name: 'Покращений об’єкт', note: 'Новобудова · вул. Гоголя, 204', bld: [1303437479] },
   { id: 'pryportova', kind: 'improved', name: 'Покращений об’єкт', note: 'Новобудова · вул. Припортова, 22/1', bld: [874640721, 997356687, 997356688, 1303296241] },
   { id: 'narbutivska10', kind: 'improved', name: 'Покращений об’єкт', note: 'Новобудова · вул. Нарбутівська, 10', ring: NARB10_RING },
+  { id: 'ambrosa35', kind: 'improved', name: 'Покращений об’єкт', note: 'Новобудова · вул. Сергія Амброса, 35', bld: [1160384062] },
   // sights
   { id: 'mykhailo', kind: 'sight', name: 'Свято-Михайлівський собор', icon: '⛪', bld: [242469769] },
   { id: 'troitsky', kind: 'sight', name: 'Свято-Троїцький собор', icon: '⛪', bld: [157432721] },
