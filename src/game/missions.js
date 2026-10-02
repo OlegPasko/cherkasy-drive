@@ -1,7 +1,7 @@
 // Missions (car mode): Oleg's side activities for the flying car, one dispatcher call at a time.
 //   Грабіжники (mugging)   thugs rob a passer-by on the pavement: run them over (never the victim), then pick the victim up
 //                          and drive them to the police (the regional police HQ from OSM)
-//   Пограбування (chase)   robbers flee in a getaway SUV through the traffic (ploughing cars out of the way): ram it until
+//   Пограбування (chase)   robbers flee in a getaway SUV through the traffic (ploughing cars out of the way): ram it (5 hard to 10 light rams) until
 //                          it is wrecked before it gets away
 //   Кур'єр (courier)       pick up a parcel, deliver it in time to a named place or onto a rooftop (fly); hard crashes
 //                          break what is inside
@@ -450,13 +450,15 @@ export function createMissions({ world, player, hud = null, scene, input = null 
       driveGetaway(g, dt);
       m.t -= dt; setTimer(m.t);
       const c = ramGetaway(g);
-      if (c > 0) { g.hp -= Math.min(0.3, 0.05 + c * 0.01); cue('mission', { kind: 'ram', vo: 'chase_ram_hit', x: g.x, y: g.y, z: g.z, k: c }); } // ~4-6 solid rams
+      g.hitCd = Math.max(0, (g.hitCd || 0) - dt);
+      // one ram is one hit (a contact lasts a few frames); 5 hard rams (~20 m/s closing) to 10 light ones wreck it
+      if (c > 0 && !g.hitCd) { g.hitCd = 0.7; g.hp -= Math.min(0.2, 0.08 + c * 0.006); cue('mission', { kind: 'ram', vo: 'chase_ram_hit', x: g.x, y: g.y, z: g.z, k: c }); }
       setBar(g.hp, 'Машина грабіжників', true);
       const d = Math.hypot(P().x - g.x, P().z - g.z);
       setObj(d > 180 ? `Не впусти їх! Відстань ${Math.round(d)} м` : 'Тарань машину грабіжників', new THREE.Vector3(g.x, g.y + 2.5, g.z));
       m.far = d > 330 ? m.far + dt : 0;
       if (d > 180 !== !!m.warned) { m.warned = d > 180; if (m.warned) say('chase_too_far'); }
-      if (g.hp <= 0) {
+      if (g.hp <= 1e-6) { // float sums: five 0.2 hits must reach zero
         const S = sim();
         const fake = { type: g.type, len: g.len, wid: g.wid, h: g.h, color: g.col, x: g.x, z: g.z, y: g.y, ry: Math.atan2(-g.fz, g.fx), v: g.v, pitch: 0, gp: 0, adSeed: 0.37, parked: false, dead: false };
         g.dispose();
