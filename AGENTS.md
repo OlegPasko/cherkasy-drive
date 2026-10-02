@@ -166,6 +166,11 @@ See `ARCHITECTURE.md` for the module map. Where things live:
     (`OLIMPM_SECTIONS`), each facade from a module string read off the renders; the yard is draped lawn and paving with
     the fountain, playground and court. places.js keeps the section outlines as `OLIMPM_RINGS` (a place's `ring` may be a
     list of rings); `tests/olimpmodern.test.mjs`. `improved`.
+    `shev184` (the new nine-storey block of developer «Надія» at бульвар Шевченка 184–186, not in OSM yet: placed from
+    the lun.ua site plan over the old lot houses, built section by section from the renders – the rounded glazed corner
+    tower between timber strips and mint pilasters with green LED lines, the white balcony bay and the arched pediments
+    with an oculus, grey render with timber spandrels, a dark shop storey under a fascia, a two-storey drive-through to
+    the yard; places.js keeps its outline as `SHEV184_RING`; `tests/shev184.test.mjs`) is `improved` too.
   - `places.js` – the sights, the paying partners (kind `ad`) and the non-landmark objects rebuilt on request (kind
     `improved`: a grey footprint only, "Покращений об’єкт" in the big map's legend) for both maps: icon, name, note, the OSM buildings
     whose footprints get highlighted, and for partners the site `url` (with `utm_source=driver.ck.ua`) and the pitch

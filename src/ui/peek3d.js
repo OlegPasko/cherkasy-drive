@@ -51,6 +51,7 @@ const SITES = {
   olimp: ['olimp', 'buildOlimp'],
   harmony: ['harmony', 'buildHarmony', 'levelHarmony'],
   olimpmodern: ['olimpmodern', 'buildOlimpModern'],
+  shev184: ['shev184', 'buildShev184'],
 };
 const MODULES = import.meta.glob('../world/cherkasy/*.js'); // lazy: a module's chunk loads on its first peek
 const MIN_R = 45, MAX_R = 170, POINT_R = 90; // crop radius round the place, m (POINT_R: a place on a point, no footprint)
