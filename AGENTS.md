@@ -166,6 +166,10 @@ See `ARCHITECTURE.md` for the module map. Where things live:
     (`OLIMPM_SECTIONS`), each facade from a module string read off the renders; the yard is draped lawn and paving with
     the fountain, playground and court. places.js keeps the section outlines as `OLIMPM_RINGS` (a place's `ring` may be a
     list of rings); `tests/olimpmodern.test.mjs`. `improved`.
+    `hoholia204` (the new 14-storey slab of «Надія» at вул. Гоголя 204, in the yard behind the street, built section by section
+    from the lun.ua renders: teal-and-glass loggia bays, white-framed grey render panels, pilasters, the stair core's dark
+    balcony stack on the yard side, glazed cantilevers over the dark south-west end and the car park's ramp house; one tile
+    atlas, ~5k vertices; `tests/hoholia204.test.mjs`), `improved`.
   - `places.js` – the sights, the paying partners (kind `ad`) and the non-landmark objects rebuilt on request (kind
     `improved`: a grey footprint only, "Покращений об’єкт" in the big map's legend) for both maps: icon, name, note, the OSM buildings
     whose footprints get highlighted, and for partners the site `url` (with `utm_source=driver.ck.ua`) and the pitch
