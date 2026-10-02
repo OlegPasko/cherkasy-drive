@@ -132,9 +132,9 @@ See `ARCHITECTURE.md` for the module map. Where things live:
   - `bigmap.js` – the full-screen map on M: north up, wheel / drag / arrows or the + / − buttons, street names along the streets, sight and
     partner badges with hover notes, mission markers and the objective. A left click elsewhere plants the player's own mark (a yellow flag; a click on it
     clears it, driving within 25 m clears it too; `cherkasy.mark` in localStorage), which the minimap shows as a flag or a
-    yellow arrow on its rim. A click on an improved object or a partner asks
-    "Переміститись сюди?" and moves the car to the road beside it (`hud.onGo` in `main.js`, missions carry on; a partner's
-    site stays in its ring in the world); sights are never teleport targets, so the explore quest still needs the drive.
+    yellow arrow on its rim. A click on a paying partner asks
+    "Переміститись сюди?" and moves the car to the road beside it (`hud.onGo` in `main.js`, missions carry on; the
+    site stays in its ring in the world); only paid placements are teleport targets – sights and improved objects are reached by driving.
     The game pauses while it is open (`ctx.paused`: only systems added with `{ always: true }` run, nothing renders).
 - `src/ui/consent.js` and `consent.css` – the consent card on the loading screen: the main keys and the terms (an
   entertainment game, toy people not modelled on real residents, toy crashes, open-data city with nothing military or

@@ -244,7 +244,7 @@ export async function startGame({ container = document.getElementById('app') || 
   // a stuck car: back to the city's start spot (the saved position moves with it, so a reload does not undo it)
   const goHome = () => { car.home(); if (inCity) savePos(); };
   hud.onHome = goHome;
-  // the big map's teleport (improved objects and partners): the road beside it, the building on the passenger side; a
+  // the big map's teleport (paying partners only): the road beside it, the building on the passenger side; a
   // running mission carries on. The street from the note ("вул. Хрещатик, 235", "Оренда офісів · Надпільна, 252").
   hud.onGo = (p) => {
     const road = String(p.note || '').split('·').pop().split(',')[0].trim();

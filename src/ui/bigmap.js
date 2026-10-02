@@ -4,8 +4,9 @@
 // sights dim until visited, then checked – game/explore.js; hover: name, note, distance and visited; a partner's footprint glows, a click on its badge opens its site in
 // a new tab), the mission markers, the objective (with a straight line from the
 // car) and the car itself. A right click offers the Telegram bot at that point (improve this object / advertise here). The game is expected to pause while it is open (main.js reads hud.map.isOpen).
-// With a car and onGo, a click on an improved object or a partner's badge asks "Переміститись сюди?"; yes (or Enter)
-// calls onGo(place). The partner's site stays in its ring in the world (game/partners.js). Sights are never teleport targets: the explore quest counts them.
+// With a car and onGo, a click on a paying partner's badge asks "Переміститись сюди?"; yes (or Enter) calls onGo(place).
+// The partner's site stays in its ring in the world (game/partners.js). Only paid placements are teleport targets: sights
+// (the explore quest counts them) and improved objects are reached by driving.
 // Touch: one finger pans, two pinch-zoom (the + / − buttons zoom too, for mice and fingers alike), a tap on a badge shows its card and a second tap opens a partner's site.
 // With peek (mapview.js on phones: ui/peek3d.js), a second tap (or a click) on a place it has a model for centres the map on it and opens its 3D view.
 //
@@ -40,10 +41,10 @@ const fmtDist = (m) => (m >= 1000 ? `${(m / 1000).toFixed(1).replace('.', ',')} 
 
 export function createBigMap({ painter, player, container, map = null, getObjective, getMarkers, home = { x: 0, z: 0 }, onGo = null, getWaypoint = null, setWaypoint = null, peek = null }) {
   const doc = container.ownerDocument;
-  const canGo = (p) => !!(player && onGo && p && (p.kind === 'improved' || (p.kind === 'ad' && p.rings?.length))); // buildings only, never a sight
+  const canGo = (p) => !!(player && onGo && p && p.kind === 'ad' && p.rings?.length); // paid partners only
   const touch = !!globalThis.matchMedia?.('(pointer: coarse)').matches;
   const keysHint = touch ? 'пальцем – рух · двома пальцями чи кнопками + і − – масштаб · торкніться значка – опис'
-    : `колесо / + − – масштаб · тягни або стрілки – рух${player ? ' · Пробіл – до авто' : ''} ${player && onGo ? ' · клік по партнеру чи покращеному – переміститись' : ''}${setWaypoint ? ' · клік по мапі – мітка' : ''} · правий клік – покращити місце${player ? ' · M / Esc – закрити' : ''}`;
+    : `колесо / + − – масштаб · тягни або стрілки – рух${player ? ' · Пробіл – до авто' : ''} ${player && onGo ? ' · клік по партнеру – переміститись' : ''}${setWaypoint ? ' · клік по мапі – мітка' : ''} · правий клік – покращити місце${player ? ' · M / Esc – закрити' : ''}`;
   const root = doc.createElement('div');
   root.className = 'bigmap off';
   root.innerHTML = `
@@ -147,13 +148,13 @@ export function createBigMap({ painter, player, container, map = null, getObject
     ctx.classList.add('on');
   };
   ctx.addEventListener('click', () => setTimeout(hideCtx, 0));
-  // the teleport question over an improved object or a partner
+  // the teleport question over a partner
   const go = $('.bm-go');
   let goFor = null;
   const hideGo = () => { go.classList.remove('on'); goFor = null; };
   function showGo(p, x, y) {
     goFor = p;
-    go.querySelector('span').textContent = p.kind === 'ad' ? `${p.name} · ${p.note || ''}` : p.note || p.name;
+    go.querySelector('span').textContent = `${p.name} · ${p.note || ''}`;
     go.style.left = `${Math.max(8, Math.min(x - 120, W - 260))}px`; go.style.top = `${Math.max(8, Math.min(y + 14, H - 150))}px`;
     go.classList.add('on');
   }
