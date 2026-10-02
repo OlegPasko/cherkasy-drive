@@ -59,7 +59,7 @@ const SITE_MODULES = import.meta.glob(['./landmarks.js', './frame.js', './restin
   './budivelnyk.js', './grandmarket.js', './epicentr.js', './dytlikarnya.js',
   './hoteldnipro.js', './dniproplaza.js', './depot.js', './politekhkoledzh.js',
   './podatkova.js', './school17.js', './kinoukraina.js', './chnu3.js',
-  './miskrada.js', './poshtamt.js', './oblbiblioteka.js', './medakademia.js', './balloon.js', './andriy.js', './boyan.js',
+  './miskrada.js', './poshtamt.js', './oblbiblioteka.js', './medakademia.js', './balloon.js', './bannerplane.js', './andriy.js', './boyan.js',
   './delikat.js', './atb.js', './mcdonalds.js', './tors.js', './urban.js', './su7.js', './overpass.js', './catcafe.js', './praska.js']);
 async function loadSites() {
   const out = {};
@@ -164,7 +164,7 @@ export async function buildCherkasy({ scene, renderer, onProgress = null, params
     ['Hotel Dnipro', 'hoteldnipro', 'buildHotelDnipro'], ['Dnipro Plaza', 'dniproplaza', 'buildDniproPlaza'], ["DEPO't Center", 'depot', 'buildDepot'], ['Polytechnic college', 'politekhkoledzh', 'buildPolitekh'],
     ['Tax office', 'podatkova', 'buildPodatkova'], ['School 17', 'school17', 'buildSchool17'], ['Kino Ukraina', 'kinoukraina', 'buildKinoUkraina'], ['ChNU building 3', 'chnu3', 'buildChnu3'],
     ['City council', 'miskrada', 'buildMiskrada'], ['Head post office', 'poshtamt', 'buildPoshtamt'], ['Regional library', 'oblbiblioteka', 'buildOblBiblioteka'], ['Medical academy', 'medakademia', 'buildMedAkademia'],
-    ['Balloon', 'balloon', 'buildBalloon'], ['St Andrew church', 'andriy', 'buildAndriy'], ['Boyan monument', 'boyan', 'buildBoyan'],
+    ['Balloon', 'balloon', 'buildBalloon'], ['Banner plane', 'bannerplane', 'buildBannerPlane'], ['St Andrew church', 'andriy', 'buildAndriy'], ['Boyan monument', 'boyan', 'buildBoyan'],
     ['Delikat on Blahovisna', 'delikat', 'buildDelikat'], ['ATB on Shevchenka 239', 'atb', 'buildAtb'], ["McDonald's", 'mcdonalds', 'buildMcDonalds'], ['Tors sign', 'tors', 'buildTors'], ['URBAN', 'urban', 'buildUrban'], ['Su-7 memorial', 'su7', 'buildSu7'],
     ['Dakhnivska overpass', 'overpass', 'buildOverpass'],
     ['CatCafe block', 'catcafe', 'buildCatCafe'], ['Flatiron on Dashkovycha 4', 'praska', 'buildPraska']];

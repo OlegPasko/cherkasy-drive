@@ -95,6 +95,12 @@ See `ARCHITECTURE.md` for the module map. Where things live:
   - `balloon.js` – a hot-air balloon in the pixel tower's colours, its band sold through the bot's `ad-balloon` flow, today U space's
   ad (logo `public/assets/brand/uspace.svg`, the offer, the address and the phone): it hangs over the Rose Valley fountain, then drifts at a walker's pace along the Dnipro shore,
     over the water, to the river station and back (wall-clock paced); it bobs, turns and fires its burner (a night glow).
+  - `bannerplane.js` – a banner-towing Super Cub (Cub yellow, black stripe) with a short 14 x 4.5 m banner on a 45 m line:
+    one 13 km closed loop (a spline) at ~190 m, down the Dnipro off the beaches and the embankment to the river station,
+    back over bul. Shevchenka and the centre, a lap in ~8 min, wall-clock paced like the balloon. It banks into the turns, the
+    banner trails along the flown path and flutters, the prop is a blurred disc, nav lights and strobes show at night; no
+    collision, no sound (no light-plane recording exists), not on the maps (the balloon is not either). The banner is a canvas
+    slot showing the Ukrainian flag; `ART` / `setArt(draw)` take a sold ad later (a future `ad-banner` bot flow, not built).
   - `billboards.js` – roadside billboards sold through the bot: the `BILLBOARDS` list (spot, facing, art) and the
     builder; unsold ones show the "ваша реклама / @driver_game_bot" placeholder. The header says how to add a real one.
 - `src/npc/` – everything that moves on its own:
