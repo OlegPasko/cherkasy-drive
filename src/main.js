@@ -102,7 +102,7 @@ export function createCore({ container = document.body, quality = savedQuality()
       ctx.dt = dt; ctx.time += dt;
       daylight.update(dt);
       // shared city material uniforms (facade + detail): lit windows / lamps and the glass sky tint
-      setNightFactor(daylight.state.night);
+      setNightFactor(daylight.state.lamps);
       setSkyColors(daylight.state.zenithColor, daylight.state.horizonColor);
       for (const s of systems) {
         try { s.fn(dt, ctx); } catch (err) {

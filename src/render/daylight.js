@@ -9,8 +9,10 @@
 //       sunDir / moonDir (world unit vectors toward the body), sunElev / moonElev (rad),
 //       lightDir, lightColor (linear, unit max), lightIntensity, lightIsMoon   – the one shadow-casting light
 //       sunGain, sunMass, sunRadiance [r,g,b] (ground-level sun for disk / clouds), twilight, fogColor, zenithColor, horizonColor (THREE.Color, linear),
-//       night 0..1, starVis 0..1, exposure, envIntensity, starRot (Matrix3)
-//   nightFactor() -> 0 (day) .. 1 (full night lighting). Reads the active daylight; smooth through dusk and dawn.
+//       night 0..1 (how dark: exposure, ambient, the night sound beds), lamps 0..1 (the city's lights: lit windows,
+//       lamps, signs, car lights; on from a low sun, so the evening preset glows without the night), starVis 0..1,
+//       exposure, envIntensity, starRot (Matrix3)
+//   nightFactor() -> 0 (day) .. 1 (all lights on): state.lamps of the active daylight; smooth through dusk and dawn.
 //   nightK        { value } getter object with the same number, for code written against a `.value` reader.
 //   Atmosphere helpers shared with sky.js: ATMO, airMass(s), pathScale(up), sunTransmittance(mass, haze, out), skyRadiance(...).
 // World frame (tools/cherkasy/build_map.mjs): map rotated 49.4 deg, +x north-east, +z south-east, y up.
@@ -138,7 +140,7 @@ export const PRESET_NAMES = Object.keys(PRESETS);
 
 // ---------------------------------------------------------------------------------------------- shared factor
 let active = null;
-export const nightFactor = () => (active ? active.state.night : 0);
+export const nightFactor = () => (active ? active.state.lamps : 0);
 export const nightK = { get value() { return nightFactor(); } };
 export const getDaylight = () => active;
 
@@ -149,7 +151,7 @@ export function createDaylight({ preset = 'day', dayOfYear = 180, timeScale = 0 
     lightDir: new THREE.Vector3(0, 1, 0), lightColor: new THREE.Color(1, 1, 1), lightIntensity: 1, lightIsMoon: false,
     sunRadiance: [0, 0, 0], sunGain: 0, sunMass: 1, twilight: 0,
     fogColor: new THREE.Color(), zenithColor: new THREE.Color(), horizonColor: new THREE.Color(), overcastColor: new THREE.Color(),
-    night: 0, starVis: 0, exposure: 1, envIntensity: 1, starRot: new THREE.Matrix3(),
+    night: 0, lamps: 0, starVis: 0, exposure: 1, envIntensity: 1, starRot: new THREE.Matrix3(),
     version: 0, // bumps whenever something visible changed (sky / env refresh hint)
   };
   let tween = null;
@@ -196,6 +198,9 @@ export function createDaylight({ preset = 'day', dayOfYear = 180, timeScale = 0 
 
     const n = 1 - ramp(ss, -0.1, 0.07);
     S.night = Math.min(1, Math.max(0, n + 0.2 * oc * (1 - n)));
+    // the lights come on while the sun is still low over the horizon (T's evening: 3 deg up -> ~0.78), not only at night;
+    // a wide ramp (about 10 deg of sun) keeps the switch-on gentle minute to minute
+    S.lamps = Math.max(S.night, ramp(ss, 0.17, 0));
     S.starVis = ramp(ss, -0.08, -0.2) * (1 - oc);
     S.exposure = Math.exp(mix(0, Math.log(2.6), n)) * (1 + 0.25 * oc);
     S.envIntensity = mix(0.35, 2.2, n); // day ambient low against the sun: readable shadows
@@ -211,13 +216,13 @@ export function createDaylight({ preset = 'day', dayOfYear = 180, timeScale = 0 
     if (!(sec > 0)) { Object.assign(S, to); tween = null; S.blending = false; derive(); return; }
     let dh = wrap24(to.hours - S.hours); if (dh > 12) dh -= 24; // shortest way round the clock
     const h0 = S.hours, o0 = S.overcast, o1 = to.overcast ?? S.overcast, N = 96, arc = new Float32Array(N + 1);
-    let prevN = S.night, prevI = S.lightIntensity, prevDir = S.sunDir.clone();
+    let prevN = S.night, prevL = S.lamps, prevI = S.lightIntensity, prevDir = S.sunDir.clone();
     for (let step = 1; step <= N; step++) {
       const f = step / N;
       S.hours = wrap24(h0 + dh * f); S.overcast = mix(o0, o1, f); derive();
-      arc[step] = arc[step - 1] + 3 * Math.abs(S.night - prevN) + 2 * Math.abs(S.lightIntensity - prevI) / ATMO.sunLux
+      arc[step] = arc[step - 1] + 3 * Math.abs(S.night - prevN) + 3 * Math.abs(S.lamps - prevL) + 2 * Math.abs(S.lightIntensity - prevI) / ATMO.sunLux
         + prevDir.angleTo(S.sunDir) + 0.3 / N + Math.abs(o1 - o0) / N;
-      prevN = S.night; prevI = S.lightIntensity; prevDir.copy(S.sunDir);
+      prevN = S.night; prevL = S.lamps; prevI = S.lightIntensity; prevDir.copy(S.sunDir);
     }
     S.hours = h0; S.overcast = o0; derive();
     tween = { h0, dh, o0, o1, arc, t: 0, sec };
