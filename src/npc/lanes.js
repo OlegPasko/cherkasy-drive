@@ -3,7 +3,8 @@
 //     map: map.json ({ region, roads[{ p, w, c, k, n, ow, ln, tw, br }] }); ground: { heightAt(x, z) } or a function (x, z) -> y
 //     opts: { cluster = 20, clusterMax = 48 } junction clustering (m); deckAt(x, z) -> y | null: a bridge deck's top
 //       there. On a chain that has a bridge way (br), a lane end over a deck takes its height, and the lane is flagged
-//       `bridge` (posed straight between its end heights, not on the terrain under it)
+//       `bridge` (posed straight between its end heights, not on the terrain under it); such a chain is cut into
+//       <= DECK_STEP m pieces over a deck, so its lanes follow a humped one
 //   net = { nodes, links, signals, stats, linksNear(x, z, r, out) -> out, phase(t, axis) -> 2 go / 1 amber / 0 stop, CYCLE }
 //     node: { id, x, z, junction, deadEnd, sig, legs, inLinks[], outLinks[], moves[] (connectors through it) }
 //     link (one lane, straight, travel direction): { id, from, to, ax, az, dx, dz, len, heading, lane, nl, cls, main, tw,
@@ -17,7 +18,7 @@ const CLASS = { primary: 5, primary_link: 4, secondary: 4, secondary_link: 3, te
 // relative traffic density per road class (busy named avenues get a bit more)
 const DENSITY = { primary: 1.0, primary_link: 0.5, secondary: 0.85, secondary_link: 0.4, tertiary: 0.45, tertiary_link: 0.3, residential: 0.14, unclassified: 0.12, living_street: 0.06 };
 const BUSY_NAMES = /Шевченка|Смілянськ|Хрещатик|Перемоги|Героїв Дніпра|Чорновола|Благовісн/;
-const SEG_MIN = 14, PIECE_MIN = 12, DP_TOL = 0.7, CYCLE = 48;
+const SEG_MIN = 14, PIECE_MIN = 12, DP_TOL = 0.7, CYCLE = 48, DECK_STEP = 16; // DECK_STEP: lane pieces over a deck (m)
 
 const hyp = Math.hypot;
 function segDist(px, pz, ax, az, bx, bz) {
@@ -313,6 +314,16 @@ export function buildLaneNetwork(map, ground, opts = {}) {
       }
       if (pick < 0) break;
       pts.splice(2 * pick, 2); seg.splice(si, 1); flow.splice(si, 1);
+    }
+    if (deckChain) { // a deck may be curved (a humped viaduct): lanes over it in short straight pieces that follow it
+      for (let i = 0; i + 1 < pts.length / 2; i++) {
+        const ax = pts[2 * i], az = pts[2 * i + 1], bx = pts[2 * i + 2], bz = pts[2 * i + 3], l = hyp(bx - ax, bz - az);
+        if (l <= DECK_STEP * 1.5 || (deckAt(ax, az) == null && deckAt(bx, bz) == null && deckAt((ax + bx) / 2, (az + bz) / 2) == null)) continue;
+        const n = Math.ceil(l / DECK_STEP), ins = [];
+        for (let q = 1; q < n; q++) ins.push(ax + (bx - ax) * q / n, az + (bz - az) * q / n);
+        pts.splice(2 * i + 2, 0, ...ins); seg.splice(i + 1, 0, ...Array(n - 1).fill(seg[i])); flow.splice(i + 1, 0, ...Array(n - 1).fill(flow[i]));
+        i += n - 1;
+      }
     }
     const m = pts.length / 2, ns = m - 1;
     const na = jNode(C.a), nb = jNode(C.b);

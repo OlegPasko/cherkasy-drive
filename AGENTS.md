@@ -72,7 +72,14 @@ See `ARCHITECTURE.md` for the module map. Where things live:
     grades (the DEM sees one flat hilltop), the deck spans every height-lattice cell the cut touched, with piers, blue
     railings and lamps, plus the pipeline footbridge beside it and guard rails in the cutting; the ground's Дахнівська strip
     under the deck turns to lawn. Its `deckAt(x, z)` reaches the lane network (`buildCherkasyTraffic({ deckAt })`), so
-    the bridge lanes ride the deck. Several shape the terrain with a guarded
+    the bridge lanes ride the deck. `khimbridge` (issue #24) raises просп. Хіміків on its 1983 viaduct («Горбатий міст»,
+    OSM 72051299) over the station tracks: an ~8.4 m crest, closed ramps between retaining walls at each end, an open
+    deck on paired round columns where it clears the tracks and the side streets, lamps and railings; its `deckAt` feeds the
+    lanes too. `railbridge` (issue #24) lays the line east of the centre on an embankment (a mesh in the ground material,
+    no terrain change) with short beam bridges over Смілянська, Байди Вишневецького, Грушевського and Сумгаїтська;
+    `railLevelFn` gives `station_rails` the bed height there (`buildStation({ railLevel })`). `bridgekit` holds the
+    helpers the three bridge modules share (frames along an axis, planar prisms, resurfacing, paint drop, deck meshes).
+    `gerb` is the coat-of-arms stele (Стела з гербом України, 2017) on the Велике коло, площа Перемоги. Several shape the terrain with a guarded
     `shape*` / `level*` hook next to `shapeZamkova`. A site builder that reads `ground` must be listed in `GROUND_SITES`
     in `city.js`; the others build while the ground workers run.
   - hand-built ordinary buildings (not sights, not in `places.js`): `simeinyi` (ЖК «Сімейний Lux», Героїв Дніпра 4),
@@ -121,7 +128,8 @@ See `ARCHITECTURE.md` for the module map. Where things live:
     builder; unsold ones show the "ваша реклама / @driver_game_bot" placeholder. The header says how to add a real one.
 - `src/npc/` – everything that moves on its own:
   - `lanes.js` – the lane graph and signals; with `opts.deckAt` (a site's deck heights) the lanes of a chain with an
-    OSM bridge way take the deck's height where they end on it;
+    OSM bridge way take the deck's height where they end on it, split into pieces of at most `DECK_STEP` (16 m) on a
+    deck so they follow a humped one;
   - `vehicles.js` – loads the glb models, instanced fleet, `makeMesh`; the ad tiles on vans, bus sides and backs and roof signs (tile 1 is URBAN's, paid: a quarter of the 12 m buses wear it in URBAN blue) and `makeUrbanLivery`, the URBAN box-truck livery (sides and back doors) a quarter of the box trucks wear; both are picked in `defaultDress` in `traffic.js`;
   - `traffic.js` and `wrecks.js` – the traffic sim, rigid-body wrecks and dents; the car rams through
     `ram(q)`;

@@ -12,7 +12,9 @@
 //     own embankment is cut off.
 //   along(line, s) -> { x, z, dx, dz }   the point and unit heading at distance s along a line
 //   nearestRail(lines, x, z, skip?) -> distance to the closest track centre line (skip: a line to ignore)
-//   buildRails({ root, map, heightAt, ground, solids, geo }, { yard: [x, z, r], skipMast?(x, z) }) -> { lines, clear(x, z), crossings, stats() }
+//   buildRails({ root, map, heightAt, ground, solids, geo, railLevel? }, { yard: [x, z, r], skipMast?(x, z) }) -> { lines, clear(x, z), crossings, stats() }
+//     railLevel(x, z) -> bed level | null: a hand-built stretch of line (railbridge.js, the raised line and its bridges)
+//     that sets the bed there instead of the ground; its bridges are drawn there, not here
 //     crossings: [{ x, z, main }] the level crossings (none where the road or the line is on a bridge)
 //     clear: true within 3.5 m of a track (no generated trees on the line)
 //     yard: the circle where sleepers are real geometry; skipMast: no catenary mast at that point (platforms, canopy)
@@ -151,10 +153,11 @@ const ballastTex = (sleepers) => canvasTex(256, 256, (g, w, h) => {
 });
 
 // ------------------------------------------------------------------------------------------------ build
-export function buildRails({ root, map, heightAt, ground, solids, geo }, { yard = null, skipMast = null } = {}) {
+export function buildRails({ root, map, heightAt, ground, solids, geo, railLevel = null }, { yard = null, skipMast = null } = {}) {
   const t0 = performance.now();
   const lines = railLines(map, geo);
-  const H = (x, z) => { const h = heightAt(x, z); return Number.isFinite(h) ? h : 0; };
+  const H0 = (x, z) => { const h = heightAt(x, z); return Number.isFinite(h) ? h : 0; };
+  const H = railLevel ? (x, z) => railLevel(x, z) ?? H0(x, z) : H0; // the bed level: a hand-built stretch, or the ground
   const inYard = (x, z) => !!yard && Math.hypot(x - yard[0], z - yard[1]) < yard[2];
   const group = Object.assign(new THREE.Group(), { name: 'railways' });
   root.add(group);
@@ -202,6 +205,7 @@ export function buildRails({ root, map, heightAt, ground, solids, geo }, { yard 
 
   for (const L of lines) {
     const cross = L.br ? [] : crossingsOf(L); // nor does a rail bridge cross the road under it
+    const mid = along(L, L.len / 2), own = L.br && railLevel?.(mid.x, mid.z) != null; // a bridge railbridge.js builds
     allCross.push(...cross.map((c) => ({ ...c, L })));
     const inCross = (s) => cross.some((c) => s > c.s0 && s < c.s1);
     // sample distances: the polyline nodes, <= STEP apart, plus both sides of every crossing edge
@@ -217,7 +221,7 @@ export function buildRails({ root, map, heightAt, ground, solids, geo }, { yard 
       const pa = along(L, Math.max(0, s - 1)), pb = along(L, Math.min(L.len, s + 1));
       let dx = pb.x - pa.x, dz = pb.z - pa.z; const dl = Math.hypot(dx, dz) || 1; dx /= dl; dz /= dl;
       const nx = -dz, nz = dx;
-      const y = L.br ? yEnd0 + (yEnd1 - yEnd0) * (s / L.len) : H(p.x, p.z);
+      const y = L.br && !own ? yEnd0 + (yEnd1 - yEnd0) * (s / L.len) : H(p.x, p.z);
       const cr = inCross(s) ? 2 : inCross(s + 0.01) || inCross(s - 0.01) ? 1 : 0; // 1: an edge, drawn with the open track
       const tile = Math.floor(p.x / TILE) + ',' + Math.floor(p.z / TILE);
       const kB = 'b' + (inYard(p.x, p.z) ? 'y' : 'o') + tile, kR = 'r' + tile;
@@ -265,7 +269,7 @@ export function buildRails({ root, map, heightAt, ground, solids, geo }, { yard 
       ties.push(p.x, H(p.x, p.z) + TRACK.bed + TRACK.tie / 2 - 0.02, p.z, Math.atan2(p.dx, p.dz));
     }
     // ---- bridges: a steel plate-girder deck under the track, abutments at the ends
-    if (L.br) {
+    if (L.br && !own) {
       decks.setColor('#5d6368');
       eachSeg(L.pts, ([ax, az], [bx, bz], i) => {
         const l = gap([ax, az], [bx, bz]), nx = (az - bz) / l, nz = (bx - ax) / l, yOf = (c) => yEnd0 + (yEnd1 - yEnd0) * c / L.len;
