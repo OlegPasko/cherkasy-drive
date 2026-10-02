@@ -57,7 +57,7 @@ import { createFarCull } from '../farcull.js';
 // Oleg's site modules, resolved at build time; a file that does not exist yet is simply absent
 const SITE_MODULES = import.meta.glob(['./landmarks.js', './frame.js', './restinn.js', './yalynka.js', './pagorb.js', './rosevalley.js',
   './restaurants.js', './beaches.js', './yachtclub.js', './embankment.js', './prystan.js', './dam.js', './zhuzhoma.js', './shore.js',
-  './signs.js', './facadekit.js', './khimikiv.js', './druzhba.js', './billboards.js', './zamkova.js', './kobzar.js', './museum.js', './market.js', './wedding.js', './bohdan.js', './philharmonic.js', './bilyidim.js', './lotus.js', './station.js', './lovebridge.js',
+  './signs.js', './facadekit.js', './khimikiv.js', './druzhba.js', './billboards.js', './zamkova.js', './zamkovapark.js', './kobzar.js', './museum.js', './market.js', './wedding.js', './bohdan.js', './philharmonic.js', './bilyidim.js', './lotus.js', './station.js', './lovebridge.js',
   './simeinyi.js', './fitness34.js', './torhivli.js', './chnu.js', './chdtu.js', './bankinst.js', './khrcity.js',
   './spartak.js', './pioner.js', './slavutych.js', './lyubava.js',
   './budivelnyk.js', './grandmarket.js', './epicentr.js', './dytlikarnya.js',
@@ -131,6 +131,7 @@ export async function buildCherkasy({ scene, renderer, onProgress = null, params
   for (const b of map.buildings) if (HERO_SKIP.has(b.id)) hf.pad(ringPts(b.p), 30); // level the hero sites first
   if (S.landmarks?.levelStadium) guard('stadium terrain', () => S.landmarks.levelStadium(hf));
   if (S.zamkova?.shapeZamkova && geo) guard('Zamkova hora terrain', () => S.zamkova.shapeZamkova(hf, map, geo)); // the hilltop plateau, before ground + buildings
+  if (S.zamkovapark?.shapeZamkovaPark && geo) guard('Zamkova park terrain', () => S.zamkovapark.shapeZamkovaPark(hf, map, geo)); // the park's plazas below it, level
   if (S.museum?.shapeMuseum) guard('museum terrain', () => S.museum.shapeMuseum(hf, map)); // the podium's high (west) side
   if (S.philharmonic?.shapePhilharmonic) guard('Philharmonic terrain', () => S.philharmonic.shapePhilharmonic(hf, map)); // a level lot on Khreshchatyk
   if (S.bilyidim?.shapeBilyiDim) guard('Bilyi dim terrain', () => S.bilyidim.shapeBilyiDim(hf, map)); // level lot + forecourt
@@ -163,7 +164,7 @@ export async function buildCherkasy({ scene, renderer, onProgress = null, params
     ['hoteldnipro', 'HOTEL_SKIP'], ['dniproplaza', 'DP_SKIP'], ['depot', 'DEPOT_SKIP'], ['politekhkoledzh', 'POLITEKH_SKIP'],
     ['podatkova', 'PODATKOVA_SKIP'], ['school17', 'SCHOOL17_SKIP'], ['kinoukraina', 'KINO_SKIP'], ['chnu3', 'CHNU3_SKIP'],
     ['miskrada', 'MISKRADA_SKIP'], ['poshtamt', 'POSHTAMT_SKIP'], ['oblbiblioteka', 'OBLBIB_SKIP'], ['medakademia', 'MEDAKAD_SKIP'], ['andriy', 'ANDRIY_SKIP'], ['boyan', 'BOYAN_SKIP'],
-    ['delikat', 'DELIKAT_SKIP'], ['atb', 'ATB_SKIP'], ['mcdonalds', 'MCDONALDS_SKIP'], ['urban', 'URBAN_SKIP'], ['su7', 'SU7_SKIP'], ['catcafe', 'CATCAFE_SKIP'], ['praska', 'PRASKA_SKIP']]) for (const id of S[mod]?.[key] ?? []) skip.add(id);
+    ['delikat', 'DELIKAT_SKIP'], ['atb', 'ATB_SKIP'], ['mcdonalds', 'MCDONALDS_SKIP'], ['urban', 'URBAN_SKIP'], ['su7', 'SU7_SKIP'], ['catcafe', 'CATCAFE_SKIP'], ['praska', 'PRASKA_SKIP'], ['zamkovapark', 'ZAMKPARK_SKIP']]) for (const id of S[mod]?.[key] ?? []) skip.add(id);
   let groundDone = false, bldF = 0;
   const report = () => onProgress?.(0.15 + 0.55 * (0.3 * (groundDone ? 1 : 0) + 0.7 * bldF), `Рельєф, вулиці, будинки… ${Math.round(100 * (0.3 * (groundDone ? 1 : 0) + 0.7 * bldF))}%`);
   const groundP = buildGroundAsync({ scene: root, T, map, hf, strip, renderer, mapUrl: url('map.json') }).then((g) => { groundDone = true; report(); return g; });
@@ -180,7 +181,7 @@ export async function buildCherkasy({ scene, renderer, onProgress = null, params
   const list = [['Pagorb Slavy', 'pagorb', 'buildPagorb'], ['Rose Valley', 'rosevalley', 'buildRoseValley'], ['restaurants', 'restaurants', 'buildRestaurants'],
     ['beaches', 'beaches', 'buildBeaches'], ['yacht club', 'yachtclub', 'buildYachtClub'], ['embankment', 'embankment', 'buildEmbankment'],
     ['Stara Prystan', 'prystan', 'buildPrystan'], ['dam', 'dam', 'buildDam'], ['Zhuzhomy street', 'zhuzhoma', 'buildZhuzhoma'],
-    ['Khimikiv 44', 'khimikiv', 'buildKhimikiv'], ['Druzhba narodiv', 'druzhba', 'buildDruzhba'], ['Zamkova hora', 'zamkova', 'buildZamkova'],
+    ['Khimikiv 44', 'khimikiv', 'buildKhimikiv'], ['Druzhba narodiv', 'druzhba', 'buildDruzhba'], ['Zamkova hora', 'zamkova', 'buildZamkova'], ['Zamkova park', 'zamkovapark', 'buildZamkovaPark'],
     ['billboards', 'billboards', 'buildBillboards'], ['Kobzar museum', 'kobzar', 'buildKobzar'], ['Local history museum', 'museum', 'buildMuseum'], ['Central market', 'market', 'buildMarket'], ['Wedding palace', 'wedding', 'buildWedding'], ['Bohdan Khmelnytsky monument', 'bohdan', 'buildBohdan'], ['Philharmonic', 'philharmonic', 'buildPhilharmonic'], ['Bilyi dim', 'bilyidim', 'buildBilyiDim'], ['White Lotus', 'lotus', 'buildLotus'], ['railway station', 'station', 'buildStation'], ['Bridge of Lovers', 'lovebridge', 'buildLoveBridge'],
     ['Simeinyi Lux', 'simeinyi', 'buildSimeinyi'], ['Fitness club 3-4', 'fitness34', 'buildFitness34'], ['Budynok torhivli', 'torhivli', 'buildTorhivli'],
     ['ChNU', 'chnu', 'buildChnu'], ['ChDTU', 'chdtu', 'buildChdtu'], ['Banking institute', 'bankinst', 'buildBankInst'],

@@ -38,6 +38,7 @@ export const PLACES = [
     pitch: ['Загортаємо в лаваш все, що ти любиш', 'Ще й без майонезу!', 'Wraps, bowls і напої', 'Пн–Пт 9:00–22:00, Сб–Нд 10:00–21:30'] },
   // rebuilt on request, not landmarks (a landmark goes with the sights below)
   { id: 'khimikiv44', kind: 'improved', name: 'Покращений об’єкт', note: 'просп. Хіміків, 44', issue: 1, bld: [108980190] },
+  { id: 'kupershtein', kind: 'improved', name: 'Покращений об’єкт', note: 'Будинок з грифонами (Куперштейна, 1890-ті) · Замковий узвіз, 1', bld: [178369998] },
   { id: 'khrcity', kind: 'improved', name: 'Покращений об’єкт', note: 'вул. Остафія Дашковича, 19', bld: [6287196] },
   { id: 'spartak', kind: 'improved', name: 'Покращений об’єкт', note: 'вул. Остафія Дашковича, 23', bld: [156926550] },
   { id: 'pioner', kind: 'improved', name: 'Покращений об’єкт', note: 'вул. Митницька, 13 / бульв. Шевченка, 274', bld: [411245074] },
@@ -78,6 +79,7 @@ export const PLACES = [
   { id: 'rivport', kind: 'sight', name: 'Річковий вокзал', icon: '⚓', bld: [103630072] },
   { id: 'pagorb', kind: 'sight', name: 'Пагорб Слави', note: 'Монумент «Вітчизна-Мати»', icon: '🔥', xz: [550.6, -210.2] },
   { id: 'roses', kind: 'sight', name: 'Долина троянд', icon: '🌹', ll: [49.45063, 32.0647] },
+  { id: 'zamkpark', kind: 'sight', name: 'Парк під Замковою горою', note: 'Проєкт парку: фонтан, дитячий майданчик, сходи на Замкову гору', icon: '⛲', ll: [49.44925, 32.06525] },
   { id: 'zamkova', kind: 'sight', name: 'Замкова гора', note: 'Оглядовий майданчик, пам’ятник Івану Підкові', icon: '🏰', ll: [49.44815, 32.06505] },
   { id: 'yalynka', kind: 'sight', name: 'Головна ялинка', note: 'Соборна площа', icon: '🎄', bld: [1011542999] },
   { id: 'hyperboloid', kind: 'sight', name: 'Гіперболоїдна вежа', note: 'Водонапірна вежа Шухова', icon: '🗼', xz: [-1499.9, 1193] },
