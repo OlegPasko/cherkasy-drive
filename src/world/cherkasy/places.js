@@ -6,7 +6,7 @@
 //   PLACES: [{ id, kind: 'sight' | 'ad' | 'improved', name, note?, issue? (GitHub issue of the request), icon (emoji), logo? (public/assets/brand/<logo>.svg), url?,
 //             pitch?: [headline, line, ...], bld?: [OSM building ids], cut?: { p: [x, z], n: [nx, nz] } or a list of them
 //             (only the part of the footprints on the +n side of every cut), ring?: flat ring [x, z, …] (a footprint OSM
-//             does not have yet), ll?: [lat, lon], xz?: [x, z] }]
+//             does not have yet), rings?: several such rings, ll?: [lat, lon], xz?: [x, z] }]
 //   resolvePlaces(map, geo) -> [{ id, kind, name, note, icon, logo, url, pitch, x, z, rings: [flat ring, ...] }]
 //     geo: FRAME_OF(map) (lat / lon -> x / z); places whose anchor cannot be found are dropped
 //   USPACE_CUT: the line between the REST INN hotel and the U space office tower in OSM way 129420363 (restinn.js);
@@ -15,6 +15,9 @@
 //   URBAN_RING: the URBAN shop row's footprint (urban.js SITE; a new building OSM does not have)
 //   HD34_RING: the outline of the new block at Героїв Дніпра, 34 (hd34.js)
 //   PERLYNA_RING: the footprint of ЖК «Перлина Дніпра» (perlyna.js; not in OSM yet)
+//   ONIX_RINGS (onix_data.js): the ЖК Onix sections, one ring each (most of them are not in OSM yet)
+import { ONIX_RINGS } from './onix_data.js';
+
 // the south end of the Rest Inn block (past the step in its east wall), square to the long Nadpilna façade
 export const USPACE_CUT = { p: [-756.4, 1438.4], n: [0.0123, 0.9999] };
 export const EVERLABS_CUT = { p: [-756.9, 1398.4], n: [0.0123, 0.9999] };
@@ -84,6 +87,7 @@ export const PLACES = [
   { id: 'hrafskyi', kind: 'improved', name: 'Покращений об’єкт', note: 'ЖК «Графський» · вул. Байди Вишневецького, 68', bld: [1193290975, 1193290976, 989035400, 1193288998, 989035398, 989035397, 973321831, 19744972] },
   { id: 'perlyna', kind: 'improved', name: 'Покращений об’єкт', note: 'ЖК «Перлина Дніпра» · вул. Героїв Дніпра, 77', ring: PERLYNA_RING },
   { id: 'premierbay', kind: 'improved', name: 'Покращений об’єкт', note: 'ЖК Premier Bay (будується) · вул. Героїв Дніпра / вул. Козацька', bld: [1526030153, 1526030154, 1526030155, 1526030156] },
+  { id: 'onix', kind: 'improved', name: 'Покращений об’єкт', note: 'ЖК Onix · вул. Сковороди / Теліги', rings: ONIX_RINGS },
   // sights
   { id: 'mykhailo', kind: 'sight', name: 'Свято-Михайлівський собор', icon: '⛪', bld: [242469769] },
   { id: 'troitsky', kind: 'sight', name: 'Свято-Троїцький собор', icon: '⛪', bld: [157432721] },
@@ -152,7 +156,7 @@ export function resolvePlaces(map, geo) {
   for (const b of map?.buildings || []) if (want.has(b.id) && b.p?.length >= 6) byId.set(b.id, [...(byId.get(b.id) || []), b.p]);
   const out = [];
   for (const q of PLACES) {
-    const rings = [...(q.ring ? [q.ring] : []), ...(q.bld || []).flatMap((id) => byId.get(id) || []).map((r) => [].concat(q.cut || []).reduce(clipRing, r)).filter((r) => r.length)];
+    const rings = [...(q.ring ? [q.ring] : []), ...(q.rings || []), ...(q.bld || []).flatMap((id) => byId.get(id) || []).map((r) => [].concat(q.cut || []).reduce(clipRing, r)).filter((r) => r.length)];
     let at = q.xz || (q.ll && geo ? geo.toXZ(q.ll[0], q.ll[1]) : null);
     if (!at && rings.length) { // the biggest footprint's centre
       const c = rings.map(ringCentre);
