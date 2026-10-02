@@ -118,6 +118,9 @@ stall.
    - Look from the road, from the yard and from the air, by day and in the evening.
    - When a mockup or photo is given, also take one view that matches its camera.
    - Save them under the main checkout's `.playwright-mcp/<slug>/`; Playwright cannot write elsewhere.
+   - Several agents run at once, and the shared Playwright MCP browser has one tab they steal from each other. Drive
+     your own headless Chromium from a small Node script instead (`playwright` from the main checkout's
+     `node_modules`, or `npx playwright`), with `page.evaluate` for `tick` / `setCam` and `page.screenshot`.
 5. **Drive it.** Push into the walls (no gaps, no invisible walls) and fly over it (no floating parts). For roads and
    rails, drive along and under them and check that the traffic follows.
 6. **Maps.** Check the badge or grey footprint on the big map (M), and the phone peek (`?mobile&nosound`, a second tap on
