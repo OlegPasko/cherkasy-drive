@@ -248,7 +248,7 @@ export function buildYacht({ root }) {
   const rigging = new THREE.LineSegments(rigG, new THREE.LineBasicMaterial({ color: 0x80878d }));
   rigging.name = 'yacht-rigging';
 
-  // ---- nav lights: masthead white, port red, starboard green (constant pixel size, faded in by nightK)
+  // ---- nav lights: masthead white, port red, starboard green (pixel size and brightness shrink with distance, faded in by nightK)
   const glow = (() => {
     const S = 32, d = new Uint8Array(S * S * 4);
     for (let j = 0; j < S; j++) for (let i = 0; i < S; i++) {
@@ -414,6 +414,10 @@ export function buildYacht({ root }) {
       at(d - 45, tmp); wakeG.boundingSphere.center.set(tmp.x, Y, tmp.z);
       const nk = nightK.value;
       lights.visible = nk > 0.02; lightMat.opacity = Math.min(1, nk * 1.3);
+      if (lights.visible && camera) { // pinpoints from afar: a fixed 20 px HDR sprite bloomed into a big halo across the river
+        const dist = camera.position.distanceTo(v3.set(pos.x, WATER_Y, pos.z));
+        lightMat.size = Math.max(3, Math.min(20, 900 / dist)); lightMat.color.setScalar(Math.max(0.3, Math.min(1, 60 / dist)));
+      }
     },
     collide(p, r = 1, h = 1.3) {
       const ox = p.x - live.x, oz = p.z - live.z;

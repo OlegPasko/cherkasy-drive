@@ -1,7 +1,7 @@
 // OWNER: cherkasy. Блакитний палац – the former hotel «Слов’янський» (late 19th c., after V. Horodetskyi), on the corner
 // of вулиця Хрещатик and вулиця Остафія Дашковича, 20, across Khreshchatyk from ТРЦ «Хрещатик-Сіті» (OSM relation
 // 2810576, «Бізнес-центр "Слов'янський"», heritage «Готель Скорини «Слов’янський»»). Painted blue in Soviet times (hence
-// the name), restored to its sand-ochre colour in 2022–24. Rebuilt after the uk.wikipedia photos (Блакитний палац у 2024
+// the name), restored to a sand-beige colour in 2022–24. Rebuilt after the uk.wikipedia photos (Блакитний палац у 2024
 // році, Building of the Slovyanskyi Hotel) and the antenna.com.ua restoration report (Aug 2026): two tall storeys round
 // a courtyard. Ochre render in horizontal bands over a granite plinth; plain rectangular windows below a white cornice;
 // upstairs pairs of pointed lancet windows in white mouldings over white ornament panels, between white pilasters that
@@ -26,7 +26,7 @@ export const BLAKYTNYI_SKIP = new Set([OSM_ID]);
 
 const CUT = 260.7, CH = 6.2;              // hotel / office wing split (map x); the corner chamfer, m along each street
 const LIFT = 0.25, GF = 5.0, UF = 5.4, PAR = 1.25; // floor over the street, storey heights, parapet
-const OCHRE = '#e2bd5c', WHITE = '#f4f1e8', PLINTH = '#a28a5e', SLATE = '#3a3f43', ROOF = '#4f5458', IRON = '#232425';
+const OCHRE = '#d8c39b', WHITE = '#f4f1e8', PLINTH = '#a28a5e', SLATE = '#3a3f43', ROOF = '#4f5458', IRON = '#232425';
 const BC_WALL = '#ecebe6', BC_FL = [3.6, 3.3, 3.3, 3.3, 3.3];
 const GLASS = ['#55626a', '#4b575e', '#5f6b72', '#6a7378'], WU = [3, 2.4];
 
@@ -145,7 +145,7 @@ export function buildBlakytnyi({ root, map, solids: S, zips: Z, heightAt }) {
     for (let i = 0; i <= n; i++) {
       const s = Math.min(Math.max(i * st, 0.45), f.w - 0.45);
       D.setColor(WHITE); fbox(D, f, s - 0.45, s + 0.45, y2 + 0.2, yP, 0, 0.2, 1 | 4 | 8 | 16);
-      D.setColor('#e9c873'); fbox(D, f, s - 0.4, s + 0.4, yF + 0.5, y2 - 0.3, 0, 0.08, 1 | 4 | 8);
+      D.setColor('#e0cfab'); fbox(D, f, s - 0.4, s + 0.4, yF + 0.5, y2 - 0.3, 0, 0.08, 1 | 4 | 8);
       if (i === cornerEnd) continue; // the chamfer's own turret stands there
       if (cornerEnd >= 0 && Math.abs(i - cornerEnd) === 1) { const p = at(f, s, 0, 0.25); turrets.push([p[0], p[2], yP + 3.2, 0.5]); continue; }
       pinn.push([f, s]);
