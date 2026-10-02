@@ -18,6 +18,7 @@
 //   ONIX_RINGS (onix_data.js): the ЖК Onix sections, one ring each (most of them are not in OSM yet)
 import { ONIX_RINGS } from './onix_data.js';
 
+//   OLIMPM_RINGS: the section outlines of ЖК «Олімп Модерн» (olimpmodern.js; a place's `ring` may be a list of flat rings)
 // the south end of the Rest Inn block (past the step in its east wall), square to the long Nadpilna façade
 export const USPACE_CUT = { p: [-756.4, 1438.4], n: [0.0123, 0.9999] };
 export const EVERLABS_CUT = { p: [-756.9, 1398.4], n: [0.0123, 0.9999] };
@@ -27,6 +28,8 @@ export const URBAN_RING = [-751.5, 1369.5, -728.5, 1369.5, -728.5, 1379.7, -751.
 export const HD34_RING = [685, 1901.3, 683.2, 1905, 693, 1909, 704.4, 1898.9, 704, 1896.4, 708.9, 1895.6, 709.1, 1896.8, 735.8, 1892.3, 733.7, 1880, 707.1, 1884.5, 707.3, 1885.7, 702.3, 1886.5, 701.9, 1884.1, 696.9, 1884.9, 683.3, 1868.9, 684.8, 1864.2, 682.5, 1863.4, 684, 1858.6, 685.2, 1859, 693.7, 1833.4, 681.9, 1829.4, 673.4, 1855.1, 674.6, 1855.5, 673, 1860.2, 670.6, 1859.4, 658.8, 1869.2, 661.3, 1879.4, 665.2, 1878.2];
 // ЖК «Перлина Дніпра»: a new block OSM does not have yet (perlyna.js PERLYNA_OUTLINE)
 export const PERLYNA_RING = [813.4, 939.2, 759.5, 904.6, 748.5, 921.8, 786.3, 946.1, 768, 974.8, 783.9, 985];
+// ЖК «Олімп Модерн», Квіткова 10 (olimpmodern.js olimpModernRings, mostly not in OSM yet; tests/olimpmodern.test.mjs keeps them in step)
+export const OLIMPM_RINGS = [[-2473.2, -1560.5, -2472.6, -1548.2, -2486.1, -1547.5, -2486.8, -1559.8], [-2472.6, -1548.2, -2469.6, -1492.3, -2483.2, -1491.5, -2486.1, -1547.5], [-2468.9, -1479, -2467.8, -1458.6, -2481.4, -1457.9, -2482.5, -1478.3], [-2467.8, -1458.6, -2466.5, -1434.6, -2480.1, -1433.9, -2481.4, -1457.9], [-2466.5, -1434.6, -2465.5, -1415.1, -2479.1, -1414.4, -2480.1, -1433.9], [-2480.1, -1433.9, -2479.1, -1414.4, -2503, -1413.1, -2504, -1432.7], [-2504.2, -1436.7, -2503.3, -1418.7, -2527.2, -1417.4, -2528.2, -1435.4], [-2536.2, -1435, -2535.2, -1417, -2559.2, -1415.7, -2560.1, -1433.7], [-2561.9, -1466.7, -2559.2, -1415.7, -2573.2, -1415, -2575.9, -1465.9], [-2553.1, -1566.3, -2548.5, -1479.4, -2562.5, -1478.6, -2567.1, -1565.5], [-2493.1, -1567.4, -2492.4, -1553.4, -2528.3, -1551.5, -2529.1, -1565.5], [-2529.2, -1567.5, -2528.4, -1553.5, -2552.4, -1552.3, -2553.1, -1566.3]];
 
 export const PLACES = [
   // partners (paid placements; the other hand-built venues stay in the world but are not advertised)
@@ -93,6 +96,7 @@ export const PLACES = [
   { id: 'ridnyidim', kind: 'improved', name: 'Покращений об’єкт', note: 'ЖК «Рідний Дім» · вул. Надпільна, 222', bld: [1430800366, 1430800367, 1318431924, 973321830, 1430800368] },
   { id: 'olimp', kind: 'improved', name: 'Покращений об’єкт', note: 'ЖК «Олімп» · вул. Сумгаїтська, 15/5', bld: [21402178] },
   { id: 'harmony', kind: 'improved', name: 'Покращений об’єкт', note: 'Клубний комплекс Harmony · просп. Перемоги, 69', bld: [1507392909] },
+  { id: 'olimpmodern', kind: 'improved', name: 'Покращений об’єкт', note: 'ЖК «Олімп Модерн» · вул. Квіткова, 10', ring: OLIMPM_RINGS },
   // sights
   { id: 'mykhailo', kind: 'sight', name: 'Свято-Михайлівський собор', icon: '⛪', bld: [242469769] },
   { id: 'troitsky', kind: 'sight', name: 'Свято-Троїцький собор', icon: '⛪', bld: [157432721] },
@@ -161,7 +165,7 @@ export function resolvePlaces(map, geo) {
   for (const b of map?.buildings || []) if (want.has(b.id) && b.p?.length >= 6) byId.set(b.id, [...(byId.get(b.id) || []), b.p]);
   const out = [];
   for (const q of PLACES) {
-    const rings = [...(q.ring ? [q.ring] : []), ...(q.rings || []), ...(q.bld || []).flatMap((id) => byId.get(id) || []).map((r) => [].concat(q.cut || []).reduce(clipRing, r)).filter((r) => r.length)];
+    const rings = [...(q.ring ? (Array.isArray(q.ring[0]) ? q.ring : [q.ring]) : []), ...(q.rings || []), ...(q.bld || []).flatMap((id) => byId.get(id) || []).map((r) => [].concat(q.cut || []).reduce(clipRing, r)).filter((r) => r.length)];
     let at = q.xz || (q.ll && geo ? geo.toXZ(q.ll[0], q.ll[1]) : null);
     if (!at && rings.length) { // the biggest footprint's centre
       const c = rings.map(ringCentre);

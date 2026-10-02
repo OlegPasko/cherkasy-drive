@@ -161,6 +161,11 @@ See `ARCHITECTURE.md` for the module map. Where things live:
     the avenue front bay by bay from the developer's photos – graphite-framed window bays, recessed white bays with timber
     strips, white pilasters under dark caps, a graphite shop storey –, white ends, the yard side still bare brick; its lot
     levelled by `levelHarmony`; `tests/harmony.test.mjs`) is `improved` too.
+    `olimpmodern` (ЖК «Олімп Модерн», Квіткова 10, on the OSM construction lot; house 1 is OSM way 1526504590, the rest
+    as rendered on lun.ua): a closed quarter of 9–10-storey sections round a yard, laid out as rectangles in its lot frame
+    (`OLIMPM_SECTIONS`), each facade from a module string read off the renders; the yard is draped lawn and paving with
+    the fountain, playground and court. places.js keeps the section outlines as `OLIMPM_RINGS` (a place's `ring` may be a
+    list of rings); `tests/olimpmodern.test.mjs`. `improved`.
   - `places.js` – the sights, the paying partners (kind `ad`) and the non-landmark objects rebuilt on request (kind
     `improved`: a grey footprint only, "Покращений об’єкт" in the big map's legend) for both maps: icon, name, note, the OSM buildings
     whose footprints get highlighted, and for partners the site `url` (with `utm_source=driver.ck.ua`) and the pitch
