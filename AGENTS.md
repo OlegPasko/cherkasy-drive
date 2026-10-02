@@ -71,7 +71,9 @@ See `ARCHITECTURE.md` for the module map. Where things live:
     `lyubava`, `pioner`, `slavutych`, `dniproplaza` and `depot` (malls), `hoteldnipro` and `politekhkoledzh` (the
     polytechnic college in the old wine warehouse). Two supermarkets from issue #12 are built the same way and marked `improved`:
     `delikat` («Делікат», Благовісна 300) and `atb` (АТБ, бульвар Шевченка 239), and so is
-    `mcdonalds` (McDonald's, Смілянська 31: the McDrive lane, the terrace and the pylon). They share five small wall kits: `civic.js`, `blockkit.js`,
+    `mcdonalds` (McDonald's, Смілянська 31: the McDrive lane, the terrace and the pylon). A player's idea (issue #20) added two
+    more, both `improved`: `catcafe` (the nine-storey block at Байди Вишневецького 19 with its shop annex and CatCafe's front)
+    and `praska` (the ten-storey «будинок-праска» at Остафія Дашковича 4: red-banded balconies, Gothic gables, a round nose). They share five small wall kits: `civic.js`, `blockkit.js`,
     `bldkit.js`, `shellkit.js` and `slabkit.js` (walls per footprint edge, windows with reveals, collision, mesh wrap-up).
   - `places.js` – the sights, the paying partners (kind `ad`) and the non-landmark objects rebuilt on request (kind
     `improved`: a grey footprint only, "Покращений об’єкт" in the big map's legend) for both maps: icon, name, note, the OSM buildings
