@@ -94,6 +94,8 @@ export const PLACES = [
   { id: 'medakademia', kind: 'improved', name: 'Покращений об’єкт', note: 'вул. Хрещатик, 215', bld: [155354150] },
   { id: 'mcdonalds', kind: 'improved', name: 'Покращений об’єкт', note: 'McDonald’s · Смілянська, 31', issue: 12, bld: [104299459] },
   { id: 'delikat', kind: 'improved', name: 'Покращений об’єкт', note: 'Делікат · Благовісна, 300', issue: 12, bld: [118327849] },
+  { id: 'atb26', kind: 'improved', name: 'Покращений об’єкт', note: 'АТБ · Остафія Дашковича, 26', issue: 28, bld: [157528369] },
+  { id: 'school7', kind: 'improved', name: 'Покращений об’єкт', note: 'Школа №7 · Добровольчих батальйонів, 13', issue: 29, bld: [158065243, 158065244] },
   { id: 'atb239', kind: 'improved', name: 'Покращений об’єкт', note: 'АТБ · бульвар Шевченка, 239', issue: 12, bld: [408254373] },
   { id: 'catcafe', kind: 'improved', name: 'Покращений об’єкт', note: 'CatCafe · вул. Байди Вишневецького, 19', issue: 20, bld: [6286345, 422816412] },
   { id: 'praska', kind: 'improved', name: 'Покращений об’єкт', note: 'Будинок-праска · вул. Остафія Дашковича, 4', issue: 20, bld: [258795947, 927234847] },

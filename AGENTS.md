@@ -250,6 +250,12 @@ See `ARCHITECTURE.md` for the module map. Where things live:
     drive or fly through it. Five draw calls, ~3.1k vertices; `tests/yacht.test.mjs`.
   - `billboards.js` – roadside billboards sold through the bot: the `BILLBOARDS` list (spot, facing, art) and the
     builder; unsold ones show the "ваша реклама / @driver_game_bot" placeholder. The header says how to add a real one.
+  - Requests #28–#30: `atb26` rebuilds the supermarket at Остафія Дашковича 26 with a charcoal shopfront beneath
+    the three-storey tiled street block; `school7` builds both school №7 blocks at Добровольчих батальйонів 13 and
+    the yellow-railed Odeska pedestrian bridge over the roads, garages and railway. Both schools and ATB are
+    `improved` places with phone peeks. `railcut.shapeRailCut` carves the OSM railway cutting before `shapeOverpass`;
+    `buildRailCut` resurfaces its slopes after ground creation. The playable south-east boundary reaches z=5800
+    to include Петра Дорошенка and more of Чигиринська.
 - `src/npc/` – everything that moves on its own:
   - `lanes.js` – the lane graph and signals; with `opts.deckAt` (a site's deck heights) the lanes of a chain with an
     OSM bridge way take the deck's height where they end on it, split into pieces of at most `DECK_STEP` (16 m) on a

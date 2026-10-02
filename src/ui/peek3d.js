@@ -31,7 +31,7 @@ const SITES = {
   school17: ['school17', 'buildSchool17'], kinoukraina: ['kinoukraina', 'buildKinoUkraina'], chnu3: ['chnu3', 'buildChnu3'],
   pixel: ['zhuzhoma', 'buildZhuzhoma'], miskrada: ['miskrada', 'buildMiskrada'], poshtamt: ['poshtamt', 'buildPoshtamt'],
   oblbiblioteka: ['oblbiblioteka', 'buildOblBiblioteka'], medakademia: ['medakademia', 'buildMedAkademia'],
-  mcdonalds: ['mcdonalds', 'buildMcDonalds'], delikat: ['delikat', 'buildDelikat'], atb239: ['atb', 'buildAtb'],
+  mcdonalds: ['mcdonalds', 'buildMcDonalds'], delikat: ['delikat', 'buildDelikat'], atb239: ['atb', 'buildAtb'], atb26: ['atb26', 'buildAtb26'], school7: ['school7', 'buildSchool7'],
   catcafe: ['catcafe', 'buildCatCafe'], praska: ['praska', 'buildPraska'],
   delikat399: ['delikat399', 'buildDelikat399'], rotunda397: ['glassrotunda', 'buildGlassRotunda'],
   ekvator: ['ekvator', 'buildEkvator', 'levelEkvator'], sportlife: ['sportlife', 'buildSportLife'],

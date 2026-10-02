@@ -1,0 +1,24 @@
+// School No7 / Odeska footbridge: school volumes, road clearance, finite geometry and passable bridge underside.
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import * as THREE from 'three';
+import {buildSchool7,SCHOOL7_SKIP} from '../src/world/cherkasy/school7.js';
+import {createCollisionWorld} from '../src/world/collision.js';
+const ctx=new Proxy({},{get:()=>()=>({addColorStop(){}}),set:()=>true});
+globalThis.document={createElement:()=>({width:1,height:1,getContext:()=>ctx,style:{}})};
+const map=JSON.parse(fs.readFileSync(new URL('../public/assets/cherkasy/map.json',import.meta.url)));
+map.buildings=JSON.parse(fs.readFileSync(new URL('../public/assets/cherkasy/map_buildings.json',import.meta.url)));
+const root=new THREE.Group(), solids=createCollisionWorld({terrain:()=>30});
+const site=buildSchool7({root,map,solids,heightAt:()=>30,zips:{edge(){}}});
+assert.equal(SCHOOL7_SKIP.size,2); assert.equal(site.footprints.length,3);
+let verts=0;root.traverse(o=>{if(o.isMesh){const p=o.geometry.attributes.position.array;verts+=p.length/3;assert.ok(p.every(Number.isFinite));}});
+assert.ok(verts<45000,`geometry budget ${verts}`);
+assert.ok(site.clear(-1000,-2622));assert.ok(!site.clear(-700,-2600));
+assert.ok(site.bridge.deck>=36.2);
+const [a,b]=site.bridge.ends,x=(a[0]+b[0])/2,z=(a[1]+b[1])/2;
+assert.ok(solids.groundHeight(x,z,site.bridge.deck+3)>site.bridge.deck-.1);
+assert.ok(solids.groundHeight(x,z,32)<33,'bridge can be driven underneath');
+assert.ok(site.footprints.some(f=>f.h>9 && f.h<11));
+assert.ok(site.footprints.filter(f=>f.h<8).length===1);
+assert.ok(site.footprints.some(f=>f.h>8.5 && f.h<9.6),'old school retains OSM nine metre height');
+console.log(`school7: all ok (${verts} vertices)`);

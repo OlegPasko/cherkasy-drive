@@ -65,7 +65,7 @@ const SITE_MODULES = import.meta.glob(['./landmarks.js', './frame.js', './restin
   './hoteldnipro.js', './dniproplaza.js', './depot.js', './politekhkoledzh.js',
   './podatkova.js', './school17.js', './kinoukraina.js', './chnu3.js',
   './miskrada.js', './poshtamt.js', './oblbiblioteka.js', './medakademia.js', './balloon.js', './yacht.js', './plane.js', './andriy.js', './boyan.js',
-  './delikat.js', './atb.js', './mcdonalds.js', './tors.js', './urban.js', './su7.js', './overpass.js', './catcafe.js', './praska.js', './delikat399.js', './glassrotunda.js', './ekvator.js', './sportlife.js',
+  './delikat.js', './atb.js', './atb26.js', './school7.js', './railcut.js', './mcdonalds.js', './tors.js', './urban.js', './su7.js', './overpass.js', './catcafe.js', './praska.js', './delikat399.js', './glassrotunda.js', './ekvator.js', './sportlife.js',
   './khimbridge.js', './railbridge.js', './gerb.js', './avrora.js',
   './sviatotroitskyi.js', './hd34.js', './hrafskyi.js', './perlyna.js', './premierbay.js', './onix.js', './pasterivskyi.js', './voldim.js', './ridnyidim.js', './olimp.js', './harmony.js', './olimpmodern.js', './hoholia204.js', './pryportova.js', './ekohouse.js', './narbutivska10.js', './parkovyi.js', './shev22.js', './shev184.js', './comfortpark.js', './zhktemp.js', './smilianska.js', './ambrosa35.js', './nadpilna249.js', './taraskova5.js']);
 async function loadSites() {
@@ -78,7 +78,7 @@ async function loadSites() {
 }
 const guard = (label, fn, fallback = null) => { try { return fn() ?? fallback; } catch (e) { console.error(`[cherkasy] ${label} failed`, e); return fallback; } };
 // the sites that read the ground (isWater / onAsphalt / its meshes): they wait for its workers, the others do not
-const GROUND_SITES = new Set(['rosevalley', 'restaurants', 'beaches', 'yachtclub', 'embankment', 'prystan', 'station', 'lovebridge', 'overpass', 'delikat399', 'glassrotunda', 'khimbridge', 'railbridge']);
+const GROUND_SITES = new Set(['rosevalley', 'restaurants', 'beaches', 'yachtclub', 'embankment', 'prystan', 'station', 'lovebridge', 'overpass', 'railcut', 'delikat399', 'glassrotunda', 'khimbridge', 'railbridge']);
 // a macrotask turn (not a frame): lets worker messages in between synchronous builds
 const nextTask = () => new Promise((res) => { const ch = new MessageChannel(); ch.port1.onmessage = () => { ch.port1.close(); res(); }; ch.port2.postMessage(0); });
 const nextFrame = () => new Promise((res) => (typeof requestAnimationFrame === 'function' && !document.hidden ? requestAnimationFrame(() => res()) : setTimeout(res, 0)));
@@ -153,6 +153,7 @@ export async function buildCherkasy({ scene, renderer, onProgress = null, params
   if (S.ekvator?.levelEkvator) guard('Ekvator terrain', () => S.ekvator.levelEkvator(hf, map)); // the drift lot and the hall, level
   if (S.premierbay?.levelPremierBay) guard('Premier Bay terrain', () => S.premierbay.levelPremierBay(hf, map)); // the lot and the yard, at the driveways' level
   if (S.su7?.levelSu7 && geo) guard('Su-7 square terrain', () => S.su7.levelSu7(hf, map, geo)); // the square round the plinth, level
+  if (S.railcut?.shapeRailCut && geo) guard('Lunacharka railway cutting', () => S.railcut.shapeRailCut(hf, map, geo));
   if (S.overpass?.shapeOverpass && geo) guard('Dakhnivska overpass terrain', () => S.overpass.shapeOverpass(hf, map, geo)); // the cutting under the bridge
   if (S.ekohouse?.levelEkohouse) guard('Ekokhaus terrain', () => S.ekohouse.levelEkohouse(hf)); // the townhouse lot, level
   if (S.onix?.levelOnix) guard('ZhK Onix terrain', () => S.onix.levelOnix(hf)); // a level terrace under each block
@@ -175,7 +176,7 @@ export async function buildCherkasy({ scene, renderer, onProgress = null, params
     ['hoteldnipro', 'HOTEL_SKIP'], ['dniproplaza', 'DP_SKIP'], ['depot', 'DEPOT_SKIP'], ['politekhkoledzh', 'POLITEKH_SKIP'],
     ['podatkova', 'PODATKOVA_SKIP'], ['school17', 'SCHOOL17_SKIP'], ['kinoukraina', 'KINO_SKIP'], ['chnu3', 'CHNU3_SKIP'],
     ['miskrada', 'MISKRADA_SKIP'], ['poshtamt', 'POSHTAMT_SKIP'], ['oblbiblioteka', 'OBLBIB_SKIP'], ['medakademia', 'MEDAKAD_SKIP'], ['andriy', 'ANDRIY_SKIP'], ['boyan', 'BOYAN_SKIP'],
-    ['delikat', 'DELIKAT_SKIP'], ['atb', 'ATB_SKIP'], ['mcdonalds', 'MCDONALDS_SKIP'], ['urban', 'URBAN_SKIP'], ['su7', 'SU7_SKIP'], ['catcafe', 'CATCAFE_SKIP'], ['praska', 'PRASKA_SKIP'], ['delikat399', 'DELIKAT399_SKIP'], ['glassrotunda', 'ROTUNDA_SKIP'],
+    ['delikat', 'DELIKAT_SKIP'], ['atb', 'ATB_SKIP'], ['atb26', 'ATB26_SKIP'], ['school7', 'SCHOOL7_SKIP'], ['mcdonalds', 'MCDONALDS_SKIP'], ['urban', 'URBAN_SKIP'], ['su7', 'SU7_SKIP'], ['catcafe', 'CATCAFE_SKIP'], ['praska', 'PRASKA_SKIP'], ['delikat399', 'DELIKAT399_SKIP'], ['glassrotunda', 'ROTUNDA_SKIP'],
     ['ekvator', 'EKVATOR_SKIP'], ['sportlife', 'SPORTLIFE_SKIP'], ['zamkovapark', 'ZAMKPARK_SKIP'], ['avrora', 'AVRORA_SKIP'],
     ['sviatotroitskyi', 'SVIATO_SKIP'], ['hd34', 'HD34_SKIP'], ['hrafskyi', 'HRAFSKYI_SKIP'], ['perlyna', 'PERLYNA_SKIP'], ['premierbay', 'PREMIERBAY_SKIP'], ['onix', 'ONIX_SKIP'], ['pasterivskyi', 'PASTER_SKIP'], ['voldim', 'VOLDIM_SKIP'], ['ridnyidim', 'RIDNYI_SKIP'], ['olimp', 'OLIMP_SKIP'], ['harmony', 'HARMONY_SKIP'], ['olimpmodern', 'OLIMPM_SKIP'], ['hoholia204', 'HOHOLIA204_SKIP'], ['pryportova', 'PRYPORTOVA_SKIP'], ['ekohouse', 'EKOHOUSE_SKIP'], ['narbutivska10', 'NARB10_SKIP'], ['parkovyi', 'PARKOVYI_SKIP'], ['shev22', 'SHEV22_SKIP'], ['shev184', 'SHEV184_SKIP'], ['comfortpark', 'COMFORTPARK_SKIP'], ['zhktemp', 'ZHKTEMP_SKIP'], ['smilianska', 'SMILIANSKA_SKIP'], ['ambrosa35', 'AMBROSA35_SKIP'], ['nadpilna249', 'NADP249_SKIP'], ['taraskova5', 'TARASKOVA5_SKIP']]) for (const id of S[mod]?.[key] ?? []) skip.add(id);
   let groundDone = false, bldF = 0;
@@ -207,7 +208,7 @@ export async function buildCherkasy({ scene, renderer, onProgress = null, params
     ['Tax office', 'podatkova', 'buildPodatkova'], ['School 17', 'school17', 'buildSchool17'], ['Kino Ukraina', 'kinoukraina', 'buildKinoUkraina'], ['ChNU building 3', 'chnu3', 'buildChnu3'],
     ['City council', 'miskrada', 'buildMiskrada'], ['Head post office', 'poshtamt', 'buildPoshtamt'], ['Regional library', 'oblbiblioteka', 'buildOblBiblioteka'], ['Medical academy', 'medakademia', 'buildMedAkademia'],
     ['Balloon', 'balloon', 'buildBalloon'], ['Yacht', 'yacht', 'buildYacht'], ['Plane', 'plane', 'buildPlane'], ['St Andrew church', 'andriy', 'buildAndriy'], ['Boyan monument', 'boyan', 'buildBoyan'],
-    ['Delikat on Blahovisna', 'delikat', 'buildDelikat'], ['ATB on Shevchenka 239', 'atb', 'buildAtb'], ["McDonald's", 'mcdonalds', 'buildMcDonalds'], ['Tors sign', 'tors', 'buildTors'], ['URBAN', 'urban', 'buildUrban'], ['Su-7 memorial', 'su7', 'buildSu7'],
+    ['Delikat on Blahovisna', 'delikat', 'buildDelikat'], ['ATB on Shevchenka 239', 'atb', 'buildAtb'], ['ATB on Dashkovycha 26', 'atb26', 'buildAtb26'], ['School 7 and footbridge', 'school7', 'buildSchool7'], ['Railway cutting', 'railcut', 'buildRailCut'], ["McDonald's", 'mcdonalds', 'buildMcDonalds'], ['Tors sign', 'tors', 'buildTors'], ['URBAN', 'urban', 'buildUrban'], ['Su-7 memorial', 'su7', 'buildSu7'],
     ['Dakhnivska overpass', 'overpass', 'buildOverpass'], ['Khimikiv viaduct', 'khimbridge', 'buildKhimBridge'], ['Railway bridges', 'railbridge', 'buildRailBridges'],
     ['Coat of arms stele', 'gerb', 'buildGerb'],
     ['CatCafe block', 'catcafe', 'buildCatCafe'], ['Flatiron on Dashkovycha 4', 'praska', 'buildPraska'],
