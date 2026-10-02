@@ -97,7 +97,13 @@ See `ARCHITECTURE.md` for the module map. Where things live:
     and `praska` (the ten-storey «будинок-праска» at Остафія Дашковича 4: red-banded balconies, Gothic gables, a round nose). Issue #27 added two more on бульвар Шевченка, both `improved`: `delikat399` (the «Делікат» at 399/2:
     a one-storey ribbed-sheet box with a taupe band and a glazed entrance block; it reuses `signTex` from `delikat.js`) and
     `glassrotunda` (the bar next to it, drawn without its name or any lettering: a cassette-clad cube with a glass drum, a
-    canopy ring, a terrace and a curved steel screen). They share five small wall kits: `civic.js`, `blockkit.js`,
+    canopy ring, a terrace and a curved steel screen).
+    Issue #25 added two more, both `improved`: `ekvator` (ТЦ «Екватор», просп. Хіміків 74: the 470 m grey hall with the orange
+    entrance block and its sign frame, and its parking lot on Лейтенанта Мукана made a drift lot – `levelEkvator` levels the lot
+    to its own median and the hall to the lot (`hf.pad(ring, margin, level)`), and the lot is one flat asphalt slab 0.22 m over
+    it with a matching collision prism, ramps on its open edges, painted stalls, light poles only round the edges;
+    `tests/ekvator.test.mjs`) and `sportlife` (the Sport Life club at Митниця, Козацька 2: silver panels, the blue-and-red
+    portal with its sign, the glazed hall). They share five small wall kits: `civic.js`, `blockkit.js`,
     `bldkit.js`, `shellkit.js` and `slabkit.js` (walls per footprint edge, windows with reveals, collision, mesh wrap-up).
   - `places.js` – the sights, the paying partners (kind `ad`) and the non-landmark objects rebuilt on request (kind
     `improved`: a grey footprint only, "Покращений об’єкт" in the big map's legend) for both maps: icon, name, note, the OSM buildings

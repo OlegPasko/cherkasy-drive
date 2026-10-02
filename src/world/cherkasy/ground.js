@@ -4,9 +4,10 @@
 // is draped on one terrain (the DEM box-filtered to 16 m cells, bilinear per cell) and drawn by one shader keyed by a
 // per-vertex surface id, in world-space texture coordinates; the meshes are cut into 1 km tiles (8 km over the far fields).
 //
-//   createHeightField(map, dem: Int16Array) -> hf { heightAt(x, z), hMax, cell, x0, z0, x1, z1, pad(P, margin = 30), data }
+//   createHeightField(map, dem: Int16Array) -> hf { heightAt(x, z), hMax, cell, x0, z0, x1, z1, pad(P, margin = 30, level?), data }
 //   heightFieldFrom(hf.data) -> the same field over the same grid (workers)
-//     pad(ring [[x,z]...]) levels the terrain under a hand-built site (call before buildGround); returns the level
+//     pad(ring [[x,z]...], margin = 30, level?) levels the terrain under a hand-built site (call before buildGround) to
+//       `level`, or by default to the median of the lattice nodes in and near the ring; returns the level
 //   buildGround({ scene, T, map, hf, strip?, renderer? }) -> ground
 //     scene: parent Object3D; T: kit/textures.js bundle; strip: { A:[x,z], B:[x,z], y0, y1 } the sandy low shore strip
 //       (shore.js shoreStrip + STRIP) or null; renderer: for the decal bias of the markings
@@ -175,8 +176,9 @@ export function heightFieldFrom({ meta, grid: g }) {
   for (const h of g) if (h > hMax) hMax = h;
 
   // level a site: lattice nodes inside the ring (and within 12 m of it) vote for the median level; the band out to
-  // `margin` blends back to the natural terrain with a smoothstep
-  function pad(P, margin = 30) {
+  // `margin` blends back to the natural terrain with a smoothstep; a given `fixed` level skips the vote (a site whose
+  // DEM is skewed by its own roof levels to its forecourt's height)
+  function pad(P, margin = 30, fixed = null) {
     const bb = bboxOf(P);
     const inside = (x, z) => {
       let odd = false;
@@ -211,7 +213,7 @@ export function heightFieldFrom({ meta, grid: g }) {
       }
     }
     if (!votes.length) return null;
-    const level = Float64Array.from(votes).sort()[votes.length >> 1];
+    const level = fixed ?? Float64Array.from(votes).sort()[votes.length >> 1];
     const ease = (d) => { const f = (d - 6) / (margin - 6); if (f <= 0) return 0; if (f >= 1) return 1; return f * f * (3 - 2 * f); };
     for (let k = 0; k < ring.length; k += 2) g[ring[k]] = level + (g[ring[k]] - level) * ease(ring[k + 1]);
     return level;
