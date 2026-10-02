@@ -111,6 +111,12 @@ See `ARCHITECTURE.md` for the module map. Where things live:
     embankment to the river station, back over bul. Shevchenka and the centre, a lap in ~8 min, wall-clock paced like the
     balloon. It banks into the turns, the prop is a blurred disc, nav lights and strobes show at night; no collision, not on
     the maps (the balloon is not either). Its engine loop (`plane_engine`) is heard only within ~120 m of it (`audio/game.js`).
+  - `yacht.js` – an 11 m cruising sloop (white hull, navy boot stripe, teak deck, bellied main and jib, rigging as lines, a
+    Ukrainian flag) sailing a ~2 km loop of open water off the Rose Valley, short of the yacht club, at 2.5 m/s (a lap in ~13 min,
+    wall-clock paced like the balloon). A fixed cross-river breeze trims it: boom and jib go to leeward by the point of sail and
+    cross over at the loop's ends, it heels, bobs, the sails flog head to wind; a foam wake; masthead and red / green bow lights
+    by `nightK`. Its `collide(p, r, h)` (hull box + mast) joins `world.collideDynamic` after the traffic, so the car cannot
+    drive or fly through it. Five draw calls, ~3.1k vertices; `tests/yacht.test.mjs`.
   - `billboards.js` – roadside billboards sold through the bot: the `BILLBOARDS` list (spot, facing, art) and the
     builder; unsold ones show the "ваша реклама / @driver_game_bot" placeholder. The header says how to add a real one.
 - `src/npc/` – everything that moves on its own:

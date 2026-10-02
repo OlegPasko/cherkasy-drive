@@ -9,7 +9,8 @@
 //   raycast(origin, dir, max?) -> { distance, point, normal, id, kind } | null        (static solids + terrain)
 //   groundHeight(x, z, yHint?) -> y    highest support at / below yHint (terrain, roofs, decks); always finite
 //   surfaceAt(x, z, yHint?) -> { y, id, kind, surface ('asphalt' | 'water' | 'ground' | 'solid') }
-//   collideDynamic(pos, r, h) -> null | { push, normal, depth, grounded, groundY, vel }   traffic cars + wrecks
+//   collideDynamic(pos, r, h) -> null | { push, normal, depth, grounded, groundY, vel }   traffic cars + wrecks, then the
+//     moving sites' collide(pos, r, h) (yacht.js)
 //   ram(q) -> { dv, push, hits, knocked, severity, trees?, people }
 //     q: the player's box { x, y (bottom), z, fx, fz, hl, hw, h, v: Vector3, mass }; rams traffic / wrecks, snaps trees
 //     (treebreak.js) and runs people over (people.hitBox) when |v| > 3 m/s
@@ -62,7 +63,7 @@ const SITE_MODULES = import.meta.glob(['./landmarks.js', './frame.js', './restin
   './budivelnyk.js', './grandmarket.js', './epicentr.js', './dytlikarnya.js',
   './hoteldnipro.js', './dniproplaza.js', './depot.js', './politekhkoledzh.js',
   './podatkova.js', './school17.js', './kinoukraina.js', './chnu3.js',
-  './miskrada.js', './poshtamt.js', './oblbiblioteka.js', './medakademia.js', './balloon.js', './plane.js', './andriy.js', './boyan.js',
+  './miskrada.js', './poshtamt.js', './oblbiblioteka.js', './medakademia.js', './balloon.js', './yacht.js', './plane.js', './andriy.js', './boyan.js',
   './delikat.js', './atb.js', './mcdonalds.js', './tors.js', './urban.js', './su7.js', './overpass.js', './catcafe.js', './praska.js']);
 async function loadSites() {
   const out = {};
@@ -168,7 +169,7 @@ export async function buildCherkasy({ scene, renderer, onProgress = null, params
   const groundP = buildGroundAsync({ scene: root, T, map, hf, strip, renderer, mapUrl: url('map.json') }).then((g) => { groundDone = true; report(); return g; });
   const bldP = buildCityBuildings({ root, map, hf, solids: collision, zips, skip, facadeMat, detailMat, useWorkers: !params.has('noworkers'),
     onProgress: (f) => { bldF = f; report(); } });
-  // landmarks, hero buildings and the hand-built sites ({ update?, clear?(x, z), spots?, footprints?, parked?, partners?, deckAt?(x, z) }). Those that
+  // landmarks, hero buildings and the hand-built sites ({ update?, clear?(x, z), spots?, footprints?, parked?, partners?, deckAt?(x, z), collide?(p, r, h) }). Those that
   // do not read `ground` build while its workers run (heightAt is the same height field), one per task so the worker
   // replies get through; the rest (GROUND_SITES) follow once it is in. The list order stays the order of `sites`.
   const base = { root, T, map, solids: collision, zips, heightAt: hf.heightAt, ground: null, geo, facadeMat, detailMat };
@@ -189,7 +190,7 @@ export async function buildCherkasy({ scene, renderer, onProgress = null, params
     ['Hotel Dnipro', 'hoteldnipro', 'buildHotelDnipro'], ['Dnipro Plaza', 'dniproplaza', 'buildDniproPlaza'], ["DEPO't Center", 'depot', 'buildDepot'], ['Polytechnic college', 'politekhkoledzh', 'buildPolitekh'],
     ['Tax office', 'podatkova', 'buildPodatkova'], ['School 17', 'school17', 'buildSchool17'], ['Kino Ukraina', 'kinoukraina', 'buildKinoUkraina'], ['ChNU building 3', 'chnu3', 'buildChnu3'],
     ['City council', 'miskrada', 'buildMiskrada'], ['Head post office', 'poshtamt', 'buildPoshtamt'], ['Regional library', 'oblbiblioteka', 'buildOblBiblioteka'], ['Medical academy', 'medakademia', 'buildMedAkademia'],
-    ['Balloon', 'balloon', 'buildBalloon'], ['Plane', 'plane', 'buildPlane'], ['St Andrew church', 'andriy', 'buildAndriy'], ['Boyan monument', 'boyan', 'buildBoyan'],
+    ['Balloon', 'balloon', 'buildBalloon'], ['Yacht', 'yacht', 'buildYacht'], ['Plane', 'plane', 'buildPlane'], ['St Andrew church', 'andriy', 'buildAndriy'], ['Boyan monument', 'boyan', 'buildBoyan'],
     ['Delikat on Blahovisna', 'delikat', 'buildDelikat'], ['ATB on Shevchenka 239', 'atb', 'buildAtb'], ["McDonald's", 'mcdonalds', 'buildMcDonalds'], ['Tors sign', 'tors', 'buildTors'], ['URBAN', 'urban', 'buildUrban'], ['Su-7 memorial', 'su7', 'buildSu7'],
     ['Dakhnivska overpass', 'overpass', 'buildOverpass'],
     ['CatCafe block', 'catcafe', 'buildCatCafe'], ['Flatiron on Dashkovycha 4', 'praska', 'buildPraska']];
@@ -211,6 +212,7 @@ export async function buildCherkasy({ scene, renderer, onProgress = null, params
   base.ground = ground;
   await runSites(true);
   const sites = built.filter(Boolean);
+  const movers = sites.filter((s) => s.collide);
   stage('sites', 0.5, 'Будинки…');
   const Bld = await bldP;
   const B = Bld.B;
@@ -289,7 +291,8 @@ export async function buildCherkasy({ scene, renderer, onProgress = null, params
     groundHeight: (x, z, yHint) => collision.groundHeight(x, z, yHint),
     surfaceAt: (x, z, yHint) => collision.surfaceAt(x, z, yHint),
     spawn, spawnYaw, carSpawn, carSpawnYaw, viewpoints,
-    collideDynamic: traffic ? (p, r, h) => traffic.collideDynamic(p, r, h) : null,
+    // traffic first, then the moving sites (the yacht): the static solids grid cannot hold a body that keeps moving
+    collideDynamic: traffic || movers.length ? (p, r, h) => traffic?.collideDynamic(p, r, h) ?? movers.reduce((hit, s) => hit ?? s.collide(p, r, h), null) : null,
     ram(q) {
       const r = traffic?.sim?.ram ? traffic.sim.ram(q) : ramZero();
       const tb = treeBreak.hit(q);
