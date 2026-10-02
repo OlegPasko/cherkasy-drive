@@ -147,6 +147,10 @@ See `ARCHITECTURE.md` for the module map. Where things live:
     pavilion, the playground, the sports court and the car parks (`parked`), `improved`.
     `voldim` (ЖК VOLDIM, Володимира Великого 41/3, under construction, built as rendered: the 16-storey yellow-and-green
     point tower with its glazed loggia stacks on the fenced, planted lot) is `improved` too.
+    `ridnyidim` (ЖК «Рідний Дім», Надпільна 222 / Байди Вишневецького 101–103, `improved`): the five ten-storey OSM slabs as
+    the lun.ua renders show them – colour zones down the long fronts with orange, green or teal accents, framed loggia
+    stacks, shops on the west ground floors, balconies on the gables – and two playgrounds with pergolas in each yard on a
+    draped paving / lawn / rubber floor; `tests/ridnyidim.test.mjs`.
   - `places.js` – the sights, the paying partners (kind `ad`) and the non-landmark objects rebuilt on request (kind
     `improved`: a grey footprint only, "Покращений об’єкт" in the big map's legend) for both maps: icon, name, note, the OSM buildings
     whose footprints get highlighted, and for partners the site `url` (with `utm_source=driver.ck.ua`) and the pitch
