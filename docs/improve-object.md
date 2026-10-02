@@ -111,7 +111,7 @@ so a phone can open its 3D view from the map (a second tap on it at `?mobile`).
 ## 6. Verify
 
 - The dev server runs at `http://127.0.0.1:5174`.
-  - Open `?at=lat,lon&road=<street>` to start beside the object.
+  - Open `?at=lat,lon&road=<street>&nosound` to start beside the object (`nosound`: keep test runs silent).
   - Look from the road, from the yard and from the air. Use T for morning, midday and evening.
   - `window.tick(n)` steps frames deterministically; `?notraffic` keeps the view clean.
 - Drive into the walls: the collision should hold with no invisible walls. Fly over it: no floating parts, no gaps at

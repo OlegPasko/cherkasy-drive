@@ -205,7 +205,7 @@ export async function startGame({ container = document.getElementById('app') || 
   const missions = createMissions({ world, player: car, hud, scene, input });
   const partners = createPartners({ world, player: car, scene, isBlocked: () => hud.map.isOpen });
   const explore = createExplore({ world, player: car, hud, reward: (n) => missions.addMoney(n) });
-  const audio = createGameAudio({ car, camera, world, daylight: ctx.daylight });
+  const audio = createGameAudio({ car, camera, world, daylight: ctx.daylight, silent: params.has('nosound') });
   Object.assign(ctx, { car, player: car, hud, missions, partners, explore, audio }); // player: the name the city polls for the traffic
 
   // resume where the last session ended. The saved spot is the car's last safe point (on a street, slow, dry), not the

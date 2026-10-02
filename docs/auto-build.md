@@ -46,7 +46,7 @@ alone and says so in its report.
      before calling it a failure.
    - `npm run build` must pass.
    - Screenshots are required. In the worktree, start `npx vite --port 5175 --strictPort &` (wait until it answers),
-     then use the Playwright browser tools on `http://127.0.0.1:5175/?at=<lat>,<lon>&road=<street>&notraffic`.
+     then use the Playwright browser tools on `http://127.0.0.1:5175/?at=<lat>,<lon>&road=<street>&notraffic&nosound`.
      `window.tick(n)` steps frames and `__game.car.teleport(vec, yaw)` places the car. Look from the road, from the
      yard and from the air, by day and in the evening (`__game.daylight.setPreset('sunset', 0)`). Save the shots
      under the main checkout's `.playwright-mcp/auto/` (gitignored; Playwright may write only inside the main checkout),

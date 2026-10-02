@@ -29,6 +29,7 @@ export function createRadio({ engine, base = 'assets/radio/' }) {
   function player() {
     if (el) return el;
     el = new Audio();
+    el.muted = !!engine?.silent; // ?nosound: the radio still runs its list, inaudibly
     el.preload = 'none';
     el.addEventListener('ended', () => next());
     el.addEventListener('error', () => { // a missing / broken file: skip it, but give up after a full round of failures

@@ -197,6 +197,7 @@ See `ARCHITECTURE.md` for the module map. Where things live:
     the Telegram bot's "🚗 Подивитись у грі" links use it.
   - `?noga` – no Google Analytics on the production site;
   - `?noadapt` – no adaptive resolution (steady pixel ratio for perf measurements);
+  - `?nosound` – no sound at all (no AudioContext, nothing fetched, the radio muted); use it for every dev and test run;
   - `?mobile` / `?desktop` – force the phone map page or the game (`src/mapview.js`).
 - Handles: `window.__game` (ctx with `world`, `car`, `hud` (`hud.map`, `hud.painter`), `missions`, `perf`), `window.__car`,
   `window.__missions`, `window.__cherkasyTraffic`, `window.__cherkasyPeds`.

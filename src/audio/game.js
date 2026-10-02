@@ -1,7 +1,8 @@
 // The game's sound: the car (electric motor, drift squeal, ducted fans, wind), the place (city / Sosnivka forest /
 // altitude, day and night beds), one-shots for what happens in the world, and the dispatcher on the radio.
 //
-//   createGameAudio({ car, camera, world, daylight }) -> { update(dt), setPaused(bool), engine, radio }
+//   createGameAudio({ car, camera, world, daylight, silent? }) -> { update(dt), setPaused(bool), engine, radio }
+//     silent: the ?nosound flag – the game runs without a sound (src/audio/engine.js)
 //     the horn (car.state.horn, F) is a loop on the motor bus, so the city map silences it too
 //     radio: src/audio/radio.js (off until turned on; the city map does not stop it)
 //     car: src/game/car/car.js (reads `state` every frame; takes over car.onSound for its events)
@@ -57,8 +58,8 @@ function forestGrid(map) {
   };
 }
 
-export function createGameAudio({ car, camera, world, daylight }) {
-  const E = createAudioEngine();
+export function createGameAudio({ car, camera, world, daylight, silent = false }) {
+  const E = createAudioEngine({ silent });
   let forestAt = null, forestTried = false;
   let L = null; // loops, made once the context exists
   let paused = false;

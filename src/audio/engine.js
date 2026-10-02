@@ -1,6 +1,7 @@
 // Sample player for the game's recorded sounds (public/assets/audio, made by tools/audio/gen.mjs).
 //
-//   createAudioEngine({ base? }) -> engine
+//   createAudioEngine({ base?, silent? }) -> engine
+//     silent (?nosound): no AudioContext is ever made and nothing is fetched; every call is a quiet no-op
 //     engine.ac                      the AudioContext (null until the first key / pointer gesture: autoplay policy)
 //     engine.bus.{ sfx, vo, pax, amb, motor, ui, music }   GainNodes into the master; other code may connect its own nodes to them
 //     engine.onReady(fn)             fn(engine) once the context exists (at once if it already does)
@@ -17,13 +18,13 @@
 //   Every file is levelled at generation time, so the index `gain` and the per-call `vol` are the whole mix.
 const VOICE = new Set(['vo', 'pax']); // index groups that are speech (dispatcher / taxi passenger)
 
-export function createAudioEngine({ base = 'assets/audio/' } = {}) {
+export function createAudioEngine({ base = 'assets/audio/', silent = false } = {}) {
   let ac = null, index = {}, paused = false, master = null;
   const bus = {}, buffers = new Map(), loading = new Map(), waiting = [], last = new Map();
   const L = { x: 0, y: 0, z: 0, rx: 1, rz: 0 };
   let radio = null, radioEnd = 0;
 
-  const indexReady = fetch(base + 'index.json').then((r) => (r.ok ? r.json() : {})).then((j) => { index = j; }).catch(() => {});
+  const indexReady = silent ? Promise.resolve() : fetch(base + 'index.json').then((r) => (r.ok ? r.json() : {})).then((j) => { index = j; }).catch(() => {});
 
   const url = (id, k) => `${base}${index[id].g}/${id}_${k}.mp3`;
   function fetchBuf(id, k) { // -> Promise<AudioBuffer | null>, once per file
@@ -48,7 +49,7 @@ export function createAudioEngine({ base = 'assets/audio/' } = {}) {
   }
 
   function start() {
-    if (paused) return;
+    if (paused || silent) return;
     if (ac) { if (ac.state === 'suspended') ac.resume().catch(() => {}); return; }
     try { ac = new (window.AudioContext || window.webkitAudioContext)(); } catch { return; }
     // a gentle bus compressor keeps a pile-up (crash + glass + voice) from clipping
@@ -145,6 +146,7 @@ export function createAudioEngine({ base = 'assets/audio/' } = {}) {
   }
 
   const engine = {
+    silent,
     get ac() { return ac; }, bus, get index() { return index; },
     has: (id) => !!index[id],
     onReady(fn) { if (ac) fn(engine); else waiting.push(fn); },
