@@ -112,6 +112,18 @@ ok(typeof S.signs.ukrainianSigns === 'function', 'signs.ukrainianSigns exported'
   ok(bad / all < 0.01, `facadekit: front faces agree with normals (${bad} of ${all} flipped)`);
 }
 
+// the light plane: a sound model within its vertex budget, flying its loop high over the ground
+{
+  const { buildPlane } = await import('../src/world/cherkasy/plane.js');
+  const root = new THREE.Group(), api = buildPlane({ root, heightAt });
+  root.updateMatrixWorld(true);
+  audit('plane', root);
+  let verts = 0, meshes = 0; root.traverse((o) => { if (o.isMesh) { meshes++; verts += o.geometry.attributes.position.count; } });
+  ok(verts > 2500 && verts < 6000 && meshes === 2, `plane: ${verts} vertices in ${meshes} meshes (body + prop disc)`);
+  const a = { ...api.plane }; api.update(1 / 60); const p = api.plane;
+  ok(p.y - heightAt(p.x, p.z) > 120 && Number.isFinite(p.x + p.z) && Math.abs(Math.hypot(p.fx, p.fz) - 1) < 1e-3 && a.lap > 400, `plane: at ${p.y.toFixed(0)} m, ${(p.y - heightAt(p.x, p.z)).toFixed(0)} m over the ground, a ${(a.lap / 60).toFixed(1)} min lap`);
+}
+
 console.log = log;
 console.log(fails ? `${fails} FAILED` : 'all ok');
 process.exit(fails ? 1 : 0);

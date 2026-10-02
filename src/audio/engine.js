@@ -8,7 +8,8 @@
 //     engine.play(id, { pos?, vol?, rate?, jitter?, bus?, ref? }) -> voice | null
 //         one random variant of `id`; with `pos` ({x,y,z}) it is placed around the listener: distance roll-off from
 //         `ref` metres (default 8) and a left/right pan. Unknown or not yet decoded ids are skipped (and start loading).
-//     engine.loop(id, { bus?, vol? }) -> { gain: AudioParam, rate: AudioParam, set(vol, tc?) }   a seamless loop, starts silent
+//     engine.loop(id, { bus?, vol?, pan? }) -> { gain: AudioParam, rate: AudioParam, pan: AudioParam | null, set(vol, tc?) }
+//         a seamless loop, starts silent; pan: true puts a stereo panner after it (-1 left .. 1 right, the caller sets it)
 //     engine.say(id, { force?, delay? }) -> bool   a voice line (dispatcher on the radio bus, or the taxi passenger): one at
 //         a time (a busy channel drops non-forced lines), never the same variant twice in a row; ambience and motor duck under it
 //     engine.setListener(pos, rightVec)   world listener for `play({ pos })`
@@ -96,9 +97,10 @@ export function createAudioEngine({ base = 'assets/audio/', silent = false } = {
     return src;
   }
 
-  function loop(id, { bus: b = 'amb', vol = 0 } = {}) {
-    const src = ac.createBufferSource(), g = ac.createGain();
-    g.gain.value = vol; src.loop = true; src.connect(g); g.connect(bus[b]);
+  function loop(id, { bus: b = 'amb', vol = 0, pan = false } = {}) {
+    const src = ac.createBufferSource(), g = ac.createGain(), p = pan ? ac.createStereoPanner() : null;
+    g.gain.value = vol; src.loop = true; src.connect(g);
+    if (p) { g.connect(p); p.connect(bus[b]); } else g.connect(bus[b]);
     let started = false, gainK = 1;
     const tryStart = () => { // the index or the buffer may still be loading: attach the buffer when it lands
       const e = index[id];
@@ -112,7 +114,7 @@ export function createAudioEngine({ base = 'assets/audio/', silent = false } = {
     };
     indexReady.then(tryStart);
     return {
-      gain: g.gain, rate: src.playbackRate,
+      gain: g.gain, rate: src.playbackRate, pan: p?.pan ?? null,
       set(v, tc = 0.15) { g.gain.setTargetAtTime(v * gainK, ac.currentTime, tc); },
     };
   }

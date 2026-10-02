@@ -9,6 +9,10 @@
 //     world: the city (world.cherkasy.map.cover.forest drives the ambience; the test world has
 //       neither and gets the plain city bed)
 //     daylight: src/render/daylight.js (state.night 0..1 swaps the day beds for the night ones)
+//     the light plane (world.cherkasy.sites, the one with `plane`, src/world/cherkasy/plane.js): its engine loop is heard
+//       only right next to it – full within PLANE_NEAR, gone by PLANE_FAR (it flies ~150-190 m up, so never from the
+//       ground), panned left / right
+//   planeGain(d) -> 0..1   that distance curve (exported for the tests)
 //   Sounds come from src/audio/cue.js too (wrecks, trees, people, birds, missions). The mix is kept low on purpose:
 //   the car is electric, the city is a bed, the voice sits on top. setPaused (the city map is open) fades the world
 //   out; the map's own paper swish and a running radio line stay audible.
@@ -18,6 +22,9 @@ import { createRadio } from './radio.js';
 
 const clamp01 = (v) => (v < 0 ? 0 : v > 1 ? 1 : v);
 const ramp = (v, a, b) => clamp01((v - a) / (b - a));
+// the plane's engine by distance (m): full up close, a quadratic fade (roughly how loudness falls) to silence
+export const PLANE_NEAR = 30, PLANE_FAR = 120;
+export const planeGain = (d) => (1 - ramp(d, PLANE_NEAR, PLANE_FAR)) ** 2;
 // equal-power crossfade weights for t in 0..1
 const fadeOut = (t) => Math.cos(clamp01(t) * Math.PI / 2), fadeIn = (t) => Math.sin(clamp01(t) * Math.PI / 2);
 
@@ -71,6 +78,7 @@ export function createGameAudio({ car, camera, world, daylight, silent = false }
       fan_idle: m('fan_idle'), fan_thrust: m('fan_thrust'), wind: m('wind'), horn: m('horn'),
       city_day: a('city_day'), city_night: a('city_night'),
       forest_day: a('forest_day'), forest_night: a('forest_night'), altitude: a('altitude'),
+      plane: E.loop('plane_engine', { bus: 'sfx', pan: true }), // a world object: the map pause mutes it with the sfx
     };
   });
 
@@ -135,7 +143,7 @@ export function createGameAudio({ car, camera, world, daylight, silent = false }
   car.onSound = (ev) => { if (!paused && E.ac) onCar(ev); };
 
   // ---------------------------------------------------------------- per frame
-  let wing0 = 0, turb0 = 0, envT = 0, hornT = 0, hornOn = false;
+  let wing0 = 0, turb0 = 0, envT = 0, hornT = 0, hornOn = false, plane;
   const env = { forest: 0 };
   const right = { x: 1, z: 0 };
   function update(dt) {
@@ -188,6 +196,15 @@ export function createGameAudio({ car, camera, world, daylight, silent = false }
     L.city_day.set(city * day, tc); L.city_night.set(city * night, tc);
     L.forest_day.set(forest * day, tc); L.forest_night.set(forest * night, tc);
     L.altitude.set(high, tc);
+
+    // the plane: found once the city is up; the distance is the listener's (the camera), like the positional one-shots
+    if (plane === undefined && world?.cherkasy) plane = world.cherkasy.sites?.find((x) => x.plane)?.plane ?? null;
+    if (plane) {
+      const dx = plane.x - cp.x, dy = plane.y - cp.y, dz = plane.z - cp.z, d = Math.hypot(dx, dy, dz), g = planeGain(d);
+      L.plane.set(g, 0.1);
+      const rl = Math.hypot(right.x, right.z) || 1;
+      if (g > 0 && L.plane.pan) L.plane.pan.value = d > 0.5 ? Math.max(-0.85, Math.min(0.85, (dx * right.x + dz * right.z) / (rl * d))) : 0;
+    }
   }
 
   return {
