@@ -16,6 +16,7 @@
 //   HD34_RING: the outline of the new block at Героїв Дніпра, 34 (hd34.js)
 //   PERLYNA_RING: the footprint of ЖК «Перлина Дніпра» (perlyna.js; not in OSM yet)
 //   ONIX_RINGS (onix_data.js): the ЖК Onix sections, one ring each (most of them are not in OSM yet)
+//   NARB10_RING: the outline of the new block at Нарбутівська, 10 (narbutivska10.js)
 import { ONIX_RINGS } from './onix_data.js';
 
 // the south end of the Rest Inn block (past the step in its east wall), square to the long Nadpilna façade
@@ -27,6 +28,8 @@ export const URBAN_RING = [-751.5, 1369.5, -728.5, 1369.5, -728.5, 1379.7, -751.
 export const HD34_RING = [685, 1901.3, 683.2, 1905, 693, 1909, 704.4, 1898.9, 704, 1896.4, 708.9, 1895.6, 709.1, 1896.8, 735.8, 1892.3, 733.7, 1880, 707.1, 1884.5, 707.3, 1885.7, 702.3, 1886.5, 701.9, 1884.1, 696.9, 1884.9, 683.3, 1868.9, 684.8, 1864.2, 682.5, 1863.4, 684, 1858.6, 685.2, 1859, 693.7, 1833.4, 681.9, 1829.4, 673.4, 1855.1, 674.6, 1855.5, 673, 1860.2, 670.6, 1859.4, 658.8, 1869.2, 661.3, 1879.4, 665.2, 1878.2];
 // ЖК «Перлина Дніпра»: a new block OSM does not have yet (perlyna.js PERLYNA_OUTLINE)
 export const PERLYNA_RING = [813.4, 939.2, 759.5, 904.6, 748.5, 921.8, 786.3, 946.1, 768, 974.8, 783.9, 985];
+// the new block at Нарбутівська, 10 (narbutivska10.js NARB10_RING, not in OSM yet; tests/narbutivska10.test.mjs compares them)
+export const NARB10_RING = [-921.6, 1395.2, -921.6, 1429.1, -947.8, 1429.1, -947.8, 1410.9, -941.6, 1410.9, -941.6, 1395.2];
 
 export const PLACES = [
   // partners (paid placements; the other hand-built venues stay in the world but are not advertised)
@@ -92,6 +95,7 @@ export const PLACES = [
   { id: 'voldim', kind: 'improved', name: 'Покращений об’єкт', note: 'ЖК VOLDIM · вул. Володимира Великого, 41/3', bld: [1198239247] },
   { id: 'ridnyidim', kind: 'improved', name: 'Покращений об’єкт', note: 'ЖК «Рідний Дім» · вул. Надпільна, 222', bld: [1430800366, 1430800367, 1318431924, 973321830, 1430800368] },
   { id: 'olimp', kind: 'improved', name: 'Покращений об’єкт', note: 'ЖК «Олімп» · вул. Сумгаїтська, 15/5', bld: [21402178] },
+  { id: 'narbutivska10', kind: 'improved', name: 'Покращений об’єкт', note: 'Новобудова · вул. Нарбутівська, 10', ring: NARB10_RING },
   // sights
   { id: 'mykhailo', kind: 'sight', name: 'Свято-Михайлівський собор', icon: '⛪', bld: [242469769] },
   { id: 'troitsky', kind: 'sight', name: 'Свято-Троїцький собор', icon: '⛪', bld: [157432721] },

@@ -157,6 +157,10 @@ See `ARCHITECTURE.md` for the module map. Where things live:
     `olimp` (ЖК «Олімп», Сумгаїтська 15/5, the four OSM parts of relation 21402178: an L of sections on the Квіткова
     corner, cream panels with AC baskets and white-framed loggia stacks over a dark stone shop storey, the glazed bow on
     the chamfer, the drive-through under section 2) is `improved` too.
+    `narbutivska10` (the new block at Нарбутівська 10, still being built, as the lun.ua renders show it; not in OSM, its
+    outline `NARB10_RING` placed from the site plan and replacing the old houses on the lot: four storeys of red brick
+    and a dark standing-seam mansard, glazed bays with white slab bands, a steep gable roof with brick gables and
+    chimneys, canopies, the street fence) is `improved` too.
   - `places.js` – the sights, the paying partners (kind `ad`) and the non-landmark objects rebuilt on request (kind
     `improved`: a grey footprint only, "Покращений об’єкт" in the big map's legend) for both maps: icon, name, note, the OSM buildings
     whose footprints get highlighted, and for partners the site `url` (with `utm_source=driver.ck.ua`) and the pitch
