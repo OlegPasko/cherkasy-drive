@@ -170,7 +170,7 @@ export async function buildCherkasy({ scene, renderer, onProgress = null, params
     ['miskrada', 'MISKRADA_SKIP'], ['poshtamt', 'POSHTAMT_SKIP'], ['oblbiblioteka', 'OBLBIB_SKIP'], ['medakademia', 'MEDAKAD_SKIP'], ['andriy', 'ANDRIY_SKIP'], ['boyan', 'BOYAN_SKIP'],
     ['delikat', 'DELIKAT_SKIP'], ['atb', 'ATB_SKIP'], ['mcdonalds', 'MCDONALDS_SKIP'], ['urban', 'URBAN_SKIP'], ['su7', 'SU7_SKIP'], ['catcafe', 'CATCAFE_SKIP'], ['praska', 'PRASKA_SKIP'], ['delikat399', 'DELIKAT399_SKIP'], ['glassrotunda', 'ROTUNDA_SKIP'],
     ['ekvator', 'EKVATOR_SKIP'], ['sportlife', 'SPORTLIFE_SKIP'], ['zamkovapark', 'ZAMKPARK_SKIP'], ['avrora', 'AVRORA_SKIP'],
-    ['sviatotroitskyi', 'SVIATO_SKIP'], ['hd34', 'HD34_SKIP', 'hrafskyi', 'HRAFSKYI_SKIP', ['perlyna', 'PERLYNA_SKIP'], 'avrora', 'AVRORA_SKIP']]) for (const id of S[mod]?.[key] ?? []) skip.add(id);
+    ['sviatotroitskyi', 'SVIATO_SKIP'], ['hd34', 'HD34_SKIP'], ['hrafskyi', 'HRAFSKYI_SKIP'], ['perlyna', 'PERLYNA_SKIP']]) for (const id of S[mod]?.[key] ?? []) skip.add(id);
   let groundDone = false, bldF = 0;
   const report = () => onProgress?.(0.15 + 0.55 * (0.3 * (groundDone ? 1 : 0) + 0.7 * bldF), `Рельєф, вулиці, будинки… ${Math.round(100 * (0.3 * (groundDone ? 1 : 0) + 0.7 * bldF))}%`);
   const groundP = buildGroundAsync({ scene: root, T, map, hf, strip, renderer, mapUrl: url('map.json') }).then((g) => { groundDone = true; report(); return g; });
