@@ -126,6 +126,8 @@ See `ARCHITECTURE.md` for the module map. Where things live:
     `bldkit.js`, `shellkit.js` and `slabkit.js` (walls per footprint edge, windows with reveals, collision, mesh wrap-up).
     `sviatotroitskyi` (ЖК «Святотроїцький», бульвар Шевченка 202, still being built: the 26-storey tower as the lun.ua renders show it –
     an L of two sections over a black glass podium, the round bronze curtain-glass corner, white render, a dark top and a wavy crown frame) is `improved` too.
+    `hd34` is a new build OSM lacks, `improved` too: the nine-storey block at Героїв Дніпра 34 (four sections, built as
+    rendered on lun.ua), laid out in its own plan frame from the pin `HD34_LL`; places.js keeps its outline as `HD34_RING`.
   - `places.js` – the sights, the paying partners (kind `ad`) and the non-landmark objects rebuilt on request (kind
     `improved`: a grey footprint only, "Покращений об’єкт" in the big map's legend) for both maps: icon, name, note, the OSM buildings
     whose footprints get highlighted, and for partners the site `url` (with `utm_source=driver.ck.ua`) and the pitch

@@ -13,11 +13,14 @@
 //   EVERLABS_CUT: the north end of the Everlabs offices over the hotel (the section next to the tower)
 //   clipRing(flat ring, cut) -> flat ring (the part on the +n side; [] when nothing is left)
 //   URBAN_RING: the URBAN shop row's footprint (urban.js SITE; a new building OSM does not have)
+//   HD34_RING: the outline of the new block at Героїв Дніпра, 34 (hd34.js)
 // the south end of the Rest Inn block (past the step in its east wall), square to the long Nadpilna façade
 export const USPACE_CUT = { p: [-756.4, 1438.4], n: [0.0123, 0.9999] };
 export const EVERLABS_CUT = { p: [-756.9, 1398.4], n: [0.0123, 0.9999] };
 const BELOW_USPACE = { p: USPACE_CUT.p, n: USPACE_CUT.n.map((v) => -v) };
 export const URBAN_RING = [-751.5, 1369.5, -728.5, 1369.5, -728.5, 1379.7, -751.5, 1379.7];
+// the new block at Героїв Дніпра, 34 (hd34.js hd34Outline, not in OSM yet; tests/hd34.test.mjs keeps the two in step)
+export const HD34_RING = [685, 1901.3, 683.2, 1905, 693, 1909, 704.4, 1898.9, 704, 1896.4, 708.9, 1895.6, 709.1, 1896.8, 735.8, 1892.3, 733.7, 1880, 707.1, 1884.5, 707.3, 1885.7, 702.3, 1886.5, 701.9, 1884.1, 696.9, 1884.9, 683.3, 1868.9, 684.8, 1864.2, 682.5, 1863.4, 684, 1858.6, 685.2, 1859, 693.7, 1833.4, 681.9, 1829.4, 673.4, 1855.1, 674.6, 1855.5, 673, 1860.2, 670.6, 1859.4, 658.8, 1869.2, 661.3, 1879.4, 665.2, 1878.2];
 
 export const PLACES = [
   // partners (paid placements; the other hand-built venues stay in the world but are not advertised)
@@ -74,6 +77,7 @@ export const PLACES = [
   { id: 'sportlife', kind: 'improved', name: 'Покращений об’єкт', note: 'Sport Life · вул. Козацька, 2', issue: 25, bld: [159700781] },
   { id: 'avrora', kind: 'improved', name: 'Покращений об’єкт', note: 'Аврора · вул. Смілянська, 144/2', issue: 26, bld: [415321196] },
   { id: 'sviatotroitskyi', kind: 'improved', name: 'Покращений об’єкт', note: 'ЖК «Святотроїцький» · бульвар Шевченка, 202', bld: [997523173] },
+  { id: 'hd34', kind: 'improved', name: 'Покращений об’єкт', note: 'Новобудова · вул. Героїв Дніпра, 34', ring: HD34_RING },
   // sights
   { id: 'mykhailo', kind: 'sight', name: 'Свято-Михайлівський собор', icon: '⛪', bld: [242469769] },
   { id: 'troitsky', kind: 'sight', name: 'Свято-Троїцький собор', icon: '⛪', bld: [157432721] },
