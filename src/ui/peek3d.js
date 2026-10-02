@@ -60,6 +60,7 @@ const SITES = {
   parkovyi: ['parkovyi', 'buildParkovyi'],
   shev184: ['shev184', 'buildShev184'],
   zhktemp: ['zhktemp', 'buildZhkTemp'],
+  ambrosa35: ['ambrosa35', 'buildAmbrosa35'],
 };
 const MODULES = import.meta.glob('../world/cherkasy/*.js'); // lazy: a module's chunk loads on its first peek
 const MIN_R = 45, MAX_R = 170, POINT_R = 90; // crop radius round the place, m (POINT_R: a place on a point, no footprint)

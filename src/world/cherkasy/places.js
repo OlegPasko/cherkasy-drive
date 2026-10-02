@@ -122,6 +122,7 @@ export const PLACES = [
   { id: 'zhktemp', kind: 'improved', name: 'Покращений об’єкт', note: 'ЖК «Темп» · вул. Юрія Іллєнка, 4', bld: [117808102, 996032042] },
   { id: 'smilianska48', kind: 'improved', name: 'Покращений об’єкт', note: 'Новобудова · вул. Смілянська, 48, 50, 54', bld: [546773841] },
   { id: 'smilianska52', kind: 'improved', name: 'Покращений об’єкт', note: 'Новобудова · вул. Смілянська, 52', ring: SMIL52_RING },
+  { id: 'ambrosa35', kind: 'improved', name: 'Покращений об’єкт', note: 'Новобудова · вул. Сергія Амброса, 35', bld: [1160384062] },
   // sights
   { id: 'mykhailo', kind: 'sight', name: 'Свято-Михайлівський собор', icon: '⛪', bld: [242469769] },
   { id: 'troitsky', kind: 'sight', name: 'Свято-Троїцький собор', icon: '⛪', bld: [157432721] },
