@@ -50,6 +50,7 @@ const SITES = {
   premierbay: ['premierbay', 'buildPremierBay', 'levelPremierBay'],
   olimp: ['olimp', 'buildOlimp'],
   harmony: ['harmony', 'buildHarmony', 'levelHarmony'],
+  comfortpark: ['comfortpark', 'buildComfortPark', 'levelComfortPark'],
   olimpmodern: ['olimpmodern', 'buildOlimpModern'],
 };
 const MODULES = import.meta.glob('../world/cherkasy/*.js'); // lazy: a module's chunk loads on its first peek

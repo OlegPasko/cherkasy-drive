@@ -166,6 +166,10 @@ See `ARCHITECTURE.md` for the module map. Where things live:
     (`OLIMPM_SECTIONS`), each facade from a module string read off the renders; the yard is draped lawn and paving with
     the fountain, playground and court. places.js keeps the section outlines as `OLIMPM_RINGS` (a place's `ring` may be a
     list of rings); `tests/olimpmodern.test.mjs`. `improved`.
+    `comfortpark` (ЖК «Комфорт Парк», Чорновола 243/1, OSM way 411921795, `improved`): the rebuilt 87 m office slab from
+    the lun.ua photos – graphite bays between lime-edged pilasters, ground storey and four of flats, the white shop storey
+    up its steps and the green podium with its roof terrace on the street front, a glazed vestibule at the street end;
+    its lot on the slope levelled by `levelComfortPark`; `tests/comfortpark.test.mjs`.
   - `places.js` – the sights, the paying partners (kind `ad`) and the non-landmark objects rebuilt on request (kind
     `improved`: a grey footprint only, "Покращений об’єкт" in the big map's legend) for both maps: icon, name, note, the OSM buildings
     whose footprints get highlighted, and for partners the site `url` (with `utm_source=driver.ck.ua`) and the pitch
