@@ -15,6 +15,7 @@
 //   URBAN_RING: the URBAN shop row's footprint (urban.js SITE; a new building OSM does not have)
 //   HD34_RING: the outline of the new block at Героїв Дніпра, 34 (hd34.js)
 //   PERLYNA_RING: the footprint of ЖК «Перлина Дніпра» (perlyna.js; not in OSM yet)
+//   SHEV22_RING: the new block at бульвар Шевченка, 22 (shev22.js SHEV22_BOX; not in OSM yet)
 //   ONIX_RINGS (onix_data.js): the ЖК Onix sections, one ring each (most of them are not in OSM yet)
 //   NARB10_RING: the outline of the new block at Нарбутівська, 10 (narbutivska10.js)
 import { ONIX_RINGS } from './onix_data.js';
@@ -33,6 +34,8 @@ export const PERLYNA_RING = [813.4, 939.2, 759.5, 904.6, 748.5, 921.8, 786.3, 94
 export const OLIMPM_RINGS = [[-2473.2, -1560.5, -2472.6, -1548.2, -2486.1, -1547.5, -2486.8, -1559.8], [-2472.6, -1548.2, -2469.6, -1492.3, -2483.2, -1491.5, -2486.1, -1547.5], [-2468.9, -1479, -2467.8, -1458.6, -2481.4, -1457.9, -2482.5, -1478.3], [-2467.8, -1458.6, -2466.5, -1434.6, -2480.1, -1433.9, -2481.4, -1457.9], [-2466.5, -1434.6, -2465.5, -1415.1, -2479.1, -1414.4, -2480.1, -1433.9], [-2480.1, -1433.9, -2479.1, -1414.4, -2503, -1413.1, -2504, -1432.7], [-2504.2, -1436.7, -2503.3, -1418.7, -2527.2, -1417.4, -2528.2, -1435.4], [-2536.2, -1435, -2535.2, -1417, -2559.2, -1415.7, -2560.1, -1433.7], [-2561.9, -1466.7, -2559.2, -1415.7, -2573.2, -1415, -2575.9, -1465.9], [-2553.1, -1566.3, -2548.5, -1479.4, -2562.5, -1478.6, -2567.1, -1565.5], [-2493.1, -1567.4, -2492.4, -1553.4, -2528.3, -1551.5, -2529.1, -1565.5], [-2529.2, -1567.5, -2528.4, -1553.5, -2552.4, -1552.3, -2553.1, -1566.3]];
 // the new block at Нарбутівська, 10 (narbutivska10.js NARB10_RING, not in OSM yet; tests/narbutivska10.test.mjs compares them)
 export const NARB10_RING = [-921.6, 1395.2, -921.6, 1429.1, -947.8, 1429.1, -947.8, 1410.9, -941.6, 1410.9, -941.6, 1395.2];
+// the new block at бульвар Шевченка, 22 (shev22.js SHEV22_BOX; tests/shev22.test.mjs keeps the two in step)
+export const SHEV22_RING = [-65, -2476, -65, -2446, -87, -2446, -87, -2476];
 
 export const PLACES = [
   // partners (paid placements; the other hand-built venues stay in the world but are not advertised)
@@ -106,6 +109,7 @@ export const PLACES = [
   { id: 'pryportova', kind: 'improved', name: 'Покращений об’єкт', note: 'Новобудова · вул. Припортова, 22/1', bld: [874640721, 997356687, 997356688, 1303296241] },
   { id: 'narbutivska10', kind: 'improved', name: 'Покращений об’єкт', note: 'Новобудова · вул. Нарбутівська, 10', ring: NARB10_RING },
   { id: 'parkovyi', kind: 'improved', name: 'Покращений об’єкт', note: 'ЖК «Парковий квартал» · вул. Івана Кожедуба, 59', bld: [1522301396, 1522301395, 984246825, 1430817645, 1560091949, 1430817647, 1430817646] },
+  { id: 'shev22', kind: 'improved', name: 'Покращений об’єкт', note: 'Новобудова · бульвар Шевченка, 22', ring: SHEV22_RING },
   // sights
   { id: 'mykhailo', kind: 'sight', name: 'Свято-Михайлівський собор', icon: '⛪', bld: [242469769] },
   { id: 'troitsky', kind: 'sight', name: 'Свято-Троїцький собор', icon: '⛪', bld: [157432721] },

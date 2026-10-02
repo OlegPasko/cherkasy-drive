@@ -48,6 +48,7 @@ const SITES = {
   ekohouse: ['ekohouse', 'buildEkohouse', 'levelEkohouse'],
   voldim: ['voldim', 'buildVoldim'],
   ridnyidim: ['ridnyidim', 'buildRidnyiDim'],
+  shev22: ['shev22', 'buildShev22'],
   premierbay: ['premierbay', 'buildPremierBay', 'levelPremierBay'],
   olimp: ['olimp', 'buildOlimp'],
   harmony: ['harmony', 'buildHarmony', 'levelHarmony'],
