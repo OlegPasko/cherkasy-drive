@@ -51,6 +51,7 @@ const SITES = {
   premierbay: ['premierbay', 'buildPremierBay', 'levelPremierBay'],
   olimp: ['olimp', 'buildOlimp'],
   harmony: ['harmony', 'buildHarmony', 'levelHarmony'],
+  comfortpark: ['comfortpark', 'buildComfortPark', 'levelComfortPark'],
   olimpmodern: ['olimpmodern', 'buildOlimpModern'],
   hoholia204: ['hoholia204', 'buildHoholia204'],
   pryportova: ['pryportova', 'buildPryportova'],

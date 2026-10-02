@@ -191,6 +191,10 @@ See `ARCHITECTURE.md` for the module map. Where things live:
     tower between timber strips and mint pilasters with green LED lines, the white balcony bay and the arched pediments
     with an oculus, grey render with timber spandrels, a dark shop storey under a fascia, a two-storey drive-through to
     the yard; places.js keeps its outline as `SHEV184_RING`; `tests/shev184.test.mjs`) is `improved` too.
+    `comfortpark` (ЖК «Комфорт Парк», Чорновола 243/1, OSM way 411921795, `improved`): the rebuilt 87 m office slab from
+    the lun.ua photos – graphite bays between lime-edged pilasters, ground storey and four of flats, the white shop storey
+    up its steps and the green podium with its roof terrace on the street front, a glazed vestibule at the street end;
+    its lot on the slope levelled by `levelComfortPark`; `tests/comfortpark.test.mjs`.
   - `places.js` – the sights, the paying partners (kind `ad`) and the non-landmark objects rebuilt on request (kind
     `improved`: a grey footprint only, "Покращений об’єкт" in the big map's legend) for both maps: icon, name, note, the OSM buildings
     whose footprints get highlighted, and for partners the site `url` (with `utm_source=driver.ck.ua`) and the pitch
