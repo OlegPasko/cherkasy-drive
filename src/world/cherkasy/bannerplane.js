@@ -213,6 +213,8 @@ export function buildBannerPlane({ root, heightAt }) {
   rope.frustumCulled = false;
   const group = Object.assign(new THREE.Group(), { name: 'bannerplane-rig' });
   group.add(plane, banner, pole, rope);
+  // a few tiny meshes that are meant to be spotted from afar: off the far cull of the lower levels (world/farcull.js)
+  for (const o of [body, prop, pole, weight]) o.frustumCulled = false;
   root.add(group);
 
   const live = { x: 0, y: Y, z: 0, fx: 1, fz: 0, d: 0, lap: total / SPEED };
