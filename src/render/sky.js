@@ -2,6 +2,8 @@
 //
 //   createSky({ scene, renderer, daylight, quality = 'high', cloudCover = 0.35 }) -> sky
 //     sky.update(dt, camera)      follow the camera, push daylight into the shader and fog, refresh the env map lazily
+//                                 (at once after a sun jump of 6+ deg, a weather change or refreshEnvironment(); the
+//                                 running clock's drift and the clouds' motion only every 2 min)
 //     sky.refreshEnvironment()    force a new environment map on the next update
 //     sky.setQuality('low' | 'medium' | 'high'), sky.setCloudCover(0..1), sky.setHaze({ start, density })
 //     sky.mesh, sky.material, sky.fog (Haze), sky.envMap (current PMREM texture), sky.stats { envRefreshes, envMs }
@@ -253,6 +255,7 @@ export function createSky({ scene, renderer, daylight, quality = 'high', cloudCo
   envScene.add(envMesh);
   const pmrem = new THREE.PMREMGenerator(renderer);
   let envTarget = null, envSize = 128, envDirty = true, envClock = 1e9, envAge = 0;
+  const ENV_SLOW = 120, ENV_JUMP = Math.cos(6 * Math.PI / 180); // s between drift refreshes; a sun step counted as a jump
   const lastSun = new THREE.Vector3(0, -2, 0);
   let lastOvercast = -1, lastCover = -1;
   const stats = { envRefreshes: 0, envMs: 0 };
@@ -307,9 +310,13 @@ export function createSky({ scene, renderer, daylight, quality = 'high', cloudCo
     scene.environmentIntensity = S.envIntensity;
 
     envClock += dt; envAge += dt;
-    const moved = lastSun.dot(S.sunDir) < 0.99994; // ~0.6 deg
+    // a jump of the sun (T, the night skip, a preset blend) or a weather change refreshes at once; the running clock's
+    // slow drift (0.1 deg/s at the game's day-per-hour) and the clouds' motion only every ENV_SLOW s: a bake is six
+    // faces of the cloud shader plus the PMREM blur, a hitch not worth paying every few seconds
+    const jump = lastSun.dot(S.sunDir) < ENV_JUMP, moved = lastSun.dot(S.sunDir) < 0.99994; // ~0.6 deg
     const weather = Math.abs(lastOvercast - S.overcast) > 0.03 || Math.abs(lastCover - u.uCloudCover.value) > 0.03;
-    if ((envDirty || moved || weather || envAge > 30) && envClock > 0.2) { envClock = 0; refreshEnv(); }
+    if ((envDirty || jump || weather) && envClock > 0.2) { envClock = 0; refreshEnv(); }
+    else if ((moved || envAge > ENV_SLOW) && envClock > ENV_SLOW) { envClock = 0; refreshEnv(); }
   }
 
   return {

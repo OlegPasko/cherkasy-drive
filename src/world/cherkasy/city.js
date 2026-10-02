@@ -265,7 +265,8 @@ export async function buildCherkasy({ scene, renderer, onProgress = null, params
   let traffic = null, people = null;
   if (!params.has('notraffic')) {
     // bridge lanes ride the hand-built decks (overpass.js, khimbridge.js deckAt), not the terrain under them
-    const deckAt = (x, z) => { for (const s of sites) { const y = s.deckAt?.(x, z); if (y != null) return y; } return null; };
+    const decks = sites.filter((s) => s.deckAt); // two or three of the sites, not a scan of all of them per lane end
+    const deckAt = (x, z) => { for (const s of decks) { const y = s.deckAt(x, z); if (y != null) return y; } return null; };
     try { traffic = await buildCherkasyTraffic({ scene: root, map, ground, deckAt }); } catch (e) { console.error('[cherkasy] traffic failed', e); }
   }
   stage('traffic', 0.9, 'Люди…');

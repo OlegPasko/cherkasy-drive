@@ -17,7 +17,7 @@
 import * as THREE from 'three';
 import { buildLaneNetwork, signalPhase } from '../../npc/lanes.js';
 import { loadTrafficVehicles, VTYPES } from '../../npc/vehicles.js';
-import { createTrafficSimulation, createSignalProps } from '../../npc/traffic.js';
+import { createTrafficSimulation, createSignalProps, urbanDress } from '../../npc/traffic.js';
 import { nightFactor } from '../../render/daylight.js';
 
 const lin = (c) => [(c >> 16) & 255, (c >> 8) & 255, c & 255].map((s) => Math.pow(s / 255, 2.2));
@@ -53,6 +53,7 @@ export function dressCar(c, L) {
     else if ((type === 'sedan2' || type === 'suv' || type === 'taxi_gr') && c.rng() < 0.35) color = from(RETRO, c.rng());
     else if (type !== 'truck' && type !== 'tour' && c.rng() < 0.09) color = from(BRIGHT, c.rng());
   }
+  color = urbanDress(c, type, color); // URBAN's paid quarter of the buses and the box trucks
   const T = VTYPES[type] ?? VTYPES.sedan;
   Object.assign(c, { type: VTYPES[type] ? type : 'sedan', len: T.len, wid: T.wid, h: T.h, color, tag });
   c.v0 = (L.main ? 12.5 : 8.5) - (T.big || tag ? 1.5 : 0) + c.rng() * 3;

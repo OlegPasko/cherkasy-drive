@@ -26,7 +26,7 @@ const SPEED = 2.5;                         // m/s, a gentle reach in a light bre
 const WIND_FROM = [0.96, 0.28];            // unit (x, z) the breeze blows from: across the river, from the far bank
 const L = 11.2, B = 3.5;                   // length over all, beam
 const MAST_X = 1.0, MAST_TOP = 14.9, BOOM_Y = 2.35, BOOM_L = 4.6, TACK = [5.3, 1.45, 0];
-const HEEL = 0.12, NEAR = 900;             // max heel (rad, ~7 deg); the sails are only reshaped within NEAR m of the camera
+const HEEL = 0.12, NEAR = 900;             // max heel (rad, ~7 deg); sails, sheets and wake are only reshaped within NEAR m of the camera
 
 // hull lines over t = 0 (transom) .. 1 (stem): half-beam (share of B/2), sheer height, canoe-body bottom, section
 // fullness (superellipse exponent: boxy aft, a V forward)
@@ -390,28 +390,32 @@ export function buildYacht({ root }) {
       // the wind (to) in the boat's frame for the flag: rotate the world vector by -yaw
       const wx = -WIND_FROM[0], wz = -WIND_FROM[1], cy = Math.cos(yaw), sy = Math.sin(yaw);
       const wl = [wx * cy - wz * sy, wx * sy + wz * cy];
+      // the sails, the sheets and the wake are reshaped (and re-uploaded) only within NEAR m of the camera: beyond
+      // it the boat is a few pixels and the stale geometry cannot be told apart; the first near frame refreshes them
       const near = !camera || camera.position.distanceTo(v3.set(pos.x, WATER_Y, pos.z)) < NEAR;
-      if (near) shapeSails(wl);
-      // wake: the loop behind the stern, widening and fading; the bow wave a V off the stem
       const Y = WATER_Y + 0.06;
-      for (let i = 0; i < WK; i++) {
-        at(d - 5.3 - i * WS, tmp);
-        const w = 0.9 + i * 0.32, nx = -tmp.tz * w, nz = tmp.tx * w;
-        wPos.set([tmp.x - nx, Y, tmp.z - nz, tmp.x, Y, tmp.z, tmp.x + nx, Y, tmp.z + nz], i * 9);
-        const v = (d - 5.3 - i * WS) / 7; wUv[i * 6 + 1] = wUv[i * 6 + 3] = wUv[i * 6 + 5] = v; // the foam stays put on the water
-      }
-      const bx = pos.x + pos.tx * 5.0, bz = pos.z + pos.tz * 5.0, ang = 0.34;
-      for (let s = 0; s < 2; s++) {
-        const sg = s ? 1 : -1, ca = Math.cos(ang), sa = Math.sin(ang) * sg;
-        const ex = -(pos.tx * ca - pos.tz * sa), ez = -(pos.tz * ca + pos.tx * sa); // back and out from the stem
-        const ox = -ez * sg * 0.5, oz = ex * sg * 0.5;                                // the outer edge, half a metre out
-        for (let i = 0; i < BW; i++) {
-          const r = i * 2.2, x = bx + ex * r, z = bz + ez * r, o = (WK * 3 + s * BW * 2 + i * 2) * 3;
-          wPos.set([x, Y + 0.01, z, x + ox * (1 + i * 0.4), Y + 0.01, z + oz * (1 + i * 0.4)], o);
-        }
-      }
-      wakeG.attributes.position.needsUpdate = true; wakeG.attributes.uv.needsUpdate = true;
       at(d - 45, tmp); wakeG.boundingSphere.center.set(tmp.x, Y, tmp.z);
+      if (near) {
+        shapeSails(wl);
+        // wake: the loop behind the stern, widening and fading; the bow wave a V off the stem
+        for (let i = 0; i < WK; i++) {
+          at(d - 5.3 - i * WS, tmp);
+          const w = 0.9 + i * 0.32, nx = -tmp.tz * w, nz = tmp.tx * w;
+          wPos.set([tmp.x - nx, Y, tmp.z - nz, tmp.x, Y, tmp.z, tmp.x + nx, Y, tmp.z + nz], i * 9);
+          const v = (d - 5.3 - i * WS) / 7; wUv[i * 6 + 1] = wUv[i * 6 + 3] = wUv[i * 6 + 5] = v; // the foam stays put on the water
+        }
+        const bx = pos.x + pos.tx * 5.0, bz = pos.z + pos.tz * 5.0, ang = 0.34;
+        for (let s = 0; s < 2; s++) {
+          const sg = s ? 1 : -1, ca = Math.cos(ang), sa = Math.sin(ang) * sg;
+          const ex = -(pos.tx * ca - pos.tz * sa), ez = -(pos.tz * ca + pos.tx * sa); // back and out from the stem
+          const ox = -ez * sg * 0.5, oz = ex * sg * 0.5;                                // the outer edge, half a metre out
+          for (let i = 0; i < BW; i++) {
+            const r = i * 2.2, x = bx + ex * r, z = bz + ez * r, o = (WK * 3 + s * BW * 2 + i * 2) * 3;
+            wPos.set([x, Y + 0.01, z, x + ox * (1 + i * 0.4), Y + 0.01, z + oz * (1 + i * 0.4)], o);
+          }
+        }
+        wakeG.attributes.position.needsUpdate = true; wakeG.attributes.uv.needsUpdate = true;
+      }
       const nk = nightK.value;
       lights.visible = nk > 0.02; lightMat.opacity = Math.min(1, nk * 1.3);
       if (lights.visible && camera) { // pinpoints from afar: a fixed 20 px HDR sprite bloomed into a big halo across the river

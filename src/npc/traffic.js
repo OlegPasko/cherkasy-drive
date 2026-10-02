@@ -14,6 +14,7 @@
 //   sim.ram(q), sim.knock(car, dv?, spin?), sim.dent(w, px, py, pz, dx, dy, dz, J), sim.massOf(car | type),
 //   sim.makeMesh(type, colour, seed) (added to the traffic scene), sim.setSolid(s), sim.setDebris(d)
 //   sim.stats() -> numeric counters; sim.ms { sim, draw } last frame timings
+//   urbanDress(car, type, color) -> color   the paid URBAN buses / trucks (adSeed, colour); dress hooks call it last
 //   createSignalProps(scene, signals, phaseAt(axis)) -> { update() } posts with 3-lamp heads that follow the phase
 import * as THREE from 'three';
 import { pathAt } from './lanes.js';
@@ -39,9 +40,18 @@ const CAB = [0xe8b820, 0xf0c419, 0xecece8].map(lin), BRIGHT = [0xd9661f, 0xd8a52
 function rngOf(seed) { let s = (seed * 2654435761) >>> 0 || 1; return () => ((s = Math.imul(s ^ (s >>> 15), 2246822507) + 0x9e3779b9 >>> 0) / 4294967296); }
 const pick = (a, r) => a[Math.floor(r * a.length) % a.length];
 
+// URBAN's paid placements on the fleet: a quarter of the 12 m buses (trolleys too) in their blue with their ad tile, a
+// quarter of the box trucks in their livery. Every dress hook calls it last (defaultDress here, dressCar in
+// world/cherkasy/traffic.js) and uses the colour it returns.
+//   urbanDress(car, type, color) -> color   sets car.adSeed for the paid ones; one rng draw for a bus or a truck
+export function urbanDress(c, type, color) {
+  if (type === 'bus' && c.rng() < 0.25) { c.adSeed = adSeedFor(AD_URBAN); return URBAN; }
+  if (type === 'truck' && c.rng() < 0.25) c.adSeed = adSeedFor(LIVERY_URBAN);
+  return color;
+}
+
 // default Ukrainian street mix: mostly private cars; marshrutkas and buses in the curb lane of the main roads, the
-// buses half 12 m city buses, half yellow Bogdan midibuses; a quarter of the 12 m buses (trolleys too) and of the box
-// trucks are URBAN's paid ones
+// buses half 12 m city buses, half yellow Bogdan midibuses; URBAN's paid quarter of the buses and trucks (urbanDress)
 export function defaultDress(c, L) {
   const r = c.rng(), r2 = c.rng(), curb = L.lane === L.nl - 1;
   let type, color = pick(PAINT, r2), tag = 0;
@@ -57,8 +67,7 @@ export function defaultDress(c, L) {
     else if (type.startsWith('taxi')) color = pick(CAB, r2);
     else if (!VTYPES[type].big && c.rng() < 0.08) color = pick(BRIGHT, c.rng());
   }
-  if (type === 'bus' && c.rng() < 0.25) { color = URBAN; c.adSeed = adSeedFor(AD_URBAN); } // URBAN's paid quarter of the buses: their blue, their ad
-  else if (type === 'truck' && c.rng() < 0.25) c.adSeed = adSeedFor(LIVERY_URBAN); // and a quarter of the box trucks in their livery
+  color = urbanDress(c, type, color);
   const T = VTYPES[type];
   c.type = type; c.len = T.len; c.wid = T.wid; c.h = T.h; c.color = color; c.tag = tag;
   c.v0 = (L.main ? 12.5 : 8.5) - (T.big || tag ? 1.5 : 0) + c.rng() * 3;

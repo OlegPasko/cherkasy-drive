@@ -104,6 +104,14 @@ export function createPeek({ container, map, painter, geo }) {
     return { THREE, OrbitControls, mergeGeometries, renderer, T, shared, env, keep, ground, coll, dem, heading };
   })().catch((e) => { core = null; throw e; }); // a dropped connection: the next open tries again
 
+  const nextFrame = () => new Promise((r) => (doc.hidden ? setTimeout(r, 0) : requestAnimationFrame(() => r())));
+  // the crop radius round the place: its footprints plus a margin (a site module can span a street or the whole city)
+  function discRadius(place) {
+    let r = 0;
+    for (const ring of place.rings || []) for (let i = 0; i < ring.length; i += 2) r = Math.max(r, Math.hypot(ring[i] - place.x, ring[i + 1] - place.z));
+    return r ? Math.min(MAX_R, Math.max(MIN_R, r + 30)) : POINT_R;
+  }
+
   function size() {
     if (!view) return;
     const w = ui.clientWidth || 1, h = ui.clientHeight || 1;
@@ -132,8 +140,10 @@ export function createPeek({ container, map, painter, geo }) {
       const C = await loadCore();
       const mod = await MODULES[`../world/cherkasy/${spec[0]}.js`]?.();
       if (my !== seq) return; // closed meanwhile
-      await new Promise((r) => (doc.hidden ? setTimeout(r, 0) : requestAnimationFrame(() => r()))); // the spinner gets a frame before the synchronous build
-      view = buildView(C, mod, spec, place);
+      await nextFrame(); // the spinner gets a frame before the synchronous build
+      const disc = await groundDisc(C, place.x, place.z, Math.max(discRadius(place) * 1.8, 140), my); // the map tiles come in over frames
+      if (my !== seq) { disc.geometry.dispose(); disc.material.map.dispose(); disc.material.dispose(); return; } // closed meanwhile
+      view = buildView(C, mod, spec, place, disc);
       size();
       ui.classList.add('ready');
       globalThis.addEventListener?.('resize', onResize);
@@ -158,7 +168,7 @@ export function createPeek({ container, map, painter, geo }) {
   globalThis.addEventListener?.('keydown', (e) => { if (isOpen && e.code === 'Escape') close(); });
 
   // ---------------------------------------------------------------- one site: build, crop, dress, frame
-  function buildView(C, mod, [, fn, hook], place) {
+  function buildView(C, mod, [, fn, hook], place, disc) {
     const { THREE } = C;
     const hf = C.ground.createHeightField(map, C.dem);
     if (hook && mod[hook]) try { mod[hook](hf, map, geo); } catch (e) { console.warn('[peek3d] terrain hook', e); }
@@ -170,11 +180,7 @@ export function createPeek({ container, map, painter, geo }) {
     // no ground mesh here: the sites ask it `ground.isWater?.()` / `onAsphalt?.()`, and an empty one says no
     const built = mod[fn]({ root: site, T: C.T, map, solids: C.coll.createCollisionWorld({ cell: 24 }), zips, heightAt, ground: {}, geo, ...C.shared }) || {};
 
-    // the crop disc: the place's footprints plus a margin (a site module can span a street or the whole city)
-    const cx = place.x, cz = place.z;
-    let r = 0;
-    for (const ring of place.rings || []) for (let i = 0; i < ring.length; i += 2) r = Math.max(r, Math.hypot(ring[i] - cx, ring[i + 1] - cz));
-    const R = r ? Math.min(MAX_R, Math.max(MIN_R, r + 30)) : POINT_R;
+    const cx = place.x, cz = place.z, R = discRadius(place);
     crop(THREE, site, cx, cz, R);
     const box = new THREE.Box3().setFromObject(site)
       .intersect(new THREE.Box3(new THREE.Vector3(cx - R, -1e4, cz - R), new THREE.Vector3(cx + R, 1e4, cz + R)));
@@ -189,7 +195,8 @@ export function createPeek({ container, map, painter, geo }) {
     const skip = new Set(Object.entries(mod).filter(([k, v]) => k.endsWith('_SKIP') && v instanceof Set).flatMap(([, v]) => [...v]));
     const blocks = neighbours(C, cx, cz, Math.min(G * 0.9, R + 20), heightAt, skip, place); // the next door only: further out they loom in front
     if (blocks) lift.add(blocks);
-    scene.add(pivot, groundDisc(C, cx, cz, G, heightAt));
+    drape(C, disc, cx, cz, G, heightAt);
+    scene.add(pivot, disc);
     site.traverse((o) => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
 
     // light: a warm sun from the side of the opening view (its shadows fall where the camera sees them), one static
@@ -250,7 +257,7 @@ export function createPeek({ container, map, painter, geo }) {
   // instances inside; the rest leaves the scene (and the GPU never sees it)
   function crop(THREE, root, cx, cz, R) {
     root.updateMatrixWorld(true);
-    const drop = [], m4 = new THREE.Matrix4(), p = new THREE.Vector3(), b = new THREE.Box3();
+    const drop = [], m4 = new THREE.Matrix4(), p = new THREE.Vector3(), b = new THREE.Box3(), col = new THREE.Color();
     const near = (x, z, r = R) => (x - cx) ** 2 + (z - cz) ** 2 <= r * r;
     root.traverse((o) => {
       const g = o.geometry;
@@ -260,7 +267,7 @@ export function createPeek({ container, map, painter, geo }) {
         for (let i = 0; i < o.count; i++) {
           o.getMatrixAt(i, m4); p.setFromMatrixPosition(m4).applyMatrix4(o.matrixWorld);
           if (!near(p.x, p.z, R * 1.1)) continue;
-          if (n !== i) { o.setMatrixAt(n, m4); if (o.instanceColor) o.setColorAt(n, new THREE.Color().fromArray(o.instanceColor.array, i * 3)); }
+          if (n !== i) { o.setMatrixAt(n, m4); if (o.instanceColor) o.setColorAt(n, col.fromArray(o.instanceColor.array, i * 3)); }
           n++;
         }
         if (!n) drop.push(o); else { o.count = n; o.instanceMatrix.needsUpdate = true; if (o.instanceColor) o.instanceColor.needsUpdate = true; o.computeBoundingBox?.(); o.computeBoundingSphere?.(); }
@@ -314,8 +321,10 @@ export function createPeek({ container, map, painter, geo }) {
     return m;
   }
 
-  // the map's own tiles under the model, draped on the terrain and fading out at the rim
-  function groundDisc(C, cx, cz, G, heightAt) {
+  // the map's own tiles under the model, fading out at the rim: a flat plane first (its tiles painted a few ms a frame,
+  // so the spinner keeps turning – the old blocking loop could hold a slow phone for seconds), draped on the terrain by
+  // drape() once the site is built. Stops early when the peek closes (seq moved on).
+  async function groundDisc(C, cx, cz, G, my) {
     const { THREE } = C, N = 112, PX = 1024, x0 = cx - G, z0 = cz - G, k = PX / (2 * G);
     const cvs = doc.createElement('canvas'); cvs.width = cvs.height = PX;
     const g = cvs.getContext('2d');
@@ -323,7 +332,7 @@ export function createPeek({ container, map, painter, geo }) {
     painter.frame();
     const tiles = [];
     for (let i = Math.floor(x0 / m); i <= Math.floor((x0 + 2 * G) / m); i++) for (let j = Math.floor(z0 / m); j <= Math.floor((z0 + 2 * G) / m); j++) tiles.push(painter.tile(level, i, j));
-    for (let guard = 0; tiles.some((t) => !t.ready) && guard < 400; guard++) { for (const t of tiles) painter.want(t); painter.work(40); }
+    for (let guard = 0; tiles.some((t) => !t.ready) && guard < 400 && my === seq; guard++) { for (const t of tiles) painter.want(t); painter.work(8); await nextFrame(); }
     for (const t of tiles) if (t.ready) g.drawImage(t.c, (t.i * m - x0) * k, (t.j * m - z0) * k, m * k, m * k);
     const fade = g.createRadialGradient(PX / 2, PX / 2, PX * 0.3, PX / 2, PX / 2, PX / 2);
     fade.addColorStop(0, 'rgba(0,0,0,1)'); fade.addColorStop(1, 'rgba(0,0,0,0)');
@@ -332,6 +341,13 @@ export function createPeek({ container, map, painter, geo }) {
     Object.assign(tex, { colorSpace: THREE.SRGBColorSpace, anisotropy: 4 });
     const geo3 = new THREE.PlaneGeometry(2 * G, 2 * G, N, N);
     geo3.rotateX(-Math.PI / 2); // plane (x, -z) -> uv v runs with -z: the canvas' top row (z0) is v = 1
+    const mesh = new THREE.Mesh(geo3, new THREE.MeshStandardMaterial({ map: tex, transparent: true, roughness: 1, depthWrite: false }));
+    mesh.receiveShadow = true; mesh.renderOrder = -1;
+    return mesh;
+  }
+  // the disc's vertices onto the (hooked) terrain, with the canvas' uv frame
+  function drape(C, mesh, cx, cz, G, heightAt) {
+    const geo3 = mesh.geometry, x0 = cx - G, z0 = cz - G;
     const pos = geo3.attributes.position, uv = geo3.attributes.uv, wy = C.ground.GY.WATER;
     for (let i = 0; i < pos.count; i++) {
       const x = cx + pos.getX(i), z = cz + pos.getZ(i);
@@ -339,9 +355,6 @@ export function createPeek({ container, map, painter, geo }) {
       uv.setXY(i, (x - x0) / (2 * G), 1 - (z - z0) / (2 * G));
     }
     geo3.computeVertexNormals();
-    const mesh = new THREE.Mesh(geo3, new THREE.MeshStandardMaterial({ map: tex, transparent: true, roughness: 1, depthWrite: false }));
-    mesh.receiveShadow = true; mesh.renderOrder = -1;
-    return mesh;
   }
 
   return { has: (p) => !!SITES[p?.id], open, close, get isOpen() { return isOpen; }, get view() { return view; },

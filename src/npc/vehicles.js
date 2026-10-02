@@ -61,6 +61,15 @@ export function adTile(seed) {
   return t >= AD_URBAN ? t + 1 : t;
 }
 
+// a brand SVG (public/assets/brand) as one shared Image: the atlas tile and the livery read the same load
+const brandImg = {};
+const brandImage = (name) => brandImg[name] ??= new Promise((res) => {
+  if (typeof Image === 'undefined') return res(null);
+  const img = new Image();
+  img.onload = () => res(img); img.onerror = () => { console.warn(`[vehicles] ${name}.svg did not load`); res(null); };
+  img.src = `${import.meta.env?.BASE_URL ?? '/'}assets/brand/${name}.svg`;
+});
+
 // ------------------------------------------------------------------------------------------ procedural atlas
 // Painted over the atlas regions the generators' UVs point at (2048 px layout, drawn at 1024 px): flat swatches, lamp
 // housings, grilles, Ukrainian plates, the roof sign, route boards, bus ads, van / truck sides, interiors behind glass.
@@ -152,9 +161,7 @@ export function makeVehicleAtlas() {
       box(x, y, x + 512, y + 170, URBAN_BLUE);
       text('ШАУРМА', x + 424, y + 52, 160, `bold 46px ${SANS}`, '#ffffff');
       text('Надпільна', x + 424, y + 100, 160, `30px ${SANS}`, '#dfe3ff'); text('252/1А', x + 424, y + 136, 160, `bold 34px ${SANS}`, '#ffffff');
-      const img = new Image();
-      img.onload = () => { g.drawImage(img, x + 14, y + 12, 146 / 256 * 543 * 0.94, 146 * 0.94); tex.needsUpdate = true; };
-      img.src = `${import.meta.env?.BASE_URL ?? '/'}assets/brand/urban.svg`;
+      brandImage('urban').then((img) => { if (img) { g.drawImage(img, x + 14, y + 12, 146 / 256 * 543 * 0.94, 146 * 0.94); tex.needsUpdate = true; } });
       return;
     }
     if (!ad) { // the ad slot sells itself (1 in 7 vans, bus backs and roof signs): Telegram blue, the bot on a white strip
@@ -173,11 +180,14 @@ export function makeVehicleAtlas() {
 }
 
 // The URBAN box-truck livery in the café's own style (the window films on Nadpilna 252/1A): their blue, the logo, the
-// slanted orange / pale-blue bands with «URBAN · WRAPS · BOWLS · DRINKS» running along them. One 1024 canvas: the box side
-// (1024 x 512, both sides read it the way the red ad side is read) on top, the back doors (512 x 512) below.
+// slanted orange / pale-blue bands with «URBAN · WRAPS · BOWLS · DRINKS» running along them. Laid out on a 1024 frame –
+// the box side (1024 x 512, both sides read it the way the red ad side is read) on top, the back doors (512 x 512)
+// below – but drawn at half size (a 512 canvas, 1 MB on the GPU instead of 4: a truck side reads from a few metres off
+// at that), with the logo added once the shared SVG has loaded.
 export function makeUrbanLivery() {
   if (typeof document === 'undefined') return null;
-  const cv = Object.assign(document.createElement('canvas'), { width: 1024, height: 1024 }), g = cv.getContext('2d');
+  const cv = Object.assign(document.createElement('canvas'), { width: 512, height: 512 }), g = cv.getContext('2d');
+  g.scale(0.5, 0.5);
   const tex = Object.assign(new THREE.CanvasTexture(cv), { colorSpace: THREE.SRGBColorSpace, flipY: false, anisotropy: 4 });
   const SANS = '"Arial Narrow", "Helvetica Neue", Arial, sans-serif';
   const bands = (x0, y0, w, h, y, k) => { // two slanted lettered bands across a panel, clipped to it
@@ -206,9 +216,7 @@ export function makeUrbanLivery() {
     tex.needsUpdate = true;
   };
   draw(null);
-  const img = new Image();
-  img.onload = () => draw(img);
-  img.src = `${import.meta.env?.BASE_URL ?? '/'}assets/brand/urban.svg`;
+  brandImage('urban').then((img) => { if (img) draw(img); });
   return tex;
 }
 

@@ -143,7 +143,7 @@ export function createGameAudio({ car, camera, world, daylight, silent = false }
   car.onSound = (ev) => { if (!paused && E.ac) onCar(ev); };
 
   // ---------------------------------------------------------------- per frame
-  let wing0 = 0, turb0 = 0, envT = 0, hornT = 0, hornOn = false, plane;
+  let wing0 = 0, turb0 = 0, envT = 0, hornT = 0, hornOn = false, plane, planeG = 0;
   const env = { forest: 0 };
   const right = { x: 1, z: 0 };
   function update(dt) {
@@ -201,9 +201,12 @@ export function createGameAudio({ car, camera, world, daylight, silent = false }
     if (plane === undefined && world?.cherkasy) plane = world.cherkasy.sites?.find((x) => x.plane)?.plane ?? null;
     if (plane) {
       const dx = plane.x - cp.x, dy = plane.y - cp.y, dz = plane.z - cp.z, d = Math.hypot(dx, dy, dz), g = planeGain(d);
-      L.plane.set(g, 0.1);
-      const rl = Math.hypot(right.x, right.z) || 1;
-      if (g > 0 && L.plane.pan) L.plane.pan.value = d > 0.5 ? Math.max(-0.85, Math.min(0.85, (dx * right.x + dz * right.z) / (rl * d))) : 0;
+      if (g > 0 || planeG > 0) { // silent nearly always (it flies 150+ m up): no automation event per frame then
+        L.plane.set(g, 0.1);
+        const rl = Math.hypot(right.x, right.z) || 1;
+        if (g > 0 && L.plane.pan) L.plane.pan.value = d > 0.5 ? Math.max(-0.85, Math.min(0.85, (dx * right.x + dz * right.z) / (rl * d))) : 0;
+      }
+      planeG = g;
     }
   }
 
