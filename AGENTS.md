@@ -119,7 +119,10 @@ See `ARCHITECTURE.md` for the module map. Where things live:
     to its own median and the hall to the lot (`hf.pad(ring, margin, level)`), and the lot is one flat asphalt slab 0.22 m over
     it with a matching collision prism, ramps on its open edges, painted stalls, light poles only round the edges;
     `tests/ekvator.test.mjs`) and `sportlife` (the Sport Life club at Митниця, Козацька 2: silver panels, the blue-and-red
-    portal with its sign, the glazed hall). They share five small wall kits: `civic.js`, `blockkit.js`,
+    portal with its sign, the glazed hall).
+    Issue #26 added
+    `avrora` (the «Аврора» multimarket in the old wholesale-market hall at Смілянська 144/2: the yellow portal with the shop's own sign,
+    the old wing's docks, the yard, the car park with bays the traffic sim parks in), `improved`; the map region's x0 moved out to reach it. They share five small wall kits: `civic.js`, `blockkit.js`,
     `bldkit.js`, `shellkit.js` and `slabkit.js` (walls per footprint edge, windows with reveals, collision, mesh wrap-up).
   - `places.js` – the sights, the paying partners (kind `ad`) and the non-landmark objects rebuilt on request (kind
     `improved`: a grey footprint only, "Покращений об’єкт" in the big map's legend) for both maps: icon, name, note, the OSM buildings
