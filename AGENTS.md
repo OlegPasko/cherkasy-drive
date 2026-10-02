@@ -134,6 +134,9 @@ See `ARCHITECTURE.md` for the module map. Where things live:
     `perlyna` (ЖК «Перлина Дніпра», Героїв Дніпра 77, under construction, `improved`): a 17-storey L of two sections built
     as rendered, on its own outline (`PERLYNA_RING` in `places.js`; not in OSM yet), its lot levelled by `levelPerlyna`; the
     upper storeys carry a tiling facade texture with lit-window and glass twins.
+    `premierbay` (ЖК Premier Bay at Героїв Дніпра / Козацька, still being built, as the developer's renders show it: four
+    ten-storey bars round a yard on a deck over the parking, white over a brick podium with brick towers and glass
+    balconies; its walls are facade-shader quads) is `improved` too.
   - `places.js` – the sights, the paying partners (kind `ad`) and the non-landmark objects rebuilt on request (kind
     `improved`: a grey footprint only, "Покращений об’єкт" in the big map's legend) for both maps: icon, name, note, the OSM buildings
     whose footprints get highlighted, and for partners the site `url` (with `utm_source=driver.ck.ua`) and the pitch

@@ -83,6 +83,7 @@ export const PLACES = [
   { id: 'hd34', kind: 'improved', name: 'Покращений об’єкт', note: 'Новобудова · вул. Героїв Дніпра, 34', ring: HD34_RING },
   { id: 'hrafskyi', kind: 'improved', name: 'Покращений об’єкт', note: 'ЖК «Графський» · вул. Байди Вишневецького, 68', bld: [1193290975, 1193290976, 989035400, 1193288998, 989035398, 989035397, 973321831, 19744972] },
   { id: 'perlyna', kind: 'improved', name: 'Покращений об’єкт', note: 'ЖК «Перлина Дніпра» · вул. Героїв Дніпра, 77', ring: PERLYNA_RING },
+  { id: 'premierbay', kind: 'improved', name: 'Покращений об’єкт', note: 'ЖК Premier Bay (будується) · вул. Героїв Дніпра / вул. Козацька', bld: [1526030153, 1526030154, 1526030155, 1526030156] },
   // sights
   { id: 'mykhailo', kind: 'sight', name: 'Свято-Михайлівський собор', icon: '⛪', bld: [242469769] },
   { id: 'troitsky', kind: 'sight', name: 'Свято-Троїцький собор', icon: '⛪', bld: [157432721] },
