@@ -19,6 +19,7 @@
 import { ONIX_RINGS } from './onix_data.js';
 
 //   OLIMPM_RINGS: the section outlines of ЖК «Олімп Модерн» (olimpmodern.js; a place's `ring` may be a list of flat rings)
+//   SMIL52_RING: the outline of the new tower at вул. Смілянська, 52 (smilianska.js)
 // the south end of the Rest Inn block (past the step in its east wall), square to the long Nadpilna façade
 export const USPACE_CUT = { p: [-756.4, 1438.4], n: [0.0123, 0.9999] };
 export const EVERLABS_CUT = { p: [-756.9, 1398.4], n: [0.0123, 0.9999] };
@@ -30,6 +31,10 @@ export const HD34_RING = [685, 1901.3, 683.2, 1905, 693, 1909, 704.4, 1898.9, 70
 export const PERLYNA_RING = [813.4, 939.2, 759.5, 904.6, 748.5, 921.8, 786.3, 946.1, 768, 974.8, 783.9, 985];
 // ЖК «Олімп Модерн», Квіткова 10 (olimpmodern.js olimpModernRings, mostly not in OSM yet; tests/olimpmodern.test.mjs keeps them in step)
 export const OLIMPM_RINGS = [[-2473.2, -1560.5, -2472.6, -1548.2, -2486.1, -1547.5, -2486.8, -1559.8], [-2472.6, -1548.2, -2469.6, -1492.3, -2483.2, -1491.5, -2486.1, -1547.5], [-2468.9, -1479, -2467.8, -1458.6, -2481.4, -1457.9, -2482.5, -1478.3], [-2467.8, -1458.6, -2466.5, -1434.6, -2480.1, -1433.9, -2481.4, -1457.9], [-2466.5, -1434.6, -2465.5, -1415.1, -2479.1, -1414.4, -2480.1, -1433.9], [-2480.1, -1433.9, -2479.1, -1414.4, -2503, -1413.1, -2504, -1432.7], [-2504.2, -1436.7, -2503.3, -1418.7, -2527.2, -1417.4, -2528.2, -1435.4], [-2536.2, -1435, -2535.2, -1417, -2559.2, -1415.7, -2560.1, -1433.7], [-2561.9, -1466.7, -2559.2, -1415.7, -2573.2, -1415, -2575.9, -1465.9], [-2553.1, -1566.3, -2548.5, -1479.4, -2562.5, -1478.6, -2567.1, -1565.5], [-2493.1, -1567.4, -2492.4, -1553.4, -2528.3, -1551.5, -2529.1, -1565.5], [-2529.2, -1567.5, -2528.4, -1553.5, -2552.4, -1552.3, -2553.1, -1566.3]];
+
+// the north-west tower of «Надія» at вул. Смілянська, 52 (smilianska.js SMIL52_RING; OSM has only a misplaced marker;
+// tests/smilianska.test.mjs keeps the two in step)
+export const SMIL52_RING = [-386.7, 294.1, -372.7, 294.1, -358.4, 280, -358.4, 266, -376.7, 266, -386.7, 276];
 
 export const PLACES = [
   // partners (paid placements; the other hand-built venues stay in the world but are not advertised)
@@ -99,6 +104,8 @@ export const PLACES = [
   { id: 'olimpmodern', kind: 'improved', name: 'Покращений об’єкт', note: 'ЖК «Олімп Модерн» · вул. Квіткова, 10', ring: OLIMPM_RINGS },
   { id: 'hoholia204', kind: 'improved', name: 'Покращений об’єкт', note: 'Новобудова · вул. Гоголя, 204', bld: [1303437479] },
   { id: 'pryportova', kind: 'improved', name: 'Покращений об’єкт', note: 'Новобудова · вул. Припортова, 22/1', bld: [874640721, 997356687, 997356688, 1303296241] },
+  { id: 'smilianska48', kind: 'improved', name: 'Покращений об’єкт', note: 'Новобудова · вул. Смілянська, 48, 50, 54', bld: [546773841] },
+  { id: 'smilianska52', kind: 'improved', name: 'Покращений об’єкт', note: 'Новобудова · вул. Смілянська, 52', ring: SMIL52_RING },
   // sights
   { id: 'mykhailo', kind: 'sight', name: 'Свято-Михайлівський собор', icon: '⛪', bld: [242469769] },
   { id: 'troitsky', kind: 'sight', name: 'Свято-Троїцький собор', icon: '⛪', bld: [157432721] },

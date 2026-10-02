@@ -173,6 +173,11 @@ See `ARCHITECTURE.md` for the module map. Where things live:
     `pryportova` (the new block at Припортова 22/1, under construction, built as the lun.ua renders show it: three 17-storey
     sections set corner to corner, white below a chocolate / taupe top, wood-banded loggia stacks, round wood balconies, white fins;
     the dark-glass shop podium, the paved yard with the castle playground) is `improved` too.
+    `smilianska` (the two 17-storey towers of «Надія» behind вул. Смілянська: 48, 50, 54, finished, over OSM 546773841, and 52,
+    built as rendered over the misplaced marker 1124412970; one mirrored design from the lun.ua renders and site photos: a
+    chamfered square with loggia bays round a white balcony stack, a wide bay between white strips, brown / ochre / cream
+    zoning; the yard with its playground between them; one tile atlas, ~7.4k vertices for both; places.js keeps the 52 tower's
+    outline as `SMIL52_RING`; `tests/smilianska.test.mjs`), two `improved` entries.
   - `places.js` – the sights, the paying partners (kind `ad`) and the non-landmark objects rebuilt on request (kind
     `improved`: a grey footprint only, "Покращений об’єкт" in the big map's legend) for both maps: icon, name, note, the OSM buildings
     whose footprints get highlighted, and for partners the site `url` (with `utm_source=driver.ck.ua`) and the pitch

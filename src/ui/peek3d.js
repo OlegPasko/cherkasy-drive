@@ -52,6 +52,7 @@ const SITES = {
   harmony: ['harmony', 'buildHarmony', 'levelHarmony'],
   olimpmodern: ['olimpmodern', 'buildOlimpModern'],
   hoholia204: ['hoholia204', 'buildHoholia204'],
+  smilianska48: ['smilianska', 'buildSmilianska'], smilianska52: ['smilianska', 'buildSmilianska'],
   pryportova: ['pryportova', 'buildPryportova'],
 };
 const MODULES = import.meta.glob('../world/cherkasy/*.js'); // lazy: a module's chunk loads on its first peek
