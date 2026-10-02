@@ -10,6 +10,7 @@
 // shape of the old box.
 //   DELIKAT_SKIP: the OSM id replaced here (buildings.js skips it)
 //   buildDelikat({ root, map, solids, zips, heightAt }) -> { update(dt), clear(x, z), footprints } | null
+//   signTex() -> the «Делікат» lettering on a clear ground (shared with delikat399.js)
 // Walls are laid per ring edge with bldkit.js; each edge is told by its outward normal (+x Blahovisna, +z Chornovola).
 import * as THREE from 'three';
 import { MB } from '../../kit/mesh.js';
@@ -52,7 +53,7 @@ const diamondTex = () => canvasTex(256, 256, (g, w, h) => {
   g.beginPath(); g.moveTo(0, 0); g.lineTo(w, h); g.moveTo(w, 0); g.lineTo(0, h); g.stroke();
 });
 // the lettering: white serif italic with a grey edge, on a clear ground
-const signTex = () => canvasTex(1024, 256, (g, w, h) => {
+export const signTex = () => canvasTex(1024, 256, (g, w, h) => {
   g.clearRect(0, 0, w, h);
   g.font = 'italic bold 190px Georgia, "Times New Roman", serif'; g.textAlign = 'center'; g.textBaseline = 'middle';
   g.lineJoin = 'round'; g.strokeStyle = '#8c9094'; g.lineWidth = 12; g.strokeText('Делікат', w / 2, h / 2 + 8, w - 40);
