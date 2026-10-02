@@ -60,7 +60,7 @@ const SITE_MODULES = import.meta.glob(['./landmarks.js', './frame.js', './restin
   './hoteldnipro.js', './dniproplaza.js', './depot.js', './politekhkoledzh.js',
   './podatkova.js', './school17.js', './kinoukraina.js', './chnu3.js',
   './miskrada.js', './poshtamt.js', './oblbiblioteka.js', './medakademia.js', './balloon.js', './andriy.js', './boyan.js',
-  './delikat.js', './atb.js', './mcdonalds.js', './tors.js', './urban.js', './su7.js']);
+  './delikat.js', './atb.js', './mcdonalds.js', './tors.js', './urban.js', './su7.js', './overpass.js']);
 async function loadSites() {
   const out = {};
   await Promise.all(Object.entries(SITE_MODULES).map(async ([path, load]) => {
@@ -71,7 +71,7 @@ async function loadSites() {
 }
 const guard = (label, fn, fallback = null) => { try { return fn() ?? fallback; } catch (e) { console.error(`[cherkasy] ${label} failed`, e); return fallback; } };
 // the sites that read the ground (isWater / onAsphalt / its meshes): they wait for its workers, the others do not
-const GROUND_SITES = new Set(['rosevalley', 'restaurants', 'beaches', 'yachtclub', 'embankment', 'prystan', 'station', 'lovebridge']);
+const GROUND_SITES = new Set(['rosevalley', 'restaurants', 'beaches', 'yachtclub', 'embankment', 'prystan', 'station', 'lovebridge', 'overpass']);
 // a macrotask turn (not a frame): lets worker messages in between synchronous builds
 const nextTask = () => new Promise((res) => { const ch = new MessageChannel(); ch.port1.onmessage = () => { ch.port1.close(); res(); }; ch.port2.postMessage(0); });
 const nextFrame = () => new Promise((res) => (typeof requestAnimationFrame === 'function' && !document.hidden ? requestAnimationFrame(() => res()) : setTimeout(res, 0)));
@@ -118,6 +118,7 @@ export async function buildCherkasy({ scene, renderer, onProgress = null, params
   if (S.boyan?.levelBoyan && geo) guard('Boyan square terrain', () => S.boyan.levelBoyan(hf, map, geo)); // the square round the pool, level
   if (S.urban?.levelUrban) guard('URBAN terrain', () => S.urban.levelUrban(hf)); // the shop row's lot, level
   if (S.su7?.levelSu7 && geo) guard('Su-7 square terrain', () => S.su7.levelSu7(hf, map, geo)); // the square round the plinth, level
+  if (S.overpass?.shapeOverpass && geo) guard('Dakhnivska overpass terrain', () => S.overpass.shapeOverpass(hf, map, geo)); // the cutting under the bridge
   const strip = guard('shore strip', () => { const s = S.shore?.shoreStrip?.(map); return s ? { A: s.A, B: s.B, y0: S.shore.STRIP.y0, y1: S.shore.STRIP.y1 } : null; });
   if (S.signs?.ukrainianSigns) T.signs = guard('signs', () => S.signs.ukrainianSigns()); // storefront bands in Ukrainian
   const facadeMat = createFacadeMaterial(T), detailMat = createDetailMaterial(T);
@@ -143,7 +144,7 @@ export async function buildCherkasy({ scene, renderer, onProgress = null, params
   const groundP = buildGroundAsync({ scene: root, T, map, hf, strip, renderer, mapUrl: url('map.json') }).then((g) => { groundDone = true; report(); return g; });
   const bldP = buildCityBuildings({ root, map, hf, solids: collision, zips, skip, facadeMat, detailMat, useWorkers: !params.has('noworkers'),
     onProgress: (f) => { bldF = f; report(); } });
-  // landmarks, hero buildings and the hand-built sites ({ update?, clear?(x, z), spots?, footprints?, parked?, partners? }). Those that
+  // landmarks, hero buildings and the hand-built sites ({ update?, clear?(x, z), spots?, footprints?, parked?, partners?, deckAt?(x, z) }). Those that
   // do not read `ground` build while its workers run (heightAt is the same height field), one per task so the worker
   // replies get through; the rest (GROUND_SITES) follow once it is in. The list order stays the order of `sites`.
   const base = { root, T, map, solids: collision, zips, heightAt: hf.heightAt, ground: null, geo, facadeMat, detailMat };
@@ -164,7 +165,8 @@ export async function buildCherkasy({ scene, renderer, onProgress = null, params
     ['Tax office', 'podatkova', 'buildPodatkova'], ['School 17', 'school17', 'buildSchool17'], ['Kino Ukraina', 'kinoukraina', 'buildKinoUkraina'], ['ChNU building 3', 'chnu3', 'buildChnu3'],
     ['City council', 'miskrada', 'buildMiskrada'], ['Head post office', 'poshtamt', 'buildPoshtamt'], ['Regional library', 'oblbiblioteka', 'buildOblBiblioteka'], ['Medical academy', 'medakademia', 'buildMedAkademia'],
     ['Balloon', 'balloon', 'buildBalloon'], ['St Andrew church', 'andriy', 'buildAndriy'], ['Boyan monument', 'boyan', 'buildBoyan'],
-    ['Delikat on Blahovisna', 'delikat', 'buildDelikat'], ['ATB on Shevchenka 239', 'atb', 'buildAtb'], ["McDonald's", 'mcdonalds', 'buildMcDonalds'], ['Tors sign', 'tors', 'buildTors'], ['URBAN', 'urban', 'buildUrban'], ['Su-7 memorial', 'su7', 'buildSu7']];
+    ['Delikat on Blahovisna', 'delikat', 'buildDelikat'], ['ATB on Shevchenka 239', 'atb', 'buildAtb'], ["McDonald's", 'mcdonalds', 'buildMcDonalds'], ['Tors sign', 'tors', 'buildTors'], ['URBAN', 'urban', 'buildUrban'], ['Su-7 memorial', 'su7', 'buildSu7'],
+    ['Dakhnivska overpass', 'overpass', 'buildOverpass']];
   const built = list.map(() => null);
   const runSites = async (late) => {
     for (const [i, [label, mod, fn]] of list.entries()) {
@@ -214,7 +216,9 @@ export async function buildCherkasy({ scene, renderer, onProgress = null, params
   const debris = createGibs(root, (x, z, y) => collision.groundHeight(x, z, y ?? 1e4), { blood: params.has('blood') });
   let traffic = null, people = null;
   if (!params.has('notraffic')) {
-    try { traffic = await buildCherkasyTraffic({ scene: root, map, ground }); } catch (e) { console.error('[cherkasy] traffic failed', e); }
+    // bridge lanes ride the hand-built decks (overpass.js deckAt), not the terrain under them
+    const deckAt = (x, z) => { for (const s of sites) { const y = s.deckAt?.(x, z); if (y != null) return y; } return null; };
+    try { traffic = await buildCherkasyTraffic({ scene: root, map, ground, deckAt }); } catch (e) { console.error('[cherkasy] traffic failed', e); }
   }
   stage('traffic', 0.9, 'Люди…');
   if (!params.has('nopeds')) {

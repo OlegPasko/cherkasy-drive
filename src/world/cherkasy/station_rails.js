@@ -12,7 +12,8 @@
 //     own embankment is cut off.
 //   along(line, s) -> { x, z, dx, dz }   the point and unit heading at distance s along a line
 //   nearestRail(lines, x, z, skip?) -> distance to the closest track centre line (skip: a line to ignore)
-//   buildRails({ root, map, heightAt, ground, solids, geo }, { yard: [x, z, r], skipMast?(x, z) }) -> { lines, clear(x, z), stats() }
+//   buildRails({ root, map, heightAt, ground, solids, geo }, { yard: [x, z, r], skipMast?(x, z) }) -> { lines, clear(x, z), crossings, stats() }
+//     crossings: [{ x, z, main }] the level crossings (none where the road or the line is on a bridge)
 //     clear: true within 3.5 m of a track (no generated trees on the line)
 //     yard: the circle where sleepers are real geometry; skipMast: no catenary mast at that point (platforms, canopy)
 // Heights: the bed follows heightAt (the station yard is levelled by station.js); a bridge runs straight between the
@@ -161,7 +162,7 @@ export function buildRails({ root, map, heightAt, ground, solids, geo }, { yard 
   // motor roads by 64 m cell, for the level crossings
   const C = 64, cells = new Map(), key = (i, j) => i * 100003 + j;
   for (const r of map.roads ?? []) {
-    if (r.k !== 'm' && r.k !== 'd') continue;
+    if ((r.k !== 'm' && r.k !== 'd') || r.br) continue; // a road on a bridge passes over the line, not across it
     const hw = (r.w ?? 6) / 2, main = r.k === 'm' && r.c !== 'service';
     for (let k = 2; k < r.p.length; k += 2) {
       const seg = { ax: r.p[k - 2], az: r.p[k - 1], bx: r.p[k], bz: r.p[k + 1], hw, main };
@@ -200,7 +201,7 @@ export function buildRails({ root, map, heightAt, ground, solids, geo }, { yard 
   let samples = 0;
 
   for (const L of lines) {
-    const cross = crossingsOf(L);
+    const cross = L.br ? [] : crossingsOf(L); // nor does a rail bridge cross the road under it
     allCross.push(...cross.map((c) => ({ ...c, L })));
     const inCross = (s) => cross.some((c) => s > c.s0 && s < c.s1);
     // sample distances: the polyline nodes, <= STEP apart, plus both sides of every crossing edge
@@ -412,6 +413,7 @@ export function buildRails({ root, map, heightAt, ground, solids, geo }, { yard 
   };
   return {
     lines, clear,
+    crossings: allCross.map((c) => ({ x: c.x, z: c.z, main: c.main })),
     stats: () => ({ lines: lines.length, km, crossings: allCross.length, masts, sleepers: nTies, verts: nV }),
   };
 }

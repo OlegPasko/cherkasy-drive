@@ -56,7 +56,13 @@ See `ARCHITECTURE.md` for the module map. Where things live:
     on its slanted pylon over the white wedge and the red granite plinth, in the 2020 blue-and-yellow stripes), `lotus` (White Lotus temple on its slope), `lovebridge` (Bridge of Lovers over a carved
     ravine), `andriy` (the church of St Andrew the First-Called by the Mytnytsia roundabout, with its gate belfry,
     brick fence and thujas), `station` (railway station, platforms, footbridge, parked trains) and `station_rails` (the whole `rails`
-    layer: track, level crossings, catenary on the electrified lines). Several shape the terrain with a guarded
+    layer: track, level crossings – none where the road or the line is on an OSM bridge –, catenary on the electrified lines).
+    `overpass` (issues #21 / #22) is road infrastructure, not a sight: the Дахнівська overpass over Сумгаїтська and the
+    line to the dam by the Sosnivka park. `shapeOverpass` cuts the lower road and the track into a cutting along their own
+    grades (the DEM sees one flat hilltop), the deck spans every height-lattice cell the cut touched, with piers, blue
+    railings and lamps, plus the pipeline footbridge beside it and guard rails in the cutting; the ground's Дахнівська strip
+    under the deck turns to lawn. Its `deckAt(x, z)` reaches the lane network (`buildCherkasyTraffic({ deckAt })`), so
+    the bridge lanes ride the deck. Several shape the terrain with a guarded
     `shape*` / `level*` hook next to `shapeZamkova`. A site builder that reads `ground` must be listed in `GROUND_SITES`
     in `city.js`; the others build while the ground workers run.
   - hand-built ordinary buildings (not sights, not in `places.js`): `simeinyi` (ЖК «Сімейний Lux», Героїв Дніпра 4),
@@ -90,7 +96,8 @@ See `ARCHITECTURE.md` for the module map. Where things live:
   - `billboards.js` – roadside billboards sold through the bot: the `BILLBOARDS` list (spot, facing, art) and the
     builder; unsold ones show the "ваша реклама / @driver_game_bot" placeholder. The header says how to add a real one.
 - `src/npc/` – everything that moves on its own:
-  - `lanes.js` – the lane graph and signals;
+  - `lanes.js` – the lane graph and signals; with `opts.deckAt` (a site's deck heights) the lanes of a chain with an
+    OSM bridge way take the deck's height where they end on it;
   - `vehicles.js` – loads the glb models, instanced fleet, `makeMesh`; the ad tiles on vans, bus sides and backs and roof signs (tile 1 is URBAN's, paid: a quarter of the 12 m buses wear it in URBAN blue) and `makeUrbanLivery`, the URBAN box-truck livery (sides and back doors) a quarter of the box trucks wear; both are picked in `defaultDress` in `traffic.js`;
   - `traffic.js` and `wrecks.js` – the traffic sim, rigid-body wrecks and dents; the car rams through
     `ram(q)`;
@@ -126,7 +133,8 @@ See `ARCHITECTURE.md` for the module map. Where things live:
   damage bars, money and help. UI text is Ukrainian.
   - `mapdraw.js` – the painter both maps share: feature index, canvas tiles per zoom level (one LRU cache), place
     badges, the street-name chains built from `map.json` road names and `layAlong`, which lays a name's glyphs along a
-    street for both maps.
+    street for both maps. Motor-road bridges (`br`) are drawn last, with a dark edge each side, so a road or a railway
+    under one reads as passing under it.
   - `perfhint.js` – watches the real frame rate; after ~6 s under 40 fps it offers G (simpler graphics, one quality
     step down) in a pill at the bottom, but only once the adaptive resolution has nothing lower left to try. G works any time and goes round (the lowest wraps to the highest); F9 cycles the levels upward.
   - `bigmap.js` – the full-screen map on M: north up, wheel / drag / arrows or the + / − buttons, street names along the streets, sight and
