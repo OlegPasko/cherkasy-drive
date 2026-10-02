@@ -48,6 +48,7 @@ export function featuresOf(world) {
       buildings: (m.buildings || []).map((b) => b.p).filter(Boolean),
       roads: m.land?.length ? [] : (m.roads || []).map((r) => ({ p: r.p, w: r.w || 6 })),
       rails: m.rails || [],
+      bridges: (m.roads || []).filter((r) => r.br && r.k === 'm' && r.p?.length >= 4).map((r) => ({ p: r.p, w: r.w || 6 })),
     };
   }
   const f = world?.getMapFeatures?.();
@@ -63,13 +64,14 @@ export function featuresOf(world) {
   return null;
 }
 
-// layers: 0 blocks, 1 parks, 2 water, 3 buildings, 4 road strokes and railway lines (item.rail: 1 main, 2 siding),
+// layers: 0 blocks, 1 parks, 2 water, 3 buildings, 4 road strokes, railway lines (item.rail: 1 main, 2 siding) and,
+// over them, road bridges (item.bridge: the deck with a dark edge each side, so what runs under it shows as passing under),
 // 5 sight footprints, 6 partner footprints, 7 improved-object footprints (grey).
 // Every drawable goes into the 256 m buckets its bounds touch; features spanning many buckets go to a shared "wide" list.
 function indexFeatures(F, places) {
   const buckets = new Map(), wide = [];
   let valid = 0, seq = 0;
-  const put = (layer, rings, pad = 0, rail = 0) => {
+  const put = (layer, rings, pad = 0, rail = 0, bridge = 0) => {
     const outer = rings[0];
     if (!outer || outer.length < 4) return;
     let x0 = Infinity, z0 = Infinity, x1 = -Infinity, z1 = -Infinity;
@@ -78,7 +80,7 @@ function indexFeatures(F, places) {
       if (!Number.isFinite(x) || !Number.isFinite(z)) return;
       if (x < x0) x0 = x; if (x > x1) x1 = x; if (z < z0) z0 = z; if (z > z1) z1 = z;
     }
-    const item = { layer, rings, rail, seq: seq++, w: pad * 2, x0: x0 - pad, z0: z0 - pad, x1: x1 + pad, z1: z1 + pad };
+    const item = { layer, rings, rail, bridge, seq: seq++, w: pad * 2, x0: x0 - pad, z0: z0 - pad, x1: x1 + pad, z1: z1 + pad };
     const i0 = Math.floor(item.x0 / BUCKET), i1 = Math.floor(item.x1 / BUCKET), j0 = Math.floor(item.z0 / BUCKET), j1 = Math.floor(item.z1 / BUCKET);
     valid++;
     if ((i1 - i0 + 1) * (j1 - j0 + 1) > 16) { wide.push(item); return; }
@@ -95,6 +97,7 @@ function indexFeatures(F, places) {
   for (const e of F.buildings || []) put(3, asRings(e));
   for (const r of F.roads || []) if (r?.p?.length >= 4) put(4, [r.p], (r.w || 6) / 2);
   for (const r of F.rails || []) if (r?.p?.length >= 4) put(4, [r.p], 2, r.sv ? 2 : 1);
+  for (const r of F.bridges || []) put(4, [r.p], r.w / 2 + 2, 0, 1);
   for (const q of places) for (const ring of q.rings || []) put(q.kind === 'ad' ? 6 : q.kind === 'improved' ? 7 : 5, [ring]);
   const order = (a, b) => a.layer - b.layer || a.seq - b.seq;
   for (const b of buckets.values()) b.sort(order);
@@ -227,6 +230,15 @@ export function createMapPainter({ world, features = null, doc = globalThis.docu
         g.lineCap = 'butt';
         if (s >= 1.5) { g.strokeStyle = COL.tie; g.lineWidth = 3.4; g.setLineDash([0.6, 1.8]); g.stroke(); g.setLineDash([]); }
         g.strokeStyle = COL.rail; g.lineWidth = Math.max((main ? 1.3 : 0.9) / s, s >= 1.5 ? 1.5 : 0); g.stroke();
+        continue;
+      }
+      if (f.bridge) { // a road bridge over whatever the tile drew before: dark edges, then the deck
+        const r = f.rings[0];
+        g.beginPath(); g.moveTo(r[0], r[1]);
+        for (let k = 2; k < r.length; k += 2) g.lineTo(r[k], r[k + 1]);
+        g.lineCap = 'butt';
+        g.strokeStyle = COL.block; g.lineWidth = f.w; g.stroke();
+        g.strokeStyle = COL.road; g.lineWidth = Math.max(1 / s, f.w - Math.max(3, 2.4 / s)); g.stroke();
         continue;
       }
       if (f.layer === 4) { // road stroke (maps without carriageway holes)

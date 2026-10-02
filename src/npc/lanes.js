@@ -1,7 +1,9 @@
 // Lane network for street traffic, derived from the motor roads of map.json (no hand-kept road data).
 //   buildLaneNetwork(map, ground, opts?) -> net
 //     map: map.json ({ region, roads[{ p, w, c, k, n, ow, ln, tw, br }] }); ground: { heightAt(x, z) } or a function (x, z) -> y
-//     opts: { cluster = 20, clusterMax = 48 } junction clustering (m)
+//     opts: { cluster = 20, clusterMax = 48 } junction clustering (m); deckAt(x, z) -> y | null: a bridge deck's top
+//       there. On a chain that has a bridge way (br), a lane end over a deck takes its height, and the lane is flagged
+//       `bridge` (posed straight between its end heights, not on the terrain under it)
 //   net = { nodes, links, signals, stats, linksNear(x, z, r, out) -> out, phase(t, axis) -> 2 go / 1 amber / 0 stop, CYCLE }
 //     node: { id, x, z, junction, deadEnd, sig, legs, inLinks[], outLinks[], moves[] (connectors through it) }
 //     link (one lane, straight, travel direction): { id, from, to, ax, az, dx, dz, len, heading, lane, nl, cls, main, tw,
@@ -69,7 +71,8 @@ export function pathAt(P, s, out, hint = 0) {
 export function buildLaneNetwork(map, ground, opts = {}) {
   const t0 = performance.now();
   const heightAt = typeof ground === 'function' ? ground : ground?.heightAt ? (x, z) => ground.heightAt(x, z) : () => 0;
-  const cluster = opts.cluster ?? 20, clusterMax = opts.clusterMax ?? 48;
+  const cluster = opts.cluster ?? 20, clusterMax = opts.clusterMax ?? 48, deckAt = opts.deckAt ?? null;
+  let deckChain = false; // the chain being laid has a bridge way: its lane ends may sit on a deck
   const R = map?.region || { x0: -1e9, x1: 1e9, z0: -1e9, z1: 1e9 };
   const roads = (map?.roads || []).filter(r => r.k === 'm' && CLASS[r.c] !== undefined && r.p && r.p.length >= 4);
   const empty = () => ({ nodes: [], links: [], signals: [], stats: { links: 0, nodes: 0, junctions: 0, signals: 0, ms: 0 }, linksNear: (x, z, r, out = []) => out, phase: signalPhase, CYCLE });
@@ -257,6 +260,12 @@ export function buildLaneNetwork(map, ground, opts = {}) {
       y0: 0, y1: 0, edgeR: 1.2, signal: false, axis: null, stopS: len, out: [], alt: null, cars: [], parked: null,
       cx: ax + dx * len / 2, cz: az + dz * len / 2 };
     L.y0 = heightAt(ax, az); L.y1 = heightAt(ax + dx * len, az + dz * len);
+    if (deckChain) {
+      const d0 = deckAt(ax, az), d1 = deckAt(ax + dx * len, az + dz * len);
+      if (d0 != null) L.y0 = d0;
+      if (d1 != null) L.y1 = d1;
+      if (d0 != null || d1 != null) L.bridge = true;
+    }
     if (!Number.isFinite(L.y0)) L.y0 = 0;
     if (!Number.isFinite(L.y1)) L.y1 = L.y0;
     links.push(L); from.outLinks.push(L); to.inLinks.push(L);
@@ -279,6 +288,7 @@ export function buildLaneNetwork(map, ground, opts = {}) {
   const ends = new Map(); // junction node -> { ins, outs } lane groups meeting there
   const endsOf = (n) => { let e = ends.get(n); if (!e) ends.set(n, e = { ins: [], outs: [] }); return e; };
   for (const C of live) {
+    deckChain = !!deckAt && C.seg.some(r => r.br);
     let ta = cutBack(C, 0), tb = cutBack(C, 1);
     if (ta + tb > C.len - 5) { const k = Math.max(0.2, C.len - 5) / (ta + tb); ta *= k; tb *= k; }
     const P = C.pts, S = C.S;

@@ -2,8 +2,9 @@
 // wrecks (src/npc/traffic.js, wrecks.js), signal posts at the big junctions, and the local touches: the Cherkasy
 // vehicle mix, route preferences, trolleybus poles, flying wrecks that run people over.
 //
-//   buildCherkasyTraffic({ scene, map, ground, density = 0.55 }) -> Promise<api>
-//     scene: Object3D for the meshes; map: map.json; ground: { heightAt(x, z) }
+//   buildCherkasyTraffic({ scene, map, ground, density = 0.55, deckAt? }) -> Promise<api>
+//     scene: Object3D for the meshes; map: map.json; ground: { heightAt(x, z) }; deckAt(x, z) -> y | null: the
+//     hand-built bridge decks (npc/lanes.js opts.deckAt), so bridge lanes ride them
 //   api = { net (alias roads), sim, models, phase(axis) -> 2 go / 1 amber / 0 stop now,
 //     collideDynamic(pos, r, h), setPlayer(pos, vel?, groundY?), setPeds(people), carNear(x, z, r) -> bool,
 //     attachSolids(collision, groundHeight)  wrecks bounce off buildings and land on roofs / the ground,
@@ -65,11 +66,11 @@ export function routeWeight(c, L, mv) {
   return L.main && !next.main ? 0.35 : 1;
 }
 
-export async function buildCherkasyTraffic({ scene, map, ground, density = 0.55 }) {
+export async function buildCherkasyTraffic({ scene, map, ground, density = 0.55, deckAt = null }) {
   const t0 = performance.now();
   const heightAt = (x, z) => ground.heightAt(x, z);
   const modelsP = loadTrafficVehicles();
-  const net = buildLaneNetwork(map, heightAt);
+  const net = buildLaneNetwork(map, heightAt, { deckAt });
   const t1 = performance.now();
   const models = await modelsP;
   const sim = createTrafficSimulation({ scene, net, models, phase: signalPhase, density, hooks: { dress: dressCar, route: routeWeight, heightAt } });
