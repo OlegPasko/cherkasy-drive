@@ -170,6 +170,9 @@ See `ARCHITECTURE.md` for the module map. Where things live:
     from the lun.ua renders: teal-and-glass loggia bays, white-framed grey render panels, pilasters, the stair core's dark
     balcony stack on the yard side, glazed cantilevers over the dark south-west end and the car park's ramp house; one tile
     atlas, ~5k vertices; `tests/hoholia204.test.mjs`), `improved`.
+    `pryportova` (the new block at Припортова 22/1, under construction, built as the lun.ua renders show it: three 17-storey
+    sections set corner to corner, white below a chocolate / taupe top, wood-banded loggia stacks, round wood balconies, white fins;
+    the dark-glass shop podium, the paved yard with the castle playground) is `improved` too.
   - `places.js` – the sights, the paying partners (kind `ad`) and the non-landmark objects rebuilt on request (kind
     `improved`: a grey footprint only, "Покращений об’єкт" in the big map's legend) for both maps: icon, name, note, the OSM buildings
     whose footprints get highlighted, and for partners the site `url` (with `utm_source=driver.ck.ua`) and the pitch
