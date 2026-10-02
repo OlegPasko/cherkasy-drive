@@ -122,7 +122,11 @@ See `ARCHITECTURE.md` for the module map. Where things live:
     portal with its sign, the glazed hall).
     Issue #26 added
     `avrora` (the «Аврора» multimarket in the old wholesale-market hall at Смілянська 144/2: the yellow portal with the shop's own sign,
-    the old wing's docks, the yard, the car park with bays the traffic sim parks in), `improved`; the map region's x0 moved out to reach it. They share five small wall kits: `civic.js`, `blockkit.js`,
+    the old wing's docks, the yard, the car park with bays the traffic sim parks in), `improved`; the map region's x0 moved out to reach it.
+    `onix` (ЖК Onix, вул. Сковороди / Теліги in Sosnivka, from the developer's renders and site plan on lun.ua: two U-shaped
+    nine-storey blocks of ten sections, laid out in `onix_data.js` (shared with `places.js`, whose `rings` give an `improved`
+    object footprints OSM lacks); `levelOnix` cuts a level terrace under each block; the lot is cleared of the pine wood and
+    draped with pavements, lawns, car parks; `tests/onix.test.mjs`). They share five small wall kits: `civic.js`, `blockkit.js`,
     `bldkit.js`, `shellkit.js` and `slabkit.js` (walls per footprint edge, windows with reveals, collision, mesh wrap-up).
   - `places.js` – the sights, the paying partners (kind `ad`) and the non-landmark objects rebuilt on request (kind
     `improved`: a grey footprint only, "Покращений об’єкт" in the big map's legend) for both maps: icon, name, note, the OSM buildings
