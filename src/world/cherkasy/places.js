@@ -21,6 +21,7 @@
 import { ONIX_RINGS } from './onix_data.js';
 
 //   OLIMPM_RINGS: the section outlines of ЖК «Олімп Модерн» (olimpmodern.js; a place's `ring` may be a list of flat rings)
+//   SMIL52_RING: the outline of the new tower at вул. Смілянська, 52 (smilianska.js)
 // the south end of the Rest Inn block (past the step in its east wall), square to the long Nadpilna façade
 export const USPACE_CUT = { p: [-756.4, 1438.4], n: [0.0123, 0.9999] };
 export const EVERLABS_CUT = { p: [-756.9, 1398.4], n: [0.0123, 0.9999] };
@@ -38,6 +39,10 @@ export const NARB10_RING = [-921.6, 1395.2, -921.6, 1429.1, -947.8, 1429.1, -947
 export const SHEV22_RING = [-65, -2476, -65, -2446, -87, -2446, -87, -2476];
 // the new block at бульвар Шевченка, 184–186 (shev184.js shev184Local.outline(), not in OSM yet; tests/shev184.test.mjs keeps them in step)
 export const SHEV184_RING = [-75.2, -592, -74.5, -591.9, -73.8, -591.6, -73.2, -591.2, -72.8, -590.6, -72.5, -589.9, -72.4, -589.2, -72.6, -563, -91.1, -563.1, -90.9, -592.1];
+
+// the north-west tower of «Надія» at вул. Смілянська, 52 (smilianska.js SMIL52_RING; OSM has only a misplaced marker;
+// tests/smilianska.test.mjs keeps the two in step)
+export const SMIL52_RING = [-386.7, 294.1, -372.7, 294.1, -358.4, 280, -358.4, 266, -376.7, 266, -386.7, 276];
 
 export const PLACES = [
   // partners (paid placements; the other hand-built venues stay in the world but are not advertised)
@@ -115,6 +120,8 @@ export const PLACES = [
   { id: 'shev184', kind: 'improved', name: 'Покращений об’єкт', note: 'Новобудова · бульвар Шевченка, 184–186', ring: SHEV184_RING },
   { id: 'comfortpark', kind: 'improved', name: 'Покращений об’єкт', note: 'ЖК «Комфорт Парк» · вул. В’ячеслава Чорновола, 243/1', bld: [411921795] },
   { id: 'zhktemp', kind: 'improved', name: 'Покращений об’єкт', note: 'ЖК «Темп» · вул. Юрія Іллєнка, 4', bld: [117808102, 996032042] },
+  { id: 'smilianska48', kind: 'improved', name: 'Покращений об’єкт', note: 'Новобудова · вул. Смілянська, 48, 50, 54', bld: [546773841] },
+  { id: 'smilianska52', kind: 'improved', name: 'Покращений об’єкт', note: 'Новобудова · вул. Смілянська, 52', ring: SMIL52_RING },
   // sights
   { id: 'mykhailo', kind: 'sight', name: 'Свято-Михайлівський собор', icon: '⛪', bld: [242469769] },
   { id: 'troitsky', kind: 'sight', name: 'Свято-Троїцький собор', icon: '⛪', bld: [157432721] },
