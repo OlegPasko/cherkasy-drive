@@ -30,7 +30,7 @@ import * as THREE from 'three';
 import { MB } from '../../kit/mesh.js';
 import { DP } from '../materials.js';
 import { OVERHANG } from '../collision.js';
-import { canvasTex } from './sculpt.js';
+import { ease, fin, along, crossing, frame, grade, resurface, dropPaint, sboxer, barTex, topMesh, groundMat, cumulate, pointAt } from './bridgekit.js';
 import { SURF, GY } from './ground.js';
 
 const AXIS = [[49.4660577, 32.0223845], [49.4666672, 32.0216036]]; // way 72051305: south-east end, north-west end
@@ -56,42 +56,6 @@ const ROAD_HW = 7.3, WALK = 4.5;                   // Sumhaitska: half carriagew
 const DK = { hw: 7, walk: 9.1, edge: 9.6, slab: 0.4, depth: 1.15, kerb: 0.18, par: 0.35, rail: 1.1, lift: 0.03 };
 const FB = { hw: 0.8, rail: 1.1, pipe: 0.4, hump: 0.5 };
 const C = { conc: '#a9a7a0', concDark: '#8f8d87', blue: '#3f74ae', steel: '#6c7176', grate: '#55595d', pipe: '#9aa1a3', galv: '#b9bdbf' };
-const ease = (a, b, v) => (v <= a ? 0 : v >= b ? 1 : 0.5 - 0.5 * Math.cos(Math.PI * (v - a) / (b - a)));
-const fin = (h, d = 30) => (Number.isFinite(h) ? h : d);
-
-// nearest point of a polyline: { d, s } distance and arc length from its first point
-function along(L, x, z) {
-  let best = { d: Infinity, s: 0 }, run = 0;
-  for (let k = 1; k < L.length; k++) {
-    const [ax, az] = L[k - 1], ex = L[k][0] - ax, ez = L[k][1] - az, len = Math.hypot(ex, ez);
-    const f = len > 0 ? Math.min(len, Math.max(0, ((x - ax) * ex + (z - az) * ez) / len)) : 0;
-    const d = Math.hypot(x - ax - ex * f / (len || 1), z - az - ez * f / (len || 1));
-    if (d < best.d) best = { d, s: run + f };
-    run += len;
-  }
-  return best;
-}
-// where segment p-q crosses polyline L: { s along L, f along p-q (0..1) } | null
-function crossing(L, p, q) {
-  let run = 0;
-  for (let k = 1; k < L.length; k++) {
-    const a = L[k - 1], b = L[k], ex = b[0] - a[0], ez = b[1] - a[1], fx = q[0] - p[0], fz = q[1] - p[1];
-    const den = ex * fz - ez * fx, len = Math.hypot(ex, ez);
-    if (Math.abs(den) > 1e-9) {
-      const t = ((p[0] - a[0]) * fz - (p[1] - a[1]) * fx) / den, u = ((p[0] - a[0]) * ez - (p[1] - a[1]) * ex) / den;
-      if (t >= 0 && t <= 1 && u >= 0 && u <= 1) return { s: run + t * len, f: u };
-    }
-    run += len;
-  }
-  return null;
-}
-// a straight frame from P to Q: t along it (m from P), o to its left-hand side (+n)
-function frame(P, Q) {
-  const L = Math.hypot(Q[0] - P[0], Q[1] - P[1]), ux = (Q[0] - P[0]) / L, uz = (Q[1] - P[1]) / L, nx = -uz, nz = ux;
-  return { P, L, ux, uz, nx, nz, ang: Math.atan2(uz, ux),
-    at: (t, o) => [P[0] + ux * t + nx * o, P[1] + uz * t + nz * o],
-    to: (x, z) => [(x - P[0]) * ux + (z - P[1]) * uz, (x - P[0]) * nx + (z - P[1]) * nz] };
-}
 function siteOf(geo) {
   const xz = ([la, lo]) => geo.toXZ(la, lo);
   const D = frame(...AXIS.map(xz)), F = frame(...FOOT.map(xz)), road = ROAD.map(xz), rail = RAIL.map(xz);
@@ -99,16 +63,6 @@ function siteOf(geo) {
   const dr = q(road, D), dl = q(rail, D), fr = q(road, F), fl = q(rail, F);
   if (!dr || !dl || !fr || !fl) return null;
   return { D, F, road, rail, sr: dr.s, sl: dl.s, tr: dr.f * D.L, tl: dl.f * D.L, fr: fr.f * F.L, fl: fl.f * F.L };
-}
-// level of a grade at arc r: interpolated, rising behind the first point and falling past the last
-function grade(P, r) {
-  if (r <= P[0][0]) return P[0][1] + 0.03 * (P[0][0] - r);
-  const last = P[P.length - 1];
-  if (r >= last[0]) return last[1] - 0.05 * (r - last[0]);
-  let k = 1;
-  while (P[k][0] < r) k++;
-  const [a, ya] = P[k - 1], [b, yb] = P[k];
-  return ya + (yb - ya) * (r - a) / (b - a);
 }
 // the carved surface of one corridor at (x, z) over the current height h (h itself where it does not reach)
 function carve(c, x, z, h) {
@@ -178,51 +132,6 @@ function cutDepth(x, z) {
   return (1 - t) * ((1 - s) * c(0, 0) + s * c(1, 0)) + t * ((1 - s) * c(0, 1) + s * c(1, 1));
 }
 
-// ------------------------------------------------------------------------------------------------ ground fix-ups
-// Ground tile triangles re-pointed at copies of their vertices with another surface (copies: the tiles share vertices
-// per layer, and a triangle half in and half out would blend the surface ids), or dropped (pick returns -1).
-// pick(cx, cz, surf, P, a, b, c) -> new surface | -1 | null (keep); only triangles inside box [x0, z0, x1, z1] are asked.
-function resurface(ground, box, pick) {
-  const tiles = (ground?.root?.children ?? []).filter((m) => m.material?.name === 'cherkasy-ground' && m.geometry?.index);
-  let n = 0;
-  for (const m of tiles) {
-    const geo = m.geometry;
-    if (!geo.boundingBox) geo.computeBoundingBox();
-    const bb = geo.boundingBox;
-    if (bb.max.x < box[0] || bb.min.x > box[2] || bb.max.z < box[1] || bb.min.z > box[3]) continue;
-    const P = geo.attributes.position.array, Nn = geo.attributes.normal.array, Sf = geo.attributes.aSurf.array, I = geo.index.array;
-    const add = { p: [], n: [], s: [] }, copy = new Map(), idx = Array.from(I);
-    let base = P.length / 3, hit = 0;
-    const dup = (v, s) => {
-      const key = v * 32 + s;
-      let c = copy.get(key);
-      if (c === undefined) { copy.set(key, c = base++); add.p.push(P[3 * v], P[3 * v + 1], P[3 * v + 2]); add.n.push(Nn[3 * v], Nn[3 * v + 1], Nn[3 * v + 2]); add.s.push(s); }
-      return c;
-    };
-    for (let k = 0; k < I.length; k += 3) {
-      const a = I[k], b = I[k + 1], c = I[k + 2];
-      const x = (P[3 * a] + P[3 * b] + P[3 * c]) / 3, z = (P[3 * a + 2] + P[3 * b + 2] + P[3 * c + 2]) / 3;
-      if (x < box[0] || x > box[2] || z < box[1] || z > box[3]) continue;
-      const s = pick(x, z, Sf[a], P, a, b, c);
-      if (s === null || s === undefined) continue;
-      if (s < 0) { idx[k + 1] = idx[k + 2] = a; hit++; continue; }
-      idx[k] = dup(a, s); idx[k + 1] = dup(b, s); idx[k + 2] = dup(c, s); hit++;
-    }
-    if (!hit) continue;
-    const grow = (arr, extra) => { const out = new Float32Array(arr.length + extra.length); out.set(arr); out.set(extra, arr.length); return out; };
-    geo.dispose(); // drop the GPU buffers; three uploads the new ones on the next draw
-    geo.setAttribute('position', new THREE.BufferAttribute(grow(P, add.p), 3));
-    geo.setAttribute('normal', new THREE.BufferAttribute(grow(Nn, add.n), 3));
-    geo.setAttribute('aSurf', new THREE.BufferAttribute(grow(Sf, add.s), 1));
-    geo.setIndex(new THREE.BufferAttribute(base > 65535 ? new Uint32Array(idx) : new Uint16Array(idx), 1));
-    n += hit;
-  }
-  return n;
-}
-
-// the railing infill: 0.14 m of it per texture repeat, one flat bar, white = solid
-const barTex = () => canvasTex(16, 64, (c, w, h) => { c.clearRect(0, 0, w, h); c.fillStyle = '#fff'; c.fillRect(w / 2 - 2, 0, 4, h); }, { srgb: false });
-
 // ------------------------------------------------------------------------------------------------ site
 export function buildOverpass({ root, solids: S, heightAt, geo, ground, detailMat }) {
   if (!geo || !SHAPED) return null;
@@ -245,18 +154,7 @@ export function buildOverpass({ root, solids: S, heightAt, geo, ground, detailMa
   const col = (c, part = DP.CONC) => det.setColor(c).setPart(part);
 
   // a box in a frame between t0..t1 and o0..o1, bottom / top given as y(t, o) (so it follows a sloped deck)
-  const sbox = (M, Fr, ta, tb, oa, ob, lo, hi, mask = 63) => {
-    if (ta > tb) [ta, tb] = [tb, ta];
-    if (oa > ob) [oa, ob] = [ob, oa];
-    const c =(t, o, f) => { const [x, z] = Fr.at(t, o); return [x, f(t, o), z]; };
-    const u = [Fr.ux, 0, Fr.uz], n = [Fr.nx, 0, Fr.nz], neg = (v) => v.map((q) => -q);
-    if (mask & 4) M.face([c(ta, oa, hi), c(tb, oa, hi), c(tb, ob, hi), c(ta, ob, hi)], [0, 1, 0]);
-    if (mask & 8) M.face([c(ta, oa, lo), c(ta, ob, lo), c(tb, ob, lo), c(tb, oa, lo)], [0, -1, 0]);
-    if (mask & 1) M.face([c(ta, ob, lo), c(tb, ob, lo), c(tb, ob, hi), c(ta, ob, hi)], n);
-    if (mask & 2) M.face([c(ta, oa, lo), c(ta, oa, hi), c(tb, oa, hi), c(tb, oa, lo)], neg(n));
-    if (mask & 16) M.face([c(tb, oa, lo), c(tb, oa, hi), c(tb, ob, hi), c(tb, ob, lo)], u);
-    if (mask & 32) M.face([c(ta, oa, lo), c(ta, ob, lo), c(ta, ob, hi), c(ta, oa, hi)], neg(u));
-  };
+  const sbD = sboxer(D), sbF = sboxer(F), sbox = (M, Fr, ...a) => (Fr === D ? sbD : sbF)(M, ...a);
   const at = (dy) => (t, o) => Y(t, o) + dy, flat = (y) => () => y;
   const minY = Math.min(Y(tS, -DK.edge), Y(tS, DK.edge), Y(tN, -DK.edge), Y(tN, DK.edge)), maxY = Math.max(Y(tS, -DK.edge), Y(tS, DK.edge), Y(tN, -DK.edge), Y(tN, DK.edge));
   const len = tN - tS, tm = (tS + tN) / 2;
@@ -334,15 +232,8 @@ export function buildOverpass({ root, solids: S, heightAt, geo, ground, detailMa
   }
 
   // ---------------------------------------------------------------- carriageway, walks and kerbs in the ground material
-  const top = { p: [], n: [], s: [], i: [] };
+  const top = topMesh(), tq = top.quad;
   const nUp = (() => { const l = Math.hypot(bx, 1, bz); return [-bx / l, 1 / l, -bz / l]; })();
-  const tq = (pts, nrm, surf) => { // quad, wound to face along nrm
-    const b = top.p.length / 3;
-    for (const [x, y, z] of pts) { top.p.push(x, y, z); top.n.push(...nrm); top.s.push(surf); }
-    const [p0, p1, p2] = pts, e1 = [p1[0] - p0[0], p1[1] - p0[1], p1[2] - p0[2]], e2 = [p2[0] - p0[0], p2[1] - p0[1], p2[2] - p0[2]];
-    const f = nrm[0] * (e1[1] * e2[2] - e1[2] * e2[1]) + nrm[1] * (e1[2] * e2[0] - e1[0] * e2[2]) + nrm[2] * (e1[0] * e2[1] - e1[1] * e2[0]);
-    top.i.push(...(f > 0 ? [b, b + 1, b + 2, b, b + 2, b + 3] : [b, b + 2, b + 1, b, b + 3, b + 2]));
-  };
   const P3 = (t, o, dy = 0) => { const [x, z] = D.at(t, o); return [x, Y(t, o) + dy, z]; };
   const NT = Math.max(1, Math.ceil(len / 4));
   for (let k = 0; k < NT; k++) {
@@ -417,9 +308,7 @@ export function buildOverpass({ root, solids: S, heightAt, geo, ground, detailMa
   // ---------------------------------------------------------------- guard rails along the road in the cutting
   let rails = 0;
   {
-    const R = site.road, cum = [0];
-    for (let k = 1; k < R.length; k++) cum.push(cum[k - 1] + Math.hypot(R[k][0] - R[k - 1][0], R[k][1] - R[k - 1][1]));
-    const pointAt = (s) => { let k = 1; while (k < R.length - 1 && cum[k] < s) k++; const f = (s - cum[k - 1]) / (cum[k] - cum[k - 1]), dx = (R[k][0] - R[k - 1][0]) / (cum[k] - cum[k - 1]), dz = (R[k][1] - R[k - 1][1]) / (cum[k] - cum[k - 1]); return [R[k - 1][0] + (R[k][0] - R[k - 1][0]) * f, R[k - 1][1] + (R[k][1] - R[k - 1][1]) * f, dx, dz]; };
+    const R = site.road, cum = cumulate(R);
     const off = ROAD_HW + 0.9;
     for (const sg of [-1, 1]) {
       let run = [];
@@ -442,7 +331,7 @@ export function buildOverpass({ root, solids: S, heightAt, geo, ground, detailMa
         run = [];
       };
       for (let s = site.sr - 84; s < site.sr + 230; s += 2) {
-        const [x, z, dx, dz] = pointAt(s), nx = -dz * sg, nz = dx * sg, px = x + nx * off, pz = z + nz * off;
+        const [x, z, dx, dz] = pointAt(R, cum, s), nx = -dz * sg, nz = dx * sg, px = x + nx * off, pz = z + nz * off;
         // only in the cutting, not across a joining road, and not where a pier or the footbridge frame stands
         const open = cutDepth(px, pz) > 1.2 && !ground?.onAsphalt?.(px, pz) && !ground?.onAsphalt?.(x + nx * (ROAD_HW + 0.4), z + nz * (ROAD_HW + 0.4));
         if (open) run.push([px, g(px, pz) + GY.WALK, pz, nx, nz]); else flush();
@@ -473,45 +362,26 @@ export function buildOverpass({ root, solids: S, heightAt, geo, ground, detailMa
     return SURF.GRASS;
   });
   // lane paint of Dakhnivska on the ground under the deck (strips running along the deck axis)
-  let unpainted = 0;
-  const mk = ground?.root?.children?.find((m) => m.name === 'markings');
-  if (mk?.geometry?.index) {
-    const P = mk.geometry.attributes.position.array, I = mk.geometry.index.array;
-    for (let k = 0; k < I.length; k += 3) {
-      const a = I[k], b = I[k + 1], c = I[k + 2];
-      if (b === a && c === a) continue;
-      const x = (P[3 * a] + P[3 * b] + P[3 * c]) / 3, z = (P[3 * a + 2] + P[3 * b + 2] + P[3 * c + 2]) / 3, [t, o] = D.to(x, z);
-      if (t < tS - 0.5 || t > tN + 0.5 || Math.abs(o) > 8) continue;
-      let lx = 0, lz = 0; // the longest edge: a strip's direction
-      for (const [p, q] of [[a, b], [b, c], [c, a]]) { const ex = P[3 * q] - P[3 * p], ez = P[3 * q + 2] - P[3 * p + 2]; if (ex * ex + ez * ez > lx * lx + lz * lz) { lx = ex; lz = ez; } }
-      if (Math.abs(lx * D.ux + lz * D.uz) < 0.85 * Math.hypot(lx, lz)) continue;
-      I[k + 1] = I[k + 2] = a; unpainted++;
-    }
-    mk.geometry.index.needsUpdate = true;
-  }
+  const unpainted = dropPaint(ground, (x, z, lx, lz) => {
+    const [t, o] = D.to(x, z);
+    return t >= tS - 0.5 && t <= tN + 0.5 && Math.abs(o) <= 8 && Math.abs(lx * D.ux + lz * D.uz) >= 0.85 * Math.hypot(lx, lz);
+  });
 
   // ---------------------------------------------------------------- meshes
   const group = Object.assign(new THREE.Group(), { name: 'overpass' });
   root.add(group);
-  const gmat = (ground?.root?.children ?? []).find((m) => m.material?.name === 'cherkasy-ground')?.material;
-  if (gmat && top.i.length) {
-    const tg = new THREE.BufferGeometry();
-    tg.setAttribute('position', new THREE.Float32BufferAttribute(top.p, 3));
-    tg.setAttribute('normal', new THREE.Float32BufferAttribute(top.n, 3));
-    tg.setAttribute('aSurf', new THREE.Float32BufferAttribute(top.s, 1));
-    tg.setIndex(top.i);
-    group.add(Object.assign(new THREE.Mesh(tg, gmat), { name: 'overpass-road', receiveShadow: true }));
-  }
+  const topM = top.mesh(groundMat(ground), 'overpass-road');
+  if (topM) group.add(topM);
   const mat = detailMat ?? new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85 });
   group.add(Object.assign(new THREE.Mesh(det.build({ part: true }), mat), { name: 'overpass-structure', castShadow: true, receiveShadow: true }));
   const barMat = new THREE.MeshStandardMaterial({ color: C.blue, alphaMap: barTex(), alphaTest: 0.5, side: THREE.DoubleSide, metalness: 0.3, roughness: 0.55 });
   barMat.alphaMap.wrapT = THREE.ClampToEdgeWrapping;
   group.add(Object.assign(new THREE.Mesh(bars.build(), barMat), { name: 'overpass-railing', castShadow: true }));
-  const mkMat = mk?.material ?? new THREE.MeshStandardMaterial({ color: 0xc7c7bd, roughness: 0.7 });
+  const mkMat = ground?.root?.children?.find((m) => m.name === 'markings')?.material ?? new THREE.MeshStandardMaterial({ color: 0xc7c7bd, roughness: 0.7 });
   group.add(Object.assign(new THREE.Mesh(paint.build({ uv: false }), mkMat), { name: 'overpass-paint', receiveShadow: true }));
   const clearRoad = Y(site.tr, 0) - DK.depth - gD(site.tr, 0);
   const clearRail = Y(site.tl, 0) - DK.depth - gD(site.tl, 0);
-  console.log(`[cherkasy] Dakhnivska overpass: deck ${len.toFixed(0)} m (${yS.toFixed(1)}-${yN.toFixed(1)} m), ${rows.length} pier rows, clearance ${clearRoad.toFixed(1)} m road / ${clearRail.toFixed(1)} m track, footbridge ${fL.toFixed(0)} m, ${rails} guard rails, ${SHAPED.cut.size} lattice nodes carved, ${lawned} ground triangles lawned, ${unpainted} paint strips dropped, ${((det.v + bars.v + paint.v + top.p.length / 3) / 1000).toFixed(1)}k verts in ${(performance.now() - t0).toFixed(0)} ms`);
+  console.log(`[cherkasy] Dakhnivska overpass: deck ${len.toFixed(0)} m (${yS.toFixed(1)}-${yN.toFixed(1)} m), ${rows.length} pier rows, clearance ${clearRoad.toFixed(1)} m road / ${clearRail.toFixed(1)} m track, footbridge ${fL.toFixed(0)} m, ${rails} guard rails, ${SHAPED.cut.size} lattice nodes carved, ${lawned} ground triangles lawned, ${unpainted} paint strips dropped, ${((det.v + bars.v + paint.v + top.v) / 1000).toFixed(1)}k verts in ${(performance.now() - t0).toFixed(0)} ms`);
 
   // trees: off the deck and the footbridge and the strip under them
   const bb = (() => { const c = [D.at(tS - 3, -14), D.at(tS - 3, 14), D.at(tN + 3, -14), D.at(tN + 3, 14), F.at(fS - 2, -4), F.at(fN + 2, 4)]; return [Math.min(...c.map((p) => p[0])), Math.min(...c.map((p) => p[1])), Math.max(...c.map((p) => p[0])), Math.max(...c.map((p) => p[1]))]; })();
