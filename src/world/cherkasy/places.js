@@ -65,6 +65,8 @@ export const PLACES = [
   { id: 'atb239', kind: 'improved', name: 'Покращений об’єкт', note: 'АТБ · бульвар Шевченка, 239', issue: 12, bld: [408254373] },
   { id: 'catcafe', kind: 'improved', name: 'Покращений об’єкт', note: 'CatCafe · вул. Байди Вишневецького, 19', issue: 20, bld: [6286345, 422816412] },
   { id: 'praska', kind: 'improved', name: 'Покращений об’єкт', note: 'Будинок-праска · вул. Остафія Дашковича, 4', issue: 20, bld: [258795947, 927234847] },
+  { id: 'ekvator', kind: 'improved', name: 'Покращений об’єкт', note: 'ТЦ «Екватор» · просп. Хіміків, 74', issue: 25, bld: [147261886] },
+  { id: 'sportlife', kind: 'improved', name: 'Покращений об’єкт', note: 'Sport Life · вул. Козацька, 2', issue: 25, bld: [159700781] },
   // sights
   { id: 'mykhailo', kind: 'sight', name: 'Свято-Михайлівський собор', icon: '⛪', bld: [242469769] },
   { id: 'troitsky', kind: 'sight', name: 'Свято-Троїцький собор', icon: '⛪', bld: [157432721] },
