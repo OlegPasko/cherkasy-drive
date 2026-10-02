@@ -131,6 +131,11 @@ See `ARCHITECTURE.md` for the module map. Where things live:
     `hrafskyi` (ЖК «Графський», Байди Вишневецького 68 / Добровольчих Батальйонів 201–203: ten 15- and 17-storey brick
     sections round one yard and the corner shop podium; a window or loggia stack is one pane whose texture holds eight
     storeys with their own lit pattern; `tests/hrafskyi.test.mjs`), `improved`.
+    `olimpmodern` (ЖК «Олімп Модерн», Квіткова 10, on the OSM construction lot; house 1 is OSM way 1526504590, the rest
+    as rendered on lun.ua): a closed quarter of 9–10-storey sections round a yard, laid out as rectangles in its lot frame
+    (`OLIMPM_SECTIONS`), each facade from a module string read off the renders; the yard is draped lawn and paving with
+    the fountain, playground and court. places.js keeps the section outlines as `OLIMPM_RINGS` (a place's `ring` may be a
+    list of rings); `tests/olimpmodern.test.mjs`. `improved`.
   - `places.js` – the sights, the paying partners (kind `ad`) and the non-landmark objects rebuilt on request (kind
     `improved`: a grey footprint only, "Покращений об’єкт" in the big map's legend) for both maps: icon, name, note, the OSM buildings
     whose footprints get highlighted, and for partners the site `url` (with `utm_source=driver.ck.ua`) and the pitch
