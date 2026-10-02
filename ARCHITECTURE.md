@@ -32,7 +32,7 @@ the Dnipro, +z south-east, origin at Soborna square).
         water.js              river surface, reflections, wet shoreline bands
         collision.js          static collision world: grid of boxes / cylinders / prisms; ray, ground height,
                               capsule / box push-out
-        cherkasy/             Oleg's Cherkasy modules: landmarks, ground, city assembly
+        cherkasy/             Oleg's Cherkasy modules: landmarks, ground, city assembly; proxies.js: far boxes for the hand-built buildings
       npc/
         lanes.js              lane graph from OSM roads; junctions; traffic lights
         vehicles.js           loads public/assets/vehicles/*.glb; instanced bodies with LOD and paint colours

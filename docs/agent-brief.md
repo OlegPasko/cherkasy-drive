@@ -86,6 +86,10 @@ stall.
   - Nothing allocates per frame.
   - Small meshes are culled at a distance by `farcull.js` on the lower graphics levels. Set `frustumCulled = false`
     only on things that must stay visible.
+  - On the lower levels a far building of `places.js` is swapped for a plain box at its height and wall colour
+    (`proxies.js`): give the site its own root group with a name, keep its footprints in `places.js` accurate, and
+    check the swap from ~300 m at low (`world.cherkasy.proxies.stats()`). A landmark whose silhouette matters at any
+    distance goes into `KEEP` there.
 - **Moving things** run on the wall clock, like the balloon, plane and yacht, so everyone sees them in the same place.
 - **Light sprites** (nav lights, lamps drawn as points): fixed pixel sizes with HDR colours bloom into big blobs at a
   distance. Scale the size and brightness by camera distance, as `yacht.js` does.

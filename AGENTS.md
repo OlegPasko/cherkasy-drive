@@ -35,8 +35,11 @@ See `ARCHITECTURE.md` for the module map. Where things live:
     `shadows.js`: map size, reach, rate; `sky.js`: cloud octaves, env size), and `world.setQuality(q)` sets what the
     city draws (`DETAIL` in `city.js`): tree LOD bands and tree-shadow reach (`trees.setDetail`), roof-detail and
     building-shadow reach (`buildings.js setDetail`), the hand-built sites' draw-distance cull (`world/farcull.js`:
-    small far meshes leave the picture, far ones stop casting), people and traffic draw reach / LOD distances
-    (`setDrawDistance`; the simulation, mission actors and the traffic's on-screen logic stay the same), the river mirror
+    small far meshes leave the picture, far ones stop casting), the hand-built buildings' far stand-ins
+    (`world/cherkasy/proxies.js`: beyond 250 m at low and 500 m at medium a site holding a `places.js` building is hidden
+    and drawn as plain city-generator boxes on its footprints, at the model's height and wall colour, merged per 512 m
+    cell; built ~4 ms a frame on the first lower level; landmarks with a telling silhouette are kept), people and
+    traffic draw reach / LOD distances (`setDrawDistance`; the simulation, mission actors and the traffic's on-screen logic stay the same), the river mirror
     (off at low, 8 Hz at a smaller size at medium) and the facade window detail (`facadeMat.setDetail`). 'high' is the
     full picture, every module's default. Trees and buildings keep their colliders at every level.
 - `src/kit/` – mesh building blocks:

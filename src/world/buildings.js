@@ -6,7 +6,7 @@
 // Exports
 //   buildBuildings({ map, solids, zips, heightAt, skip, dress, tile = 256, overhangFlag = 1 }) -> result
 //   buildBuildingsAsync({ ...same, sliceMs = 40, onProgress(f) }) -> Promise<result>  (time-sliced, yields between slices)
-//     map.buildings[]: { id, p:[x0,z0,...], holes?, k, lv, h?, mh?, rs?, rc?, bc?, mat?, f?, name?, bt?, am?, parts? }
+//     map.buildings[]: { id, p:[x0,z0,...], holes?, k, lv, h?, mh?, rs?, rc?, bc?, tint?, mat?, f?, name?, bt?, am?, parts? }
 //     heightAt(x, z) -> terrain y            skip: Set of ids replaced by hand-made landmarks (not emitted)
 //     dress({ t, S, Z, b, A, outer, holes, base, H, r, pitched }) optional per-building hook (facade kit); S / Z are
 //       the solids / zips arguments as given, t the building's tile
@@ -235,6 +235,7 @@ export function archetype(b, r) {
   A.layer = look[0];
   A.tint = look[1].map((v) => v * (0.94 + r() * 0.1));
   if (b.bc) { A.layer = LAYER.STUCCO; A.tint = hexLin(b.bc).map((v) => 0.3 + Math.pow(v, 0.45) * 0.85); }
+  if (b.tint) { A.layer = LAYER.STUCCO; A.tint = b.tint; } // a measured wall colour (cherkasy/proxies.js), as is
   if (b.rc) A.roofCol = b.rc;
   if (b.rs) {
     if (/^(gabled|saltbox)$/.test(b.rs)) A.roof = 'gable';
