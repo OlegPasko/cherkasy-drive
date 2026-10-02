@@ -47,6 +47,7 @@ const SITES = {
   pasterivskyi: ['pasterivskyi', 'buildPasterivskyi'],
   voldim: ['voldim', 'buildVoldim'],
   ridnyidim: ['ridnyidim', 'buildRidnyiDim'],
+  shev22: ['shev22', 'buildShev22'],
   premierbay: ['premierbay', 'buildPremierBay', 'levelPremierBay'],
 };
 const MODULES = import.meta.glob('../world/cherkasy/*.js'); // lazy: a module's chunk loads on its first peek

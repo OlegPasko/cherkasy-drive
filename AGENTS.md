@@ -151,6 +151,10 @@ See `ARCHITECTURE.md` for the module map. Where things live:
     the lun.ua renders show them – colour zones down the long fronts with orange, green or teal accents, framed loggia
     stacks, shops on the west ground floors, balconies on the gables – and two playgrounds with pergolas in each yard on a
     draped paving / lawn / rubber floor; `tests/ridnyidim.test.mjs`.
+    `shev22` (the new eight-storey block at бульвар Шевченка 22 / Степана Бандери 35, not in OSM yet, `improved`, as the
+    lun.ua / developer renders show it): charcoal brick with cream pylons framing two-window glazing stacks, a brick corner
+    tower ringed by cream bands, shops between dark marble piers under a deep fascia, a paved forecourt and fenced yard;
+    `SHEV22_BOX` (places.js keeps `SHEV22_RING`); `tests/shev22.test.mjs`.
     ten-storey bars round a yard, white over a brick podium with brick towers and glass balconies; its walls are
     facade-shader quads; `levelPremierBay` levels the lot to the driveways round it and the open corners let a car drive
     into the yard) is `improved` too.
