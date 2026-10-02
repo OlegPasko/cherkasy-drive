@@ -186,6 +186,11 @@ See `ARCHITECTURE.md` for the module map. Where things live:
     service, the NE and SE wings planned) as the lun.ua renders show them – white / chocolate storey bands and turquoise runs
     from a paint atlas (one quad per zone strip), window and loggia stacks, glazed bay loggias on the Кожедуба front, banded
     blind gables – and the yard (driveway, round playground plaza, paths, pitch) on one draped texture; `tests/parkovyi.test.mjs`.
+    `nadpilna249` (the new club house at Надпільна 249, finished 2025, from the lun.ua construction photos and the developer's
+    gallery; not in OSM, on the construction lot by the lane, `NADP249_RING` in places.js): three charcoal-brick sections
+    stepped corner to corner away from the street, joined by pale-brick stair cores, a standing-seam metal top storey,
+    hipped roofs, the street section on columns over an open car port the car can drive into, yard doors under steel
+    canopies, the yellow gas pipe, the yard fence and gate; `tests/nadpilna249.test.mjs`. `improved`.
   - `places.js` – the sights, the paying partners (kind `ad`) and the non-landmark objects rebuilt on request (kind
     `improved`: a grey footprint only, "Покращений об’єкт" in the big map's legend) for both maps: icon, name, note, the OSM buildings
     whose footprints get highlighted, and for partners the site `url` (with `utm_source=driver.ck.ua`) and the pitch

@@ -18,6 +18,7 @@
 //   SHEV22_RING: the new block at бульвар Шевченка, 22 (shev22.js SHEV22_BOX; not in OSM yet)
 //   ONIX_RINGS (onix_data.js): the ЖК Onix sections, one ring each (most of them are not in OSM yet)
 //   NARB10_RING: the outline of the new block at Нарбутівська, 10 (narbutivska10.js)
+//   NADP249_RING: the stepped outline of the new club house at Надпільна, 249 (nadpilna249.js)
 import { ONIX_RINGS } from './onix_data.js';
 
 //   OLIMPM_RINGS: the section outlines of ЖК «Олімп Модерн» (olimpmodern.js; a place's `ring` may be a list of flat rings)
@@ -36,6 +37,8 @@ export const OLIMPM_RINGS = [[-2473.2, -1560.5, -2472.6, -1548.2, -2486.1, -1547
 export const NARB10_RING = [-921.6, 1395.2, -921.6, 1429.1, -947.8, 1429.1, -947.8, 1410.9, -941.6, 1410.9, -941.6, 1395.2];
 // the new block at бульвар Шевченка, 22 (shev22.js SHEV22_BOX; tests/shev22.test.mjs keeps the two in step)
 export const SHEV22_RING = [-65, -2476, -65, -2446, -87, -2446, -87, -2476];
+// the new club house at Надпільна, 249 (nadpilna249.js NADP249_RING, not in OSM yet; tests/nadpilna249.test.mjs compares them)
+export const NADP249_RING = [-696.3, -518.8, -685.9, -518.8, -685.9, -519.4, -681.9, -519.4, -681.9, -516.3, -671.5, -516.3, -671.5, -516.9, -667.5, -516.9, -667.5, -513.8, -657.1, -513.8, -657.1, -503.6, -667.5, -503.6, -667.5, -502.8, -671.5, -502.8, -671.5, -506.1, -681.9, -506.1, -681.9, -505.3, -685.9, -505.3, -685.9, -508.6, -696.3, -508.6];
 
 export const PLACES = [
   // partners (paid placements; the other hand-built venues stay in the world but are not advertised)
@@ -110,6 +113,7 @@ export const PLACES = [
   { id: 'narbutivska10', kind: 'improved', name: 'Покращений об’єкт', note: 'Новобудова · вул. Нарбутівська, 10', ring: NARB10_RING },
   { id: 'parkovyi', kind: 'improved', name: 'Покращений об’єкт', note: 'ЖК «Парковий квартал» · вул. Івана Кожедуба, 59', bld: [1522301396, 1522301395, 984246825, 1430817645, 1560091949, 1430817647, 1430817646] },
   { id: 'shev22', kind: 'improved', name: 'Покращений об’єкт', note: 'Новобудова · бульвар Шевченка, 22', ring: SHEV22_RING },
+  { id: 'nadpilna249', kind: 'improved', name: 'Покращений об’єкт', note: 'Новобудова · вул. Надпільна, 249', ring: NADP249_RING },
   // sights
   { id: 'mykhailo', kind: 'sight', name: 'Свято-Михайлівський собор', icon: '⛪', bld: [242469769] },
   { id: 'troitsky', kind: 'sight', name: 'Свято-Троїцький собор', icon: '⛪', bld: [157432721] },
