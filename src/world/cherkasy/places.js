@@ -36,6 +36,8 @@ export const OLIMPM_RINGS = [[-2473.2, -1560.5, -2472.6, -1548.2, -2486.1, -1547
 export const NARB10_RING = [-921.6, 1395.2, -921.6, 1429.1, -947.8, 1429.1, -947.8, 1410.9, -941.6, 1410.9, -941.6, 1395.2];
 // the new block at бульвар Шевченка, 22 (shev22.js SHEV22_BOX; tests/shev22.test.mjs keeps the two in step)
 export const SHEV22_RING = [-65, -2476, -65, -2446, -87, -2446, -87, -2476];
+// the new block at бульвар Шевченка, 184–186 (shev184.js shev184Local.outline(), not in OSM yet; tests/shev184.test.mjs keeps them in step)
+export const SHEV184_RING = [-75.2, -592, -74.5, -591.9, -73.8, -591.6, -73.2, -591.2, -72.8, -590.6, -72.5, -589.9, -72.4, -589.2, -72.6, -563, -91.1, -563.1, -90.9, -592.1];
 
 export const PLACES = [
   // partners (paid placements; the other hand-built venues stay in the world but are not advertised)
@@ -110,6 +112,7 @@ export const PLACES = [
   { id: 'narbutivska10', kind: 'improved', name: 'Покращений об’єкт', note: 'Новобудова · вул. Нарбутівська, 10', ring: NARB10_RING },
   { id: 'parkovyi', kind: 'improved', name: 'Покращений об’єкт', note: 'ЖК «Парковий квартал» · вул. Івана Кожедуба, 59', bld: [1522301396, 1522301395, 984246825, 1430817645, 1560091949, 1430817647, 1430817646] },
   { id: 'shev22', kind: 'improved', name: 'Покращений об’єкт', note: 'Новобудова · бульвар Шевченка, 22', ring: SHEV22_RING },
+  { id: 'shev184', kind: 'improved', name: 'Покращений об’єкт', note: 'Новобудова · бульвар Шевченка, 184–186', ring: SHEV184_RING },
   // sights
   { id: 'mykhailo', kind: 'sight', name: 'Свято-Михайлівський собор', icon: '⛪', bld: [242469769] },
   { id: 'troitsky', kind: 'sight', name: 'Свято-Троїцький собор', icon: '⛪', bld: [157432721] },

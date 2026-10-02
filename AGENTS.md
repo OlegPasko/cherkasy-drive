@@ -186,6 +186,11 @@ See `ARCHITECTURE.md` for the module map. Where things live:
     service, the NE and SE wings planned) as the lun.ua renders show them – white / chocolate storey bands and turquoise runs
     from a paint atlas (one quad per zone strip), window and loggia stacks, glazed bay loggias on the Кожедуба front, banded
     blind gables – and the yard (driveway, round playground plaza, paths, pitch) on one draped texture; `tests/parkovyi.test.mjs`.
+    `shev184` (the new nine-storey block of developer «Надія» at бульвар Шевченка 184–186, not in OSM yet: placed from
+    the lun.ua site plan over the old lot houses, built section by section from the renders – the rounded glazed corner
+    tower between timber strips and mint pilasters with green LED lines, the white balcony bay and the arched pediments
+    with an oculus, grey render with timber spandrels, a dark shop storey under a fascia, a two-storey drive-through to
+    the yard; places.js keeps its outline as `SHEV184_RING`; `tests/shev184.test.mjs`) is `improved` too.
   - `places.js` – the sights, the paying partners (kind `ad`) and the non-landmark objects rebuilt on request (kind
     `improved`: a grey footprint only, "Покращений об’єкт" in the big map's legend) for both maps: icon, name, note, the OSM buildings
     whose footprints get highlighted, and for partners the site `url` (with `utm_source=driver.ck.ua`) and the pitch
