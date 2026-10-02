@@ -28,6 +28,7 @@ the Dnipro, +z south-east, origin at Soborna square).
         facade.js             building facade material: window grid, floors, lit windows at night, per-building style
         buildings.js          extruded OSM footprints -> walls + roofs using facade.js
         trees.js              procedural low-poly trees, instanced LODs, breakable items
+        farcull.js            draw-distance cull of the hand-built sites on the lower graphics levels (layer 0 off)
         water.js              river surface, reflections, wet shoreline bands
         collision.js          static collision world: grid of boxes / cylinders / prisms; ray, ground height,
                               capsule / box push-out

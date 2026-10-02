@@ -30,6 +30,15 @@ See `ARCHITECTURE.md` for the module map. Where things live:
     lowers the render pixel ratio in ~0.2 steps (1.6 → 1.4 → 1.2 → 1.0, never below 1 or the quality's own base) and
     gives it back once there is room; reset on every quality change, never saved. `?noadapt` turns it off.
   - Shadows use three's `SunLight` with 2 cascades.
+  - Graphics levels (`QUALITY_LEVELS` low / medium / high in `main.js`, saved as `cd.quality`; G steps down, F9 cycles,
+    both live, no reload). Each render module has its own table (`post.js`: AO, AA, render scale, max pixel ratio;
+    `shadows.js`: map size, reach, rate; `sky.js`: cloud octaves, env size), and `world.setQuality(q)` sets what the
+    city draws (`DETAIL` in `city.js`): tree LOD bands and tree-shadow reach (`trees.setDetail`), roof-detail and
+    building-shadow reach (`buildings.js setDetail`), the hand-built sites' draw-distance cull (`world/farcull.js`:
+    small far meshes leave the picture, far ones stop casting), people and traffic draw reach / LOD distances
+    (`setDrawDistance`; the simulation, mission actors and the traffic's on-screen logic stay the same), the river mirror
+    (off at low, 8 Hz at a smaller size at medium) and the facade window detail (`facadeMat.setDetail`). 'high' is the
+    full picture, every module's default. Trees and buildings keep their colliders at every level.
 - `src/kit/` – mesh building blocks:
   - `mesh.js` – `MeshBuilder`/`MB`, `M4`, `hexLin`;
   - `logo.js` – brand SVGs from `public/assets/brand/` as recoloured textures (the Everlabs plate on the car, roof signs), or in their own colours (`color: null`, the Торс disc, the URBAN letters); a new logo adds its aspect to `ASPECT`;
@@ -40,6 +49,7 @@ See `ARCHITECTURE.md` for the module map. Where things live:
   - `facade.js` and `materials.js` – the facade shader, lit windows and the `DP` part ids;
   - `buildings.js` – OSM building extrusion;
   - `trees.js` – procedural trees with LODs and breakable items;
+  - `farcull.js` – the draw-distance cull of the hand-built sites on the lower graphics levels;
   - `water.js`;
   - `collision.js` – boxes, cylinders and prisms in a grid, with `walkSlope`.
 - `src/world/cherkasy/` – the city itself:
@@ -215,7 +225,8 @@ See `ARCHITECTURE.md` for the module map. Where things live:
   `__game.start()` resumes the loop. Use this for scripted checks.
 - In the game: M opens the city map (Esc or M closes it), H (or the always-visible H chip) shows the controls card –
   every key, grouped; add new keys to `HELP` in `hud.js` –, F2 hides the HUD, T cycles the time of day (morning, midday, evening – no night),
-  Q turns the radio on / off and E skips a track, F honks the horn (people in a cone ahead dash off to the sides), G lowers the graphics quality one step (from the lowest back to the highest), F9 cycles quality, B (or Home, or the "На старт" chip) takes a stuck car back to the start, N skips a mission call, O opens a partner's site inside its ring, Enter retries after a failure, and Backspace abandons a mission.
+  Q turns the radio on / off and E skips a track, F honks the horn (people in a cone ahead dash off to the sides), G lowers the graphics quality one step (from the lowest back to the highest; besides the post chain a lower level draws
+  less: shorter tree / building / site / people / traffic draw and shadow distances, no river mirror at low), F9 cycles quality, B (or Home, or the "На старт" chip) takes a stuck car back to the start, N skips a mission call, O opens a partner's site inside its ring, Enter retries after a failure, and Backspace abandons a mission.
 - Chrome gives hidden tabs no animation frames, so a background tab looks frozen. Keep the tab in front, or use
   `tick()`.
 - Reversed depth buffer: use `decalBias()` from `render/renderer.js` for decals and road markings, never

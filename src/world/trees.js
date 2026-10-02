@@ -23,6 +23,9 @@
 //   trees.touch(item); trees.setWind(dirX, dirZ, strength); trees.stats(); trees.dispose(); trees.group; trees.palettes.
 //     stats(): near / mid / far count the rows camera passes draw; casters = near + mid rows the shadow pass draws.
 //   trees.setCulling(on = true): view culling on / off (A/B checks; on by default).
+//   trees.setDetail({ nearOut?, midOut?, farOut?, shadow? }) the graphics quality's LOD bands (metres, as LOD below; a
+//     missing key = the default) -> fades and the next repack follow at once; trees.detail reads them. Draw only:
+//     items, trunks and collision never change.
 // LODs: near detail < ~80 m, mid (simplified, same layout) to ~320 m, one shared far crown per round / cone shape to
 // 1.5 km; dithered cross-fades between them. Near + mid trees within 160 m cast shadows. Repacking is CPU work only
 // when the camera moved 5 m (near / mid) or 30 m (far), or a tree changed.
@@ -155,6 +158,7 @@ float bayer4(vec2 a) { return bayer2(0.5 * a) * 0.25 + bayer2(a) + 0.03125; }`)
 if (vFadeIn < 1.0 || vFadeOut < 1.0) { float th = bayer4(gl_FragCoord.xy); if (vFadeIn < 1.0 - th || vFadeOut <= th) discard; }`);
   };
   m.customProgramCacheKey = () => 'tree' + (far ? 'F' : 'N');
+  m.userData.uFade = uFade;
   return m;
 }
 
@@ -297,9 +301,10 @@ export function buildTrees({ scene, spots = [], maxScale = 1, shadows = true, he
   // ---- pools
   const vCount = new Int32Array(VN.length); for (const it of out.items) vCount[it._v]++;
   const cap = (n, lim) => Math.max(1, Math.min(n, Math.floor(lim * Math.max(1, maxScale))));
-  const matNear = treeMaterial([-2, -1, LOD.nearOut[0], LOD.nearOut[1]], false);
-  const matMid = treeMaterial([LOD.nearOut[0], LOD.nearOut[1], LOD.midOut[0], LOD.midOut[1]], false);
-  const matFar = treeMaterial([LOD.midOut[0], LOD.midOut[1], LOD.farOut[0], LOD.farOut[1]], true);
+  const lod = { ...LOD }; // the live distances (setDetail)
+  const matNear = treeMaterial([-2, -1, lod.nearOut[0], lod.nearOut[1]], false);
+  const matMid = treeMaterial([lod.nearOut[0], lod.nearOut[1], lod.midOut[0], lod.midOut[1]], false);
+  const matFar = treeMaterial([lod.midOut[0], lod.midOut[1], lod.farOut[0], lod.farOut[1]], true);
   const near = [], midA = [], midB = [], far = [];
   VN.forEach((v, i) => {
     if (!vCount[i]) { near.push(null); midA.push(null); midB.push(null); return; }
@@ -414,7 +419,7 @@ export function buildTrees({ scene, spots = [], maxScale = 1, shadows = true, he
   function packNear(c) {
     for (const P of NM) P.n = 0;
     spill = false;
-    const M = LOD.moveNear + 3, R = LOD.midOut[1] + M, pad = swayPad();
+    const M = lod.moveNear + 3, R = lod.midOut[1] + M, pad = swayPad();
     let nl = 0; culledView = 0;
     cellRange(c.x, c.z, R);
     for (let j = CR[2]; j <= CR[3]; ++j) for (let i = CR[0]; i <= CR[1]; ++i) {
@@ -423,14 +428,14 @@ export function buildTrees({ scene, spots = [], maxScale = 1, shadows = true, he
       for (let k = cellStart[cell]; k < cellStart[cell + 1]; ++k) {
         const it = order[k]; if (it.hidden) continue;
         const d = Math.hypot(it._x - c.x, it._y - c.y, it._z - c.z), o = k * 24;
-        const inNear = d < LOD.nearOut[1] + M, inMid = d > LOD.nearOut[0] - M && d < R;
+        const inNear = d < lod.nearOut[1] + M, inMid = d > lod.nearOut[0] - M && d < R;
         if (!inNear && !inMid) continue;
         if (WN.on) {
           const px = it._x - c.x, pz = it._z - c.z, x3 = k * 3, r = ext[x3] + pad * ext[x3 + 2] + M;
           const a = WN.n1x * px + WN.n1z * pz, b = WN.n2x * px + WN.n2z * pz;
           if (a >= r && b >= r) { // out of view; a caster stays while its shadow can reach the view
             culledView++;
-            if (!shadows || !(inNear || d < LOD.shadow)) continue;
+            if (!shadows || !(inNear || d < lod.shadow)) continue;
             if (sun.known && !sun.long) {
               const h = ext[x3 + 1] + Math.max(0, it._y - yLow);
               if (a + h * WN.s1 >= r && b + h * WN.s2 >= r) continue;
@@ -439,15 +444,15 @@ export function buildTrees({ scene, spots = [], maxScale = 1, shadows = true, he
           }
         }
         if (inNear) copy(near[it._v], rec, o);
-        if (inMid) copy(d < LOD.shadow ? midA[it._v] : midB[it._v], rec, o);
+        if (inMid) copy(d < lod.shadow ? midA[it._v] : midB[it._v], rec, o);
       }
     }
     for (const P of NM) P.nv = P.n;
     // shadow-only rows go after the visible ones
     for (let q2 = 0; q2 < nl; ++q2) {
       const k = later[q2], it = order[k], d = Math.hypot(it._x - c.x, it._y - c.y, it._z - c.z);
-      if (d < LOD.nearOut[1] + M) copy(near[it._v], rec, k * 24);
-      if (d > LOD.nearOut[0] - M && d < LOD.shadow) copy(midA[it._v], rec, k * 24);
+      if (d < lod.nearOut[1] + M) copy(near[it._v], rec, k * 24);
+      if (d > lod.nearOut[0] - M && d < lod.shadow) copy(midA[it._v], rec, k * 24);
     }
     shadowOnly = nl;
     if (spill && WN.on) { WN.on = false; WN.H = Math.PI; packNear(c); return; } // full pool: keep the unculled pick
@@ -456,11 +461,11 @@ export function buildTrees({ scene, spots = [], maxScale = 1, shadows = true, he
   }
   function packFar(c) {
     for (const P of FP) P.n = 0;
-    const M = LOD.moveFar + 10, R = LOD.farOut[1] + M, pad = swayPad(), half = CELL * 0.5;
+    const M = lod.moveFar + 10, R = lod.farOut[1] + M, pad = swayPad(), half = CELL * 0.5;
     cellRange(c.x, c.z, R);
     for (let j = CR[2]; j <= CR[3]; ++j) for (let i = CR[0]; i <= CR[1]; ++i) {
       hDist(i, j, c.x, c.z); const cell = j * gnx + i;
-      if (HD[0] > R || Math.hypot(HD[1], Math.abs(c.y - cellY[cell]) + 30) < LOD.midOut[0] - M) continue;
+      if (HD[0] > R || Math.hypot(HD[1], Math.abs(c.y - cellY[cell]) + 30) < lod.midOut[0] - M) continue;
       if (WF.on) { // the whole cell (its centre +- half a diagonal, the widest crown in it) behind the camera
         const px = gx0 + i * CELL + half - c.x, pz = gz0 + j * CELL + half - c.z, r = half * Math.SQRT2 + cellRh[cell] + pad * cellSm[cell] + M;
         if (WF.n1x * px + WF.n1z * pz >= r && WF.n2x * px + WF.n2z * pz >= r) continue;
@@ -484,11 +489,11 @@ export function buildTrees({ scene, spots = [], maxScale = 1, shadows = true, he
     const t = (globalThis.performance ?? Date).now();
     let moveN = force && packedFrame !== frame, moveF = false;
     if (dirty.size) {
-      for (const it of dirty) { write(it); if (Math.hypot(it._x - cam.x, it._z - cam.z) > LOD.midOut[0] - 80) moveF = true; }
+      for (const it of dirty) { write(it); if (Math.hypot(it._x - cam.x, it._z - cam.z) > lod.midOut[0] - 80) moveF = true; }
       dirty.clear(); moveN = true;
     }
-    if (cam.distanceTo(lastN) > LOD.moveNear) moveN = true;
-    if (cam.distanceTo(lastF) > LOD.moveFar) moveF = true;
+    if (cam.distanceTo(lastN) > lod.moveNear) moveN = true;
+    if (cam.distanceTo(lastF) > lod.moveFar) moveF = true;
     // a turn (or a snap) that brings the left-out wedge into view repacks before this frame renders
     measureView(viewCam);
     const lit = sunMoved(), cullN = cullDirty || lit || !covers(WN), cullF = cullDirty || !covers(WF);
@@ -508,6 +513,14 @@ export function buildTrees({ scene, spots = [], maxScale = 1, shadows = true, he
   Object.assign(out, {
     update(dt, camPos, camera) { frame++; U.uTime.value += Number.isFinite(dt) ? dt : 0; if (camera) viewCam = camera; refresh(camPos, false); },
     setCulling(on = true) { if (cullOn !== !!on) { cullOn = !!on; cullDirty = true; } },
+    // the graphics quality's draw distances: nothing given = the defaults (LOD); repacks on the next update
+    setDetail({ nearOut = LOD.nearOut, midOut = LOD.midOut, farOut = LOD.farOut, shadow = LOD.shadow } = {}) {
+      Object.assign(lod, { nearOut, midOut, farOut, shadow });
+      matNear.userData.uFade.value.set(-2, -1, nearOut[0], nearOut[1]);
+      matMid.userData.uFade.value.set(nearOut[0], nearOut[1], midOut[0], midOut[1]);
+      matFar.userData.uFade.value.set(midOut[0], midOut[1], farOut[0], farOut[1]);
+      lastN.set(1e9, 0, 0); lastF.set(1e9, 0, 0); cullDirty = true;
+    },
     touch(it) { if (it) dirty.add(it); },
     trunkOf,
     addSolids(sink) {
@@ -536,6 +549,7 @@ export function buildTrees({ scene, spots = [], maxScale = 1, shadows = true, he
     },
     setWind(dirX, dirZ, strength = 1) { U.uWind.value.set(dirX, dirZ, strength); cullDirty = true; }, // sway pads the bounds
   });
+  Object.defineProperty(out, 'detail', { get: () => ({ nearOut: lod.nearOut, midOut: lod.midOut, farOut: lod.farOut, shadow: lod.shadow }) });
   const buildMs = (globalThis.performance ?? Date).now() - t0;
   if (skipped || over) console.warn(`[trees] skipped ${skipped} invalid spots, ${over} over the ${budget} budget`);
   return out;

@@ -6,14 +6,16 @@
 //   buildBuildings({ map, solids, zips, heightAt, skip, dress? }) -> { tiles, footprints, boxes: [{ min: [x,y,z], max, id }], landmarks, stats }
 //     the legacy call shape (sync); solids: collision world (box / prism / cyl), zips: anchor store (edge / add)
 //   buildCityBuildings({ root, map, hf, solids, zips, skip, facadeMat, detailMat, useWorkers?, workers?, onProgress?(f) })
-//     -> Promise<{ B: { footprints, boxes, landmarks, stats }, facade, detail (kit/batch.js batches), meshes, update(camPos), stats() }>
+//     -> Promise<{ B: { footprints, boxes, landmarks, stats }, facade, detail (kit/batch.js batches), meshes, update(camPos),
+//        setDetail({ detailFar?, detailShadow?, facadeShadow? }) (the graphics quality's distances below), stats() }>
 //     With useWorkers and Worker support the footprints are split into 256 m stripes over `workers` module workers
 //     (each is posted only its share of the already parsed map.buildings – one JSON parse in all, no worker holds the
 //     whole list –, builds it with the facade kit, and sends back packed tile geometry plus
 //     recorded solids / anchors, replayed here into `solids` / `zips` in share order as the replies come in; a failed
 //     worker's share is built here instead); without workers one time-sliced pass on this thread.
 //     hf: ground.js height field (hf.heightAt, hf.data for the workers).
-//   Distances: roof detail drawn to 2.6 km and casts within 350 m; facades cast shadows within 900 m.
+//   Distances ('high', the defaults): roof detail drawn to 2.6 km and casts within 350 m; facades cast shadows within
+//   900 m. The lower graphics levels shorten them through setDetail (city.js DETAIL).
 import { buildBuildings as generate, buildBuildingsAsync } from '../buildings.js';
 import { batchTiles, mergeGeometries } from '../../kit/batch.js';
 import { heightFieldFrom } from './ground.js';
@@ -168,14 +170,19 @@ export async function buildCityBuildings({ root, map, hf, solids, zips, skip = n
 
   // per-tile LOD (the merged 512 m mesh follows its nearest tile), re-evaluated after the camera moved 20 m
   let lx = Infinity, lz = Infinity;
+  const D = { detailFar: DETAIL_FAR, detailShadow: DETAIL_SHADOW, facadeShadow: FACADE_SHADOW };
   function update(p) {
     if (!p || (p.x - lx) ** 2 + (p.z - lz) ** 2 < 400) return;
     lx = p.x; lz = p.z;
     for (const t of info) {
       const gap = Math.hypot(Math.max(0, Math.abs(p.x - t.cx) - HALF), Math.max(0, Math.abs(p.z - t.cz) - HALF));
-      if (t.det) { detail.setVisible(t.i, gap < DETAIL_FAR); detail.setShadow(t.i, gap < DETAIL_SHADOW); }
-      if (t.fac) facade.setShadow(t.i, gap < FACADE_SHADOW);
+      if (t.det) { detail.setVisible(t.i, gap < D.detailFar); detail.setShadow(t.i, gap < D.detailShadow); }
+      if (t.fac) facade.setShadow(t.i, gap < D.facadeShadow);
     }
   }
-  return { B, facade, detail, meshes, update, stats: () => ({ ...B.stats, tiles: info.length, ms, facade: facade.stats(), detail: detail.stats() }) };
+  // the graphics quality's distances (a missing key = the default); applied on the next update
+  function setDetail({ detailFar = DETAIL_FAR, detailShadow = DETAIL_SHADOW, facadeShadow = FACADE_SHADOW } = {}) {
+    Object.assign(D, { detailFar, detailShadow, facadeShadow }); lx = lz = Infinity;
+  }
+  return { B, facade, detail, meshes, update, setDetail, stats: () => ({ ...B.stats, tiles: info.length, ms, facade: facade.stats(), detail: detail.stats() }) };
 }

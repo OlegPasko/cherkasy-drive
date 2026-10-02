@@ -28,6 +28,8 @@
 //   textures, materials { facade, detail, ground }, cherkasy { map, ground, hf, B, sites, setCam([x,y,z,tx,ty,tz] | null) }
 //   bridgeLimit null, bridgeDeckY() null, propAnchors() / grabbables() [], grabProp() null, releaseProp()  (unused hooks)
 //   update(dt, camera)   everything per frame (water, trees, LOD, landmarks, traffic, people, debris)
+//   setQuality('low' | 'medium' | 'high')   what the graphics level draws (DETAIL below: tree / building / site / people /
+//     traffic draw and shadow distances, the river mirror, facade window detail); live, 'high' = the full picture
 //   stats() -> { loadMs, stages, solids, trees, traffic, people, ... }
 // Oleg's hand-built sites (landmarks.js, pagorb.js, rosevalley.js, ... facadekit.js, billboards.js) are optional: each is loaded and
 // called inside its own guard, so the city still builds if one is missing or throws. A site builder that reads `ground`
@@ -49,6 +51,7 @@ import { buildCherkasyTraffic } from './traffic.js';
 import { loadTrafficVehicles } from '../../npc/vehicles.js';
 import { ringPts, bboxOf } from './geo.js';
 import { resolvePlaces } from './places.js';
+import { createFarCull } from '../farcull.js';
 
 // Oleg's site modules, resolved at build time; a file that does not exist yet is simply absent
 const SITE_MODULES = import.meta.glob(['./landmarks.js', './frame.js', './restinn.js', './yalynka.js', './pagorb.js', './rosevalley.js',
@@ -75,6 +78,27 @@ const GROUND_SITES = new Set(['rosevalley', 'restaurants', 'beaches', 'yachtclub
 // a macrotask turn (not a frame): lets worker messages in between synchronous builds
 const nextTask = () => new Promise((res) => { const ch = new MessageChannel(); ch.port1.onmessage = () => { ch.port1.close(); res(); }; ch.port2.postMessage(0); });
 const nextFrame = () => new Promise((res) => (typeof requestAnimationFrame === 'function' && !document.hidden ? requestAnimationFrame(() => res()) : setTimeout(res, 0)));
+
+// What each graphics level draws (world.setQuality; the post chain, shadows and sky have their own tables). 'high' is
+// every module's default; the lower levels shorten draw and shadow distances and simplify far detail, never the
+// simulation, the collision or what missions use. Measured in the centre (M5 Pro, 1280x760): the sites are ~450-690 of
+// ~800-1000 draw calls, the river mirror re-renders the scene (~550 calls a capture), trees 0.4-1 M triangles.
+//   trees: LOD bands (trees.js setDetail); bld: roof-detail reach, roof / facade shadow reach (buildings.js);
+//   sites: farcull.js (ratio: hidden under ratio x distance, shadow: no shadow beyond); people / traffic: [draw reach m,
+//   LOD distance factor]; water: the river mirror (on, hz, scale); facade: window-detail distance divisor (facade.js)
+const DETAIL = {
+  high: { trees: {}, bld: {}, sites: {}, people: [300, 1], traffic: [700, 1], water: { on: true }, facade: 1 },
+  medium: {
+    trees: { nearOut: [55, 68], midOut: [220, 250], farOut: [1100, 1250], shadow: 110 },
+    bld: { detailFar: 1800, detailShadow: 250, facadeShadow: 600 },
+    sites: { ratio: 1 / 150, shadow: 450 }, people: [220, 0.85], traffic: [500, 0.85], water: { on: true, hz: 8, scale: 0.3 }, facade: 1.4,
+  },
+  low: {
+    trees: { nearOut: [40, 50], midOut: [150, 175], farOut: [900, 1050], shadow: 60 },
+    bld: { detailFar: 1100, detailShadow: 150, facadeShadow: 300 },
+    sites: { ratio: 1 / 60, shadow: 200 }, people: [150, 0.7], traffic: [350, 0.7], water: { on: false }, facade: 2,
+  },
+};
 
 // spawn: vul. Serzhanta Zhuzhomy, the far kerb across from tower No 4 (zhuzhoma.js), looking at it
 const SPAWN = [886, 506], SPAWN_LOOK = [831, 530], CAR_DIR = [-0.55, -0.83];
@@ -148,6 +172,7 @@ export async function buildCherkasy({ scene, renderer, onProgress = null, params
   // do not read `ground` build while its workers run (heightAt is the same height field), one per task so the worker
   // replies get through; the rest (GROUND_SITES) follow once it is in. The list order stays the order of `sites`.
   const base = { root, T, map, solids: collision, zips, heightAt: hf.heightAt, ground: null, geo, facadeMat, detailMat };
+  const before = new Set(root.children); // what the sites add is theirs (farcull.js); the ground and buildings land meanwhile
   const landmarks = S.landmarks?.buildLandmarks ? guard('landmarks', () => S.landmarks.buildLandmarks(base), {}) : {};
   const yalynka = S.yalynka?.buildYalynka ? guard('yalynka', () => S.yalynka.buildYalynka(base), {}) : {};
   const hero = S.restinn?.buildRestInn ? guard('Rest Inn', () => S.restinn.buildRestInn(base), {}) : {};
@@ -189,6 +214,8 @@ export async function buildCherkasy({ scene, renderer, onProgress = null, params
   stage('sites', 0.5, 'Будинки…');
   const Bld = await bldP;
   const B = Bld.B;
+  const notSite = new Set([...before, ground.root, ...Bld.meshes]);
+  const farCull = createFarCull(root.children.filter((o) => !notSite.has(o)));
   for (const s of sites) if (s.footprints) B.footprints.push(...s.footprints);
   // replaced OSM buildings keep their footprints (trees avoid them, the minimap draws them)
   const kept = new Set([...(S.landmarks?.LANDMARK_SKIP ?? []), ...HERO_SKIP, ...(S.restaurants?.RESTAURANT_SKIP ?? []), 1011542999]);
@@ -299,11 +326,19 @@ export async function buildCherkasy({ scene, renderer, onProgress = null, params
       geoDebug.update(camera);
       landmarks.update?.(dt, camera); hero.update?.(dt, camera); yalynka.update?.(dt, camera);
       for (const s of sites) s.update?.(dt, camera);
+      farCull.update(camPos);
       debris.update(dt); treeBreak.update(dt);
       try { traffic?.update(dt, camera); people?.update(dt, camera); } catch (e) { if (!lifeErr) { lifeErr = true; console.error('[cherkasy] life update failed', e); } }
     },
+    // the graphics level ('low' | 'medium' | 'high'), live: see DETAIL
+    setQuality(q) {
+      const D = DETAIL[q] || DETAIL.high;
+      trees.setDetail(D.trees); Bld.setDetail(D.bld); farCull.set(D.sites); facadeMat.setDetail(D.facade);
+      people?.setDrawDistance(...D.people); traffic?.sim?.setDrawDistance(...D.traffic);
+      water.setReflection(D.water.on, D.water);
+    },
     stats: () => ({ loadMs: world.loadMs, stages, solids: collision.count, zips: zips.count, buildings: Bld.stats(), ground: ground.stats, trees: trees.stats(),
-      spots: spots.stats, traffic: traffic?.stats() ?? null, people: people?.stats?.() ?? null, treeBreak: treeBreak.stats(), sites: sites.length, modules: Object.keys(S) }),
+      spots: spots.stats, farCull: farCull.stats(), traffic: traffic?.stats() ?? null, people: people?.stats?.() ?? null, treeBreak: treeBreak.stats(), sites: sites.length, modules: Object.keys(S) }),
   };
   world.loadMs = Math.round(performance.now() - t0);
   console.log(`[cherkasy] built in ${world.loadMs} ms: ${B.footprints.length} buildings, ${collision.count} solids, ${spots.length} trees, ${sites.length} sites | ${Object.entries(stages).map(([k, v]) => k + ' ' + v).join(', ')}`);

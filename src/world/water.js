@@ -8,7 +8,8 @@
 //     (unit vector from skirtCenter): false -> a dull land-coloured band there, fogged into the horizon.
 //     renderer enables a planar reflection (reduced resolution, reflectHz, oblique near plane, faded out when
 //     shoreDist(camera) says the river is far away); without it the material falls back to the scene environment.
-//     water.update(dt, camera?) every frame (camera may be missing); water.setReflection(on); water.reflectCull(obj) ->
+//     water.update(dt, camera?) every frame (camera may be missing); water.setReflection(on, { hz, scale }?)
+//     (rate and size, the build values when left out); water.reflectCull(obj) ->
 //     unregister(): obj (drawn with frustumCulled = false, e.g. the player car) is left out of a capture whose view its
 //     world bounds miss – no visible change, its draw calls saved; water.setSkyAdd(rgb):
 //     extra sky radiance when the scene has no environment map; water.mesh; water.material; water.y; water.stats();
@@ -183,6 +184,7 @@ export function buildWater({ scene, renderer = null, shoreDist = null, skirtWate
   }
 
   // ---- planar reflection, rendered from inside the main render (onBeforeRender) at reduced size and rate
+  const HZ0 = reflectHz, SCALE0 = reflectScale; // setReflection's defaults
   const R = { on: planar, rt: null, cam: new PerspectiveCamera(), weight: 0, busy: false, failed: false, ms: 0, renders: 0, culled: 0 };
   const last = { t: -1e9, pos: new Vector3(1e9, 0, 0), dir: new Vector3() };
   const eye = new Vector3(), look = new Vector3(), bufSize = new Vector2(), qTmp = new Quaternion();
@@ -267,7 +269,7 @@ export function buildWater({ scene, renderer = null, shoreDist = null, skirtWate
       R.weight += (target - R.weight) * Math.min(1, (dt || 0) * 3);
       u.uReflW.value = u.tRefl.value && !R.failed ? R.weight * 0.9 : 0;
     },
-    setReflection(on) { R.on = !!on && planar; if (!R.on) u.uReflW.value = 0; },
+    setReflection(on, { hz = HZ0, scale = SCALE0 } = {}) { R.on = !!on && planar; reflectHz = hz; reflectScale = scale; if (!R.on) u.uReflW.value = 0; },
     reflectCull(obj) { if (obj) cullSet.add(obj); return () => cullSet.delete(obj); },
     setSkyAdd(c) { if (c) u.uSkyAdd.value.set(c[0] ?? c.r, c[1] ?? c.g, c[2] ?? c.b); },
     stats: () => ({ planar: planar && R.on && !R.failed, reflWeight: +R.weight.toFixed(2), reflRenders: R.renders, reflMs: +R.ms.toFixed(2), reflCulled: R.culled, rt: R.rt ? [R.rt.width, R.rt.height] : null }),

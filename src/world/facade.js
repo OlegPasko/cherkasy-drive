@@ -19,7 +19,9 @@
 //     depth (reveal m), margin (blank m at wall ends for ribbons), tint [r,g,b] (multiplies the layer, 0..2),
 //     baseY (floor line the grid counts from, default y0), topY (wall top for the parapet band, default y1), plinth (m)
 //   gH: ground floor height; > 0 = storefront floor of that height, < 0 = plain ground floor ending at |gH|, 0 = auto
-//   createFacadeMaterial(T) -> MeshStandardMaterial (shared by all facade tiles; night via materials.js cityUniforms)
+//   createFacadeMaterial(T) -> MeshStandardMaterial (shared by all facade tiles; night via materials.js cityUniforms);
+//     mat.setSigns(tex), mat.setDetail(k = 1): k > 1 trades the window detail (frames, rooms, blinds) for the flat
+//     far average k times nearer – the lower graphics levels; 1 is the full picture
 import * as THREE from 'three';
 import { Grow, triangulateRings } from '../kit/mesh.js';
 import { WALL_LAYERS } from '../kit/textures.js';
@@ -175,6 +177,7 @@ uniform float layerScale[${WALL_LAYERS.length}];
 uniform sampler2D tNoise;
 uniform sampler2D tSigns;
 uniform float hasSigns;
+uniform float facadeDetail;
 varying vec4 vFuv;
 flat varying vec4 vGrid;
 flat varying vec4 vMat;
@@ -282,8 +285,11 @@ const FRAG_MAIN = /* glsl */ `
     vec3 frameC = rh < 0.7 ? vec3(0.9, 0.9, 0.88) : (rh < 0.88 ? vec3(0.32, 0.22, 0.15) : vec3(0.55, 0.57, 0.58));
     // fake reveal: a shaded band inside the top / side of the opening
     float rv = styleF < 1.5 ? smoothstep(-reveal - aa, -reveal + aa, -(d + frameW) - 0.0) : 1.0;
-    // interior
-    vec3 room = roomLook(fV, fN, fT, vec2(wp.x, (isShop > 0.5 ? h : yl) - (isShop > 0.5 ? 0.0 : 0.0)), ww, isShop > 0.5 ? G : floorH, rh);
+    // far: average the window grid away before it aliases (facadeDetail > 1 does it nearer: the lower graphics levels)
+    float pxs = max(fwidth(fh) / floorH, fwidth(u)) * facadeDetail;
+    float detail = 1.0 - smoothstep(0.18, 0.55, pxs);
+    // interior (only where the window detail shows: the room ray is the costliest part of the shader)
+    vec3 room = detail <= 0.0 ? vec3(0.0) : roomLook(fV, fN, fT, vec2(wp.x, (isShop > 0.5 ? h : yl) - (isShop > 0.5 ? 0.0 : 0.0)), ww, isShop > 0.5 ? G : floorH, rh);
     float blind = step(1.0 - fract(rh * 5.3) * 0.7, (yl - sill) / max(wh, 0.1)) * step(0.55, fract(rh * 3.1)) * (1.0 - isShop);
     vec3 inside = mix(room * 0.22, vec3(0.62, 0.6, 0.55), blind * 0.8);
     if (mirror > 0.5) inside = mix(inside, vec3(0.04, 0.07, 0.08), 0.75);
@@ -312,9 +318,6 @@ const FRAG_MAIN = /* glsl */ `
     vec3 near = mix(wall, frameC, win);
     near = mix(near, inside * mix(0.55, 1.0, rv), glass);
     vec3 nearEmit = glow * glass + skyReflect(fN, fV, mirror > 0.5 ? 0.25 : 0.05) * glass;
-    // far: average the window grid away before it aliases
-    float pxs = max(fwidth(fh) / floorH, fwidth(u));
-    float detail = 1.0 - smoothstep(0.18, 0.55, pxs);
     float cov = cover * inFl + (isShop > 0.5 ? 0.45 : 0.0);
     vec3 avgWin = mix(vec3(0.07, 0.08, 0.09), frameC * 0.3, 0.3);
     vec3 far = mix(wall, avgWin, clamp(cov, 0.0, 0.9));
@@ -336,6 +339,7 @@ export function createFacadeMaterial(T = {}) {
     tNoise: { value: T.noise ?? null },
     tSigns: { value: T.signs ?? null },
     hasSigns: { value: T.signs ? 1 : 0 },
+    facadeDetail: { value: 1 },
   };
   if (!U.tLayers.value) { // fallback: flat white layers so the city still renders without the texture bundle
     console.warn('[facade] no wall layer textures, using a flat fallback');
@@ -347,6 +351,7 @@ export function createFacadeMaterial(T = {}) {
   U.tSigns.value ??= texel(128, 128, 128, 255);
   mat.userData.facade = U;
   mat.setSigns = (tex) => { U.tSigns.value = tex; U.hasSigns.value = tex ? 1 : 0; };
+  mat.setDetail = (k = 1) => { U.facadeDetail.value = k; }; // k > 1: windows average out k times nearer (lower graphics)
   patchMaterial(mat, 'city-facade-v1', (s) => {
     bindCityUniforms(s);
     Object.assign(s.uniforms, U);

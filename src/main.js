@@ -19,7 +19,7 @@
 //   World contract (legacy Cherkasy shape, see src/game/testworld.js for a complete small example): raycast(o, d, max),
 //     groundHeight(x, z, yHint), surfaceAt, collision, spawn / spawnYaw, carSpawn / carSpawnYaw, streetsAt(x, z), ram(q),
 //     collideDynamic(p, r, h), cherkasy.{ map, ground }, life.{ traffic, crowd }, mapFeatures | getMapFeatures(),
-//     update(dt, camera).
+//     update(dt, camera), setQuality?(q) (what the world draws at each graphics level; called at start and on every change).
 //
 // Frame order: input.update -> daylight.update (+ city material uniforms) -> systems (world, car, camera...) -> sky -> shadows -> post.render.
 // Sky and shadows run after the systems so they see the final camera; the shadow redraw is flagged after the sky's
@@ -47,6 +47,7 @@ import { createGameAudio } from './audio/game.js';
 import { showConsent } from './ui/consent.js';
 import { track } from './analytics.js';
 
+// graphics levels: each render module has its table (post, shadows, sky), the world its DETAIL (city.js world.setQuality)
 export const QUALITY_LEVELS = ['low', 'medium', 'high'];
 const QUALITY_KEY = 'cd.quality';
 const TIME_CYCLE = ['morning', 'day', 'sunset']; // T: morning, midday, evening
@@ -192,10 +193,10 @@ export async function startGame({ container = document.getElementById('app') || 
   if (!world) world = createTestWorld({ scene });
   ctx.world = world;
   ctx.groundAt = (x, z) => world.groundHeight(x, z);
-  // low quality drops the river's planar reflection (a second render of the scene, 12 times a second)
-  const reflectFor = (q) => world.water?.setReflection?.(q !== 'low');
-  reflectFor(ctx.quality);
-  ctx.events.on('quality', reflectFor);
+  // the graphics level also sets what the world draws (city.js DETAIL: draw / shadow distances, the river mirror, ...)
+  const worldQuality = (q) => world.setQuality?.(q);
+  worldQuality(ctx.quality);
+  ctx.events.on('quality', worldQuality);
 
   // the car owns the camera; the HUD is fed by the car (telemetry) and the missions (objective, markers, panel)
   const car = createCar({ scene, world, camera, input });

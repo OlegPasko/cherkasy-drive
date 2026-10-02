@@ -7,6 +7,7 @@
 //   sim.update(dt, camera, time?)             camera: THREE camera (null = nothing happens); time: shared signal clock
 //   sim.links, sim.nodes, sim.VTYPES, sim.cars() -> live car records (incl. parked), sim.wrecks
 //     car: { id, type, len, wid, h, color, x, y, z, ry (fx = cos ry, fz = -sin ry), pitch, gp, v, dead, parked, adSeed }
+//   sim.setDrawDistance(far = 700, k = 1): cars drawn within `far` m, LOD distances (45 / 170 m) times k; drawing only
 //   sim.setDensity(k), sim.setPlayer(pos, vel|null, groundY), sim.setPeds(api with walkers[{ x, z, road }])
 //   sim.addParkingSpots([[x, z, ry], ...]) cars standing on car parks (knockable; refilled out of sight once emptied)
 //   sim.collideDynamic(pos, radius, height) -> null | { push: Vector3, normal: Vector3, depth, grounded, groundY, vel }
@@ -445,6 +446,7 @@ export function createTrafficSimulation({ scene = null, net, models = null, phas
     ms.sim = t1 - t0; ms.wrecks = t2 - t1; ms.draw = t3 - t2;
   }
 
+  const drawR = { far: 700, k: 1 }; // the graphics quality's draw reach and LOD distance factor (setDrawDistance)
   function draw(camera) {
     const cp = _cam;
     for (const c of live) c.seen = false;
@@ -452,11 +454,11 @@ export function createTrafficSimulation({ scene = null, net, models = null, phas
     const drawCar = (c) => {
       const d = Math.hypot(c.x - cp.x, c.y - cp.y, c.z - cp.z);
       if (d > 700 || !visible(c.x, c.y + c.h / 2, c.z, c.len / 2 + 0.5)) return;
-      c.seen = true;
-      if (!fleet) return;
+      c.seen = true; // the sim's notion of "on screen" keeps the full 700 m whatever the draw reach
+      if (!fleet || d > drawR.far) return;
       _q.setFromEuler(_eu.set(0, c.ry, c.pitch + c.gp, 'YZX'));
       _mat.compose(_p.set(c.x, c.y, c.z), _q, UNIT);
-      fleet.add(c.type, d < 45 ? 0 : d < 170 ? 1 : 2, _mat.elements, c.color, c.brake, c.adSeed);
+      fleet.add(c.type, d < 45 * drawR.k ? 0 : d < 170 * drawR.k ? 1 : 2, _mat.elements, c.color, c.brake, c.adSeed);
     };
     for (const c of live) drawCar(c);
     for (const c of parkedCars) drawCar(c);
@@ -501,6 +503,7 @@ export function createTrafficSimulation({ scene = null, net, models = null, phas
     update,
     cars: () => live.concat(parkedCars),
     setDensity(k) { dens = Math.max(0, +k || 0); },
+    setDrawDistance(far = 700, k = 1) { drawR.far = Math.min(700, far); drawR.k = k; },
     get density() { return dens; },
     setPlayer(pos, vel, gy) {
       if (pos) { player.p.copy(pos); player.set = true; }

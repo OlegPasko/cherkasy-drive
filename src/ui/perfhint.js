@@ -1,6 +1,7 @@
 // Slow-frame watch and the "simpler graphics" pill at the bottom of the screen. It samples real frame intervals, and once
 // the frame rate has stayed low for several seconds (and the quality is not already the lowest) it offers G – or a click –
-// to drop one quality step. G works any time and goes round: one step down, and from the lowest back to the highest;
+// to drop one quality step (the post chain and what the world draws: main.js QUALITY_LEVELS, city.js DETAIL). G works any
+// time and goes round: one step down, and from the lowest back to the highest;
 // the pill then confirms the new level.
 //
 //   createPerfHint({ container, getQuality, setQuality, levels = ['low', 'medium', 'high'], canAdapt? }) -> perf

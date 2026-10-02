@@ -9,7 +9,9 @@
 //       standY(x, z, onRoad) -> y, carNear(x, z, r) -> bool }
 //   api: { walkers[] (stable array: ambient walkers + actors; .x .z .road), statics[], actors[], lanes (paths),
 //     update(dt, camera), hitBox(q) -> people hit, alarm(pos, r), honk(q), spawnActor({ x, z, ry, clip, seed, kind }) -> actor,
-//     removeActor(actor), pedOnRoad(x, z, r) -> bool, setTraffic(t), stats(), root, dispose() }
+//     removeActor(actor), pedOnRoad(x, z, r) -> bool, setTraffic(t), stats(), root, dispose(),
+//     setDrawDistance(view = 300, k = 1): the graphics quality's draw reach for ambient people (mission actors keep 300 m)
+//       and a factor on the LOD / blob-shadow distances; drawing only, the crowd and its simulation stay the same }
 //   hitBox q: { x, z, fx, fz (forward unit), hl, hw (half length / width), y0, y1, vx, vy, vz }
 //   honk q: { x, y, z, fx, fz } – the player's horn: people in a cone ahead dash sideways off the car's line
 //   actor handle: x y z ry dead gone; missions write hx/hz (walk there), goSpeed (> 2.4 runs), hry (face), idleClip
@@ -424,6 +426,9 @@ export function createPeople({ scene, map, ground, buildings = null, traffic = n
     for (const p of statics) if (!p.dead && !p._drop) { stepStatic(p, dt); glanceStep(p, dt); }
   }
 
+  // the graphics quality's draw reach (setDrawDistance): ambient people beyond `view` are not drawn, LOD / blob distances
+  // scale by k; the simulation is the same at every level
+  const draw = { view: VIEW, k: 1 };
   function render(cam) {
     mats.uniforms.uTime.value = time;
     for (const l of layers) l.begin();
@@ -432,14 +437,14 @@ export function createPeople({ scene, map, ground, buildings = null, traffic = n
     for (const list of [walkers, statics]) for (const p of list) {
       if (p.dead || p._drop || p._removed) continue;
       const dx = p.x - cam.x, dy = p.y - cam.y, dz = p.z - cam.z, d = Math.sqrt(dx * dx + dy * dy + dz * dz);
-      if (d > VIEW) { p.lod = -1; continue; }
+      if (d > (p.kind === 2 ? VIEW : draw.view)) { p.lod = -1; continue; } // mission actors keep the full reach
       sph.center.set(p.x, p.y + 0.9 * p.look.sH, p.z); sph.radius = 1.1;
       if (!frustum.intersectsSphere(sph)) continue;
       const hy = p.lod === 2 ? 3 : p.lod === 1 ? 5 : 0; // hysteresis against LOD flicker
-      const lod = d < LOD_NEAR + (p.lod === 2 ? 3 : 0) ? 2 : d < LOD_MID + hy ? 1 : 0;
+      const lod = d < LOD_NEAR * draw.k + (p.lod === 2 ? 3 : 0) ? 2 : d < LOD_MID * draw.k + hy ? 1 : 0;
       p.lod = lod;
       if (!layers[lod].push(p) && lod > 0) layers[lod - 1].push(p);
-      if (B && d < BLOB_R && nb < 1200) {
+      if (B && d < BLOB_R * draw.k && nb < 1200) {
         const o = nb * 16, s = 0.75 * p.look.sH * p.look.girth * (p.clipA === CLIP.cower ? 1.3 : 1);
         B[o] = s; B[o + 1] = 0; B[o + 2] = 0; B[o + 3] = 0; B[o + 4] = 0; B[o + 5] = 1; B[o + 6] = 0; B[o + 7] = 0;
         B[o + 8] = 0; B[o + 9] = 0; B[o + 10] = s; B[o + 11] = 0; B[o + 12] = p.x; B[o + 13] = p.y + 0.015; B[o + 14] = p.z; B[o + 15] = 1;
@@ -617,6 +622,7 @@ export function createPeople({ scene, map, ground, buildings = null, traffic = n
     },
     pedOnRoad(x, z, r = 3) { for (const p of walkers) if (p.road && !p.dead && (p.x - x) ** 2 + (p.z - z) ** 2 < r * r) return true; return false; },
     setTraffic(t) { traffic = t; t?.setPeds?.(api); },
+    setDrawDistance(view = VIEW, k = 1) { draw.view = Math.min(VIEW, view); draw.k = k; },
     stats() {
       let active = 0, quota = 0; for (const c of cells.values()) if (c.active) { active++; quota += c.eff; }
       return { walkers: walkers.length - actors.length, statics: statics.length, actors: actors.length, onRoad: walkers.filter(p => p.road).length,
