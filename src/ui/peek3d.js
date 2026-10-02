@@ -42,7 +42,6 @@ const SITES = {
   sviatotroitskyi: ['sviatotroitskyi', 'buildSviatotroitskyi'],
   hd34: ['hd34', 'buildHd34'],
   hrafskyi: ['hrafskyi', 'buildHrafskyi'],
-  premierbay: ['premierbay', 'buildPremierBay'],
   onix: ['onix', 'buildOnix', 'levelOnix'],
   pasterivskyi: ['pasterivskyi', 'buildPasterivskyi'],
   ekohouse: ['ekohouse', 'buildEkohouse', 'levelEkohouse'],

@@ -139,8 +139,9 @@ See `ARCHITECTURE.md` for the module map. Where things live:
     as rendered, on its own outline (`PERLYNA_RING` in `places.js`; not in OSM yet), its lot levelled by `levelPerlyna`; the
     upper storeys carry a tiling facade texture with lit-window and glass twins.
     `premierbay` (ЖК Premier Bay at Героїв Дніпра / Козацька, still being built, as the developer's renders show it: four
-    ten-storey bars round a yard on a deck over the parking, white over a brick podium with brick towers and glass
-    balconies; its walls are facade-shader quads) is `improved` too.
+    ten-storey bars round a yard, white over a brick podium with brick towers and glass balconies; its walls are
+    facade-shader quads; `levelPremierBay` levels the lot to the driveways round it and the open corners let a car drive
+    into the yard) is `improved` too.
     `pasterivskyi` (ЖК «Пастерівський», Маламужа 31 at Пастерівська, in project, built after the lun.ua and developer renders, no
     signage): eight 10-storey sections as the four OSM bars, white render with violet standing-seam end towers and glowing branch
     screens, shopfronts / garages on a graphite ground floor, end-wall balconies; the garage block on Пастерівська, the glass
@@ -155,9 +156,6 @@ See `ARCHITECTURE.md` for the module map. Where things live:
     lun.ua / developer renders show it): charcoal brick with cream pylons framing two-window glazing stacks, a brick corner
     tower ringed by cream bands, shops between dark marble piers under a deep fascia, a paved forecourt and fenced yard;
     `SHEV22_BOX` (places.js keeps `SHEV22_RING`); `tests/shev22.test.mjs`.
-    ten-storey bars round a yard, white over a brick podium with brick towers and glass balconies; its walls are
-    facade-shader quads; `levelPremierBay` levels the lot to the driveways round it and the open corners let a car drive
-    into the yard) is `improved` too.
     `olimp` (ЖК «Олімп», Сумгаїтська 15/5, the four OSM parts of relation 21402178: an L of sections on the Квіткова
     corner, cream panels with AC baskets and white-framed loggia stacks over a dark stone shop storey, the glazed bow on
     the chamfer, the drive-through under section 2) is `improved` too.
