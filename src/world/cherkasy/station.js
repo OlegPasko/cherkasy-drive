@@ -19,7 +19,8 @@
 // Lit at night: the hall glazing, tower windows, the letters, the clock, lamps.
 //   STATION_SKIP: the OSM id replaced here (buildings.js skips it)
 //   levelStation(hf) -> level | null   flattens the terrain under the station, platforms and the yard next to it
-//   buildStation({ root, map, solids, zips, heightAt, ground, geo }) -> { update(dt), clear(x, z), footprints } | null
+//   buildStation({ root, map, solids, zips, heightAt, ground, geo, railLevel? }) -> { update(dt), clear(x, z), footprints } | null
+//     railLevel: railbridge.js railLevelFn, passed on to buildRails (the raised line east of the centre)
 // Everything is modelled in the station frame: origin at the south-west front corner of the building, +x (s) along
 // the front towards the north-east (the tracks run along it), +z (d) back from the square to the tracks, y up from
 // the levelled ground. The whole site is square to the OSM tracks (track 1 lies at d = 34.45).
@@ -140,7 +141,7 @@ function walls(M, ring, y0, y1) {
 }
 
 // ------------------------------------------------------------------------------------------------ build
-export function buildStation({ root, map, solids: S, zips: Z, heightAt, ground, geo }) {
+export function buildStation({ root, map, solids: S, zips: Z, heightAt, ground, geo, railLevel = null }) {
   const bld = map.buildings.find((q) => q.id === OSM_ID);
   if (!bld) return null;
   const t0 = performance.now(), s0 = S.count, r = rng(OSM_ID % 99991);
@@ -159,7 +160,7 @@ export function buildStation({ root, map, solids: S, zips: Z, heightAt, ground, 
   const cyl = (s, d, y0, y1, rr, kind = 'pole') => { const [x, z] = W(s, d); S.cyl(x, z, Y + y0, Y + y1, rr, rr, kind); };
 
   const yardC = W(40, 45);
-  const rails = buildRails({ root: group, map, heightAt, ground, solids: S, geo }, {
+  const rails = buildRails({ root: group, map, heightAt, ground, solids: S, geo, railLevel }, {
     yard: [yardC[0], yardC[1], 520],
     skipMast: (x, z) => { const [s, d] = LOC(x, z); return s > -90 && s < 165 && d > 20 && d < T1 - 1.3; }, // platform 1, canopy, building
   });

@@ -64,7 +64,8 @@ const SITE_MODULES = import.meta.glob(['./landmarks.js', './frame.js', './restin
   './hoteldnipro.js', './dniproplaza.js', './depot.js', './politekhkoledzh.js',
   './podatkova.js', './school17.js', './kinoukraina.js', './chnu3.js',
   './miskrada.js', './poshtamt.js', './oblbiblioteka.js', './medakademia.js', './balloon.js', './yacht.js', './plane.js', './andriy.js', './boyan.js',
-  './delikat.js', './atb.js', './mcdonalds.js', './tors.js', './urban.js', './su7.js', './overpass.js', './catcafe.js', './praska.js', './delikat399.js', './glassrotunda.js', './ekvator.js', './sportlife.js']);
+  './delikat.js', './atb.js', './mcdonalds.js', './tors.js', './urban.js', './su7.js', './overpass.js', './catcafe.js', './praska.js', './delikat399.js', './glassrotunda.js', './ekvator.js', './sportlife.js',
+  './khimbridge.js', './railbridge.js', './gerb.js']);
 async function loadSites() {
   const out = {};
   await Promise.all(Object.entries(SITE_MODULES).map(async ([path, load]) => {
@@ -75,7 +76,7 @@ async function loadSites() {
 }
 const guard = (label, fn, fallback = null) => { try { return fn() ?? fallback; } catch (e) { console.error(`[cherkasy] ${label} failed`, e); return fallback; } };
 // the sites that read the ground (isWater / onAsphalt / its meshes): they wait for its workers, the others do not
-const GROUND_SITES = new Set(['rosevalley', 'restaurants', 'beaches', 'yachtclub', 'embankment', 'prystan', 'station', 'lovebridge', 'overpass', 'delikat399', 'glassrotunda']);
+const GROUND_SITES = new Set(['rosevalley', 'restaurants', 'beaches', 'yachtclub', 'embankment', 'prystan', 'station', 'lovebridge', 'overpass', 'delikat399', 'glassrotunda', 'khimbridge', 'railbridge']);
 // a macrotask turn (not a frame): lets worker messages in between synchronous builds
 const nextTask = () => new Promise((res) => { const ch = new MessageChannel(); ch.port1.onmessage = () => { ch.port1.close(); res(); }; ch.port2.postMessage(0); });
 const nextFrame = () => new Promise((res) => (typeof requestAnimationFrame === 'function' && !document.hidden ? requestAnimationFrame(() => res()) : setTimeout(res, 0)));
@@ -171,10 +172,12 @@ export async function buildCherkasy({ scene, renderer, onProgress = null, params
   const groundP = buildGroundAsync({ scene: root, T, map, hf, strip, renderer, mapUrl: url('map.json') }).then((g) => { groundDone = true; report(); return g; });
   const bldP = buildCityBuildings({ root, map, hf, solids: collision, zips, skip, facadeMat, detailMat, useWorkers: !params.has('noworkers'),
     onProgress: (f) => { bldF = f; report(); } });
+  // the raised line east of the centre (railbridge.js): the bed level the railways lay their tracks at there
+  const railLevel = guard('raised railway', () => S.railbridge?.railLevelFn?.(geo, hf.heightAt));
   // landmarks, hero buildings and the hand-built sites ({ update?, clear?(x, z), spots?, footprints?, parked?, partners?, deckAt?(x, z), collide?(p, r, h) }). Those that
   // do not read `ground` build while its workers run (heightAt is the same height field), one per task so the worker
   // replies get through; the rest (GROUND_SITES) follow once it is in. The list order stays the order of `sites`.
-  const base = { root, T, map, solids: collision, zips, heightAt: hf.heightAt, ground: null, geo, facadeMat, detailMat };
+  const base = { root, T, map, solids: collision, zips, heightAt: hf.heightAt, ground: null, geo, facadeMat, detailMat, railLevel };
   const before = new Set(root.children); // what the sites add is theirs (farcull.js); the ground and buildings land meanwhile
   const landmarks = S.landmarks?.buildLandmarks ? guard('landmarks', () => S.landmarks.buildLandmarks(base), {}) : {};
   const yalynka = S.yalynka?.buildYalynka ? guard('yalynka', () => S.yalynka.buildYalynka(base), {}) : {};
@@ -194,7 +197,8 @@ export async function buildCherkasy({ scene, renderer, onProgress = null, params
     ['City council', 'miskrada', 'buildMiskrada'], ['Head post office', 'poshtamt', 'buildPoshtamt'], ['Regional library', 'oblbiblioteka', 'buildOblBiblioteka'], ['Medical academy', 'medakademia', 'buildMedAkademia'],
     ['Balloon', 'balloon', 'buildBalloon'], ['Yacht', 'yacht', 'buildYacht'], ['Plane', 'plane', 'buildPlane'], ['St Andrew church', 'andriy', 'buildAndriy'], ['Boyan monument', 'boyan', 'buildBoyan'],
     ['Delikat on Blahovisna', 'delikat', 'buildDelikat'], ['ATB on Shevchenka 239', 'atb', 'buildAtb'], ["McDonald's", 'mcdonalds', 'buildMcDonalds'], ['Tors sign', 'tors', 'buildTors'], ['URBAN', 'urban', 'buildUrban'], ['Su-7 memorial', 'su7', 'buildSu7'],
-    ['Dakhnivska overpass', 'overpass', 'buildOverpass'],
+    ['Dakhnivska overpass', 'overpass', 'buildOverpass'], ['Khimikiv viaduct', 'khimbridge', 'buildKhimBridge'], ['Railway bridges', 'railbridge', 'buildRailBridges'],
+    ['Coat of arms stele', 'gerb', 'buildGerb'],
     ['CatCafe block', 'catcafe', 'buildCatCafe'], ['Flatiron on Dashkovycha 4', 'praska', 'buildPraska'],
     ['Delikat on Shevchenka 399/2', 'delikat399', 'buildDelikat399'], ['Glass rotunda on Shevchenka', 'glassrotunda', 'buildGlassRotunda'],
     ['Ekvator', 'ekvator', 'buildEkvator'], ['Sport Life at Mytnytsia', 'sportlife', 'buildSportLife']];
@@ -250,7 +254,7 @@ export async function buildCherkasy({ scene, renderer, onProgress = null, params
   const debris = createGibs(root, (x, z, y) => collision.groundHeight(x, z, y ?? 1e4), { blood: params.has('blood') });
   let traffic = null, people = null;
   if (!params.has('notraffic')) {
-    // bridge lanes ride the hand-built decks (overpass.js deckAt), not the terrain under them
+    // bridge lanes ride the hand-built decks (overpass.js, khimbridge.js deckAt), not the terrain under them
     const deckAt = (x, z) => { for (const s of sites) { const y = s.deckAt?.(x, z); if (y != null) return y; } return null; };
     try { traffic = await buildCherkasyTraffic({ scene: root, map, ground, deckAt }); } catch (e) { console.error('[cherkasy] traffic failed', e); }
   }

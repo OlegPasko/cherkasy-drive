@@ -35,6 +35,7 @@ const SITES = {
   catcafe: ['catcafe', 'buildCatCafe'], praska: ['praska', 'buildPraska'],
   delikat399: ['delikat399', 'buildDelikat399'], rotunda397: ['glassrotunda', 'buildGlassRotunda'],
   ekvator: ['ekvator', 'buildEkvator', 'levelEkvator'], sportlife: ['sportlife', 'buildSportLife'],
+  gerb: ['gerb', 'buildGerb'],
 };
 const MODULES = import.meta.glob('../world/cherkasy/*.js'); // lazy: a module's chunk loads on its first peek
 const MIN_R = 45, MAX_R = 170, POINT_R = 90; // crop radius round the place, m (POINT_R: a place on a point, no footprint)
