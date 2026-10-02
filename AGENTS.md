@@ -131,6 +131,9 @@ See `ARCHITECTURE.md` for the module map. Where things live:
     `hrafskyi` (ЖК «Графський», Байди Вишневецького 68 / Добровольчих Батальйонів 201–203: ten 15- and 17-storey brick
     sections round one yard and the corner shop podium; a window or loggia stack is one pane whose texture holds eight
     storeys with their own lit pattern; `tests/hrafskyi.test.mjs`), `improved`.
+    `perlyna` (ЖК «Перлина Дніпра», Героїв Дніпра 77, under construction, `improved`): a 17-storey L of two sections built
+    as rendered, on its own outline (`PERLYNA_RING` in `places.js`; not in OSM yet), its lot levelled by `levelPerlyna`; the
+    upper storeys carry a tiling facade texture with lit-window and glass twins.
   - `places.js` – the sights, the paying partners (kind `ad`) and the non-landmark objects rebuilt on request (kind
     `improved`: a grey footprint only, "Покращений об’єкт" in the big map's legend) for both maps: icon, name, note, the OSM buildings
     whose footprints get highlighted, and for partners the site `url` (with `utm_source=driver.ck.ua`) and the pitch

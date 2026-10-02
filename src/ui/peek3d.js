@@ -37,6 +37,7 @@ const SITES = {
   ekvator: ['ekvator', 'buildEkvator', 'levelEkvator'], sportlife: ['sportlife', 'buildSportLife'],
   gerb: ['gerb', 'buildGerb'],
   zamkpark: ['zamkovapark', 'buildZamkovaPark', 'peekZamkovaPark'], kupershtein: ['zamkovapark', 'buildZamkovaPark', 'peekZamkovaPark'],
+  perlyna: ['perlyna', 'buildPerlyna', 'levelPerlyna'],
   avrora: ['avrora', 'buildAvrora'],
   sviatotroitskyi: ['sviatotroitskyi', 'buildSviatotroitskyi'],
   hd34: ['hd34', 'buildHd34'],
