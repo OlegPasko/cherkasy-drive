@@ -59,6 +59,15 @@ See `ARCHITECTURE.md` for the module map. Where things live:
   - the hand-made landmarks: `landmarks`, `pagorb`, `rosevalley`, `restinn`, `embankment`, `dam`, `yachtclub`,
     `beaches`, `zhuzhoma`, `prystan`, `restaurants`, `yalynka`, `facadekit`, `khimikiv`, `druzhba` (Palace of Culture);
   - `zamkova.js` – Zamkova hora: the hilltop lift (`shapeZamkova`, the terrain hook in `city.js`), platform, wall, monuments;
+  - `zamkovapark.js` – the planned park at the foot of Zamkova hora, between the hill, Князя Ольгерда and Замковий узвіз
+    (a project, not built yet): the round fountain with animated jets on its levelled plaza (`shapeZamkovaPark`, the only
+    terrain change), light paths, lawns, rose beds, hedges, trees (`spots` / `clear`), benches, lamps, the playground,
+    wooden pavilions and pergolas on the east, kiosks round a small plaza on the west, a bus shelter, and zig-zag stairs
+    up the slope to the platform of `zamkova.js` (it reuses `PLATEAU` / `VIEW` from there). The park's ground is its own
+    draped mesh painted from the plan (the ground workers read `map.json` themselves). It also restores two old houses in
+    place of their OSM ids (`ZAMKPARK_SKIP`): the Kupershtein «Будинок з грифонами» (Замковий узвіз 1, 1890s, as it
+    stood before the 2024 rebuild: two storeys, whitewashed, hipped roof) and the small stone house with the arched gate
+    (Замковий узвіз 7). On the maps the park is a sight (`zamkpark`), the house an `improved` object (`kupershtein`).
   - more hand-built sights: `market` (the round covered market), `bilyidim` (Budynok rad), `kobzar`, `museum` (local
     history), `philharmonic` (with the «Висока нота» violinist), `wedding` (Palace of weddings), `bohdan` (the
     Khmelnytsky monument; it shares its bronze helpers with the others), `boyan` (the Boyan monument on площа 700-річчя Черкас: the seated

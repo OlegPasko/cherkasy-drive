@@ -23,13 +23,13 @@ const PI = Math.PI;
 export const PLATEAU_Y = 23.8; // the hilltop level (m): level with the south lawns and uzviz Koriatovychiv, over the west corner
 const BLEND = 18;               // m outside the plateau outline over which the lift eases out
 // the plateau outline (inner edges of the sidewalks, round the houses under the north slope and the Chaika block)
-const PLATEAU = [[49.447115, 32.064394], [49.447355, 32.064346], [49.448086, 32.064181], [49.448132, 32.064352], [49.4483, 32.064518],
+export const PLATEAU = [[49.447115, 32.064394], [49.447355, 32.064346], [49.448086, 32.064181], [49.448132, 32.064352], [49.4483, 32.064518],
   [49.448532, 32.064569], [49.448686, 32.06459], [49.448822, 32.06477], [49.448878, 32.064989], [49.448852, 32.065227], [49.448765, 32.065404],
   [49.448642, 32.065497], [49.448544, 32.06544], [49.448152, 32.065378], [49.448055, 32.065341], [49.447934, 32.065473], [49.447779, 32.065432],
   [49.447314, 32.064929], [49.447127, 32.064755], [49.44707, 32.064517]];
 const CHAIKA = 169359452; // restaurants.js sets its floor from the ground under it, so it rides the new level
 const WALKS = new Set(['footway', 'path', 'pedestrian', 'steps', 'track', 'cycleway', 'bridleway']);
-const VIEW = [49.4488168, 32.0650768];    // OSM viewpoint 1805289067 at the end of the promenade
+export const VIEW = [49.4488168, 32.0650768];    // OSM viewpoint 1805289067 at the end of the promenade
 const PIDKOVA = [49.4478599, 32.0651802]; // OSM 3691978928
 const KHMEL = [49.4473514, 32.0648263];   // OSM 3691978929, the stone at the top of the entrance steps
 const STEPS = [49.447173, 32.064906];     // foot of the OSM steps between the sidewalk and the promenade
