@@ -19,7 +19,7 @@ import { signedArea2, ringArea, vertexMean, asCCW, asCW, simplify, boundsOf, poi
 const RAW = (n) => JSON.parse(readFileSync(new URL(`./raw/${n}.json`, import.meta.url))).elements;
 export const FRAME = { lat0: 49.4445, lon0: 32.0600, rot: 49.4 };
 // playable region (the main city: river bank .. pr. Khimikiv, Sosnivka .. the port / Sady) and the land/water extent
-export const REGION = { x0: -4300, x1: 1900, z0: -4100, z1: 4800 }; // z0 reaches past vul. Oleksiia Panchenka into the pines (issue #6)
+export const REGION = { x0: -4750, x1: 1900, z0: -4100, z1: 4800 }; // z0 reaches past vul. Oleksiia Panchenka into the pines (issue #6), x0 past Hotel «Нива» on Smilianska to the «Аврора» multimarket (issue #26)
 const LAND = { x0: REGION.x0 - 25000, x1: REGION.x1 + 25000, z0: REGION.z0 - 25000, z1: REGION.z1 + 25000 };
 
 const KY = 111320, KX = 111320 * Math.cos(FRAME.lat0 * Math.PI / 180);
