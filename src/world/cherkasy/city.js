@@ -60,7 +60,7 @@ const SITE_MODULES = import.meta.glob(['./landmarks.js', './frame.js', './restin
   './hoteldnipro.js', './dniproplaza.js', './depot.js', './politekhkoledzh.js',
   './podatkova.js', './school17.js', './kinoukraina.js', './chnu3.js',
   './miskrada.js', './poshtamt.js', './oblbiblioteka.js', './medakademia.js', './balloon.js', './andriy.js', './boyan.js',
-  './delikat.js', './atb.js', './mcdonalds.js', './tors.js', './urban.js', './su7.js', './overpass.js']);
+  './delikat.js', './atb.js', './mcdonalds.js', './tors.js', './urban.js', './su7.js', './overpass.js', './catcafe.js', './praska.js']);
 async function loadSites() {
   const out = {};
   await Promise.all(Object.entries(SITE_MODULES).map(async ([path, load]) => {
@@ -138,7 +138,7 @@ export async function buildCherkasy({ scene, renderer, onProgress = null, params
     ['hoteldnipro', 'HOTEL_SKIP'], ['dniproplaza', 'DP_SKIP'], ['depot', 'DEPOT_SKIP'], ['politekhkoledzh', 'POLITEKH_SKIP'],
     ['podatkova', 'PODATKOVA_SKIP'], ['school17', 'SCHOOL17_SKIP'], ['kinoukraina', 'KINO_SKIP'], ['chnu3', 'CHNU3_SKIP'],
     ['miskrada', 'MISKRADA_SKIP'], ['poshtamt', 'POSHTAMT_SKIP'], ['oblbiblioteka', 'OBLBIB_SKIP'], ['medakademia', 'MEDAKAD_SKIP'], ['andriy', 'ANDRIY_SKIP'], ['boyan', 'BOYAN_SKIP'],
-    ['delikat', 'DELIKAT_SKIP'], ['atb', 'ATB_SKIP'], ['mcdonalds', 'MCDONALDS_SKIP'], ['urban', 'URBAN_SKIP'], ['su7', 'SU7_SKIP']]) for (const id of S[mod]?.[key] ?? []) skip.add(id);
+    ['delikat', 'DELIKAT_SKIP'], ['atb', 'ATB_SKIP'], ['mcdonalds', 'MCDONALDS_SKIP'], ['urban', 'URBAN_SKIP'], ['su7', 'SU7_SKIP'], ['catcafe', 'CATCAFE_SKIP'], ['praska', 'PRASKA_SKIP']]) for (const id of S[mod]?.[key] ?? []) skip.add(id);
   let groundDone = false, bldF = 0;
   const report = () => onProgress?.(0.15 + 0.55 * (0.3 * (groundDone ? 1 : 0) + 0.7 * bldF), `Рельєф, вулиці, будинки… ${Math.round(100 * (0.3 * (groundDone ? 1 : 0) + 0.7 * bldF))}%`);
   const groundP = buildGroundAsync({ scene: root, T, map, hf, strip, renderer, mapUrl: url('map.json') }).then((g) => { groundDone = true; report(); return g; });
@@ -166,7 +166,8 @@ export async function buildCherkasy({ scene, renderer, onProgress = null, params
     ['City council', 'miskrada', 'buildMiskrada'], ['Head post office', 'poshtamt', 'buildPoshtamt'], ['Regional library', 'oblbiblioteka', 'buildOblBiblioteka'], ['Medical academy', 'medakademia', 'buildMedAkademia'],
     ['Balloon', 'balloon', 'buildBalloon'], ['St Andrew church', 'andriy', 'buildAndriy'], ['Boyan monument', 'boyan', 'buildBoyan'],
     ['Delikat on Blahovisna', 'delikat', 'buildDelikat'], ['ATB on Shevchenka 239', 'atb', 'buildAtb'], ["McDonald's", 'mcdonalds', 'buildMcDonalds'], ['Tors sign', 'tors', 'buildTors'], ['URBAN', 'urban', 'buildUrban'], ['Su-7 memorial', 'su7', 'buildSu7'],
-    ['Dakhnivska overpass', 'overpass', 'buildOverpass']];
+    ['Dakhnivska overpass', 'overpass', 'buildOverpass'],
+    ['CatCafe block', 'catcafe', 'buildCatCafe'], ['Flatiron on Dashkovycha 4', 'praska', 'buildPraska']];
   const built = list.map(() => null);
   const runSites = async (late) => {
     for (const [i, [label, mod, fn]] of list.entries()) {

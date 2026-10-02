@@ -1,5 +1,5 @@
 // OWNER: cherkasy. Small shared kit for the hand-built ordinary blocks (hotel Dnipro, the Dnipro Plaza and DEPO't
-// malls, the polytechnic college): walls laid per plane in a face frame, cut round their openings, windows with real reveal
+// malls, the polytechnic college, the CatCafe block, Dashkovycha 4): walls laid per plane in a face frame, cut round their openings, windows with real reveal
 // depth, box / prism helpers and the closing step that turns the builders into meshes. Not a site module: the site
 // files import it.
 //   face(a, b, nx, nz) -> f         plane over the map points a -> b with the outward normal (nx, nz); s runs a -> b,
