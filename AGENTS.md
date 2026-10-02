@@ -186,6 +186,11 @@ See `ARCHITECTURE.md` for the module map. Where things live:
     service, the NE and SE wings planned) as the lun.ua renders show them – white / chocolate storey bands and turquoise runs
     from a paint atlas (one quad per zone strip), window and loggia stacks, glazed bay loggias on the Кожедуба front, banded
     blind gables – and the yard (driveway, round playground plaza, paths, pitch) on one draped texture; `tests/parkovyi.test.mjs`.
+    `taraskova5` (the new ten-storey block at вул. Тараскова 5, Перемога, as the lun.ua photos show it built; OSM's 11-Б and
+    11-А, `improved`): six sections squared up from the OSM outlines, each on its own floor level down the slope – white
+    render, canted ribbon-glazed bays with olive spandrels on the upper floors, graphite panels over the top storeys, gables
+    with nested olive / grey Г-stripes, yard entrances under dark canopies, and a graphite shop podium on a raised terrace
+    along Тараскова; `tests/taraskova5.test.mjs`.
   - `places.js` – the sights, the paying partners (kind `ad`) and the non-landmark objects rebuilt on request (kind
     `improved`: a grey footprint only, "Покращений об’єкт" in the big map's legend) for both maps: icon, name, note, the OSM buildings
     whose footprints get highlighted, and for partners the site `url` (with `utm_source=driver.ck.ua`) and the pitch

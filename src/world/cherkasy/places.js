@@ -110,6 +110,7 @@ export const PLACES = [
   { id: 'narbutivska10', kind: 'improved', name: 'Покращений об’єкт', note: 'Новобудова · вул. Нарбутівська, 10', ring: NARB10_RING },
   { id: 'parkovyi', kind: 'improved', name: 'Покращений об’єкт', note: 'ЖК «Парковий квартал» · вул. Івана Кожедуба, 59', bld: [1522301396, 1522301395, 984246825, 1430817645, 1560091949, 1430817647, 1430817646] },
   { id: 'shev22', kind: 'improved', name: 'Покращений об’єкт', note: 'Новобудова · бульвар Шевченка, 22', ring: SHEV22_RING },
+  { id: 'taraskova5', kind: 'improved', name: 'Покращений об’єкт', note: 'Новобудова · вул. Тараскова, 5', bld: [994859234, 1318428500] },
   // sights
   { id: 'mykhailo', kind: 'sight', name: 'Свято-Михайлівський собор', icon: '⛪', bld: [242469769] },
   { id: 'troitsky', kind: 'sight', name: 'Свято-Троїцький собор', icon: '⛪', bld: [157432721] },
