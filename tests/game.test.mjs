@@ -96,5 +96,13 @@ for (let g = 0; g < 8 && ms.active === m; g++) { // fly through each ring by tel
 }
 check('tour completes and pays', !ms.active && ms.money > -150, `money ${ms.money}`);
 
+// the light plane's engine: heard only right next to it, never from the ground under its ~150-190 m loop
+{
+  const { planeGain, PLANE_NEAR, PLANE_FAR } = await import('../src/audio/game.js');
+  const g = [0, 30, 50, 75, 100, 119, 120, 150, 190].map(planeGain);
+  check('plane engine: full up close, silent by 120 m', g[0] === 1 && g[1] === 1 && g[6] === 0 && g[7] === 0 && g[8] === 0 && g.every((v, i) => !i || v <= g[i - 1]),
+    `near ${PLANE_NEAR} m, far ${PLANE_FAR} m: ${g.map((v) => v.toFixed(2)).join(' ')}`);
+}
+
 console.log(fails ? `\n${fails} check(s) failed` : '\nall checks passed');
 process.exit(fails ? 1 : 0);

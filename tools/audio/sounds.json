@@ -226,6 +226,15 @@
     "loop": true,
     "stereo": true,
     "gain": 0.5
+   },
+   {
+    "id": "plane_engine",
+    "prompt": "Seamless loop of a small single-engine propeller plane in steady cruise heard from close outside, a Super Cub style air-cooled piston engine: a constant throaty drone with an even exhaust rumble and a fast propeller buzz on top. Steady rpm, pitch and level throughout, no flyby, no Doppler. Dry mono. No voice, no radio, no jet, no helicopter, no siren, no music, no fade in or out.",
+    "dur": 8,
+    "loop": true,
+    "stereo": false,
+    "influence": 0.6,
+    "gain": 0.7
    }
   ],
   "motor": [

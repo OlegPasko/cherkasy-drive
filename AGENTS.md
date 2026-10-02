@@ -105,12 +105,12 @@ See `ARCHITECTURE.md` for the module map. Where things live:
   - `balloon.js` – a hot-air balloon in the pixel tower's colours, its band sold through the bot's `ad-balloon` flow, today U space's
   ad (logo `public/assets/brand/uspace.svg`, the offer, the address and the phone): it hangs over the Rose Valley fountain, then drifts at a walker's pace along the Dnipro shore,
     over the water, to the river station and back (wall-clock paced); it bobs, turns and fires its burner (a night glow).
-  - `bannerplane.js` – a banner-towing Super Cub (Cub yellow, black stripe) with a short 14 x 4.5 m banner on a 45 m line:
-    one 13 km closed loop (a spline) at ~190 m, down the Dnipro off the beaches and the embankment to the river station,
-    back over bul. Shevchenka and the centre, a lap in ~8 min, wall-clock paced like the balloon. It banks into the turns, the
-    banner trails along the flown path and flutters, the prop is a blurred disc, nav lights and strobes show at night; no
-    collision, no sound (no light-plane recording exists), not on the maps (the balloon is not either). The banner is a canvas
-    slot showing the Ukrainian flag; `ART` / `setArt(draw)` take a sold ad later (a future `ad-banner` bot flow, not built).
+  - `plane.js` – a light plane, a Super Cub style taildragger in a Ukrainian livery (fuselage blue over yellow, the fin
+    and rudder the flag, yellow wings with blue tips, the fictional registration UR-CKD; one ~4k-vertex mesh, the livery and
+    glossy windows painted on a canvas): one 13 km closed loop (a spline) at ~190 m, down the Dnipro off the beaches and the
+    embankment to the river station, back over bul. Shevchenka and the centre, a lap in ~8 min, wall-clock paced like the
+    balloon. It banks into the turns, the prop is a blurred disc, nav lights and strobes show at night; no collision, not on
+    the maps (the balloon is not either). Its engine loop (`plane_engine`) is heard only within ~120 m of it (`audio/game.js`).
   - `billboards.js` – roadside billboards sold through the bot: the `BILLBOARDS` list (spot, facing, art) and the
     builder; unsold ones show the "ваша реклама / @driver_game_bot" placeholder. The header says how to add a real one.
 - `src/npc/` – everything that moves on its own:
@@ -137,7 +137,8 @@ See `ARCHITECTURE.md` for the module map. Where things live:
   - `engine.js` – the sample player: buses (sfx, ui, amb, motor, dispatcher `vo` with a radio band-pass, passenger
     `pax`), positional one-shots, seamless loops, one voice line at a time with ducking;
   - `game.js` – the car's electric motor, drift squeal, fans and wind from car state; the place ambience (city,
-    Sosnivka forest from `map.cover.forest`, altitude, day/night); event one-shots; mission lines;
+    Sosnivka forest from `map.cover.forest`, altitude, day/night); the plane's engine (full within 30 m, silent beyond
+    120 m, panned; `planeGain`); event one-shots; mission lines;
   - `radio.js` – the car radio (Q on / off, E next; off by default): Oleg's own songs, credited "ANATHEM (with
     Suno)". Nothing is fetched until it is turned on, then only the playing track, streamed. Add songs with
     `node tools/audio/radio.mjs <files…>` (levels, encodes to `public/assets/radio/`, appends to `tracks.json`).
