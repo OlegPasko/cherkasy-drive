@@ -145,6 +145,8 @@ See `ARCHITECTURE.md` for the module map. Where things live:
     signage): eight 10-storey sections as the four OSM bars, white render with violet standing-seam end towers and glowing branch
     screens, shopfronts / garages on a graphite ground floor, end-wall balconies; the garage block on Пастерівська, the glass
     pavilion, the playground, the sports court and the car parks (`parked`), `improved`.
+    `voldim` (ЖК VOLDIM, Володимира Великого 41/3, under construction, built as rendered: the 16-storey yellow-and-green
+    point tower with its glazed loggia stacks on the fenced, planted lot) is `improved` too.
   - `places.js` – the sights, the paying partners (kind `ad`) and the non-landmark objects rebuilt on request (kind
     `improved`: a grey footprint only, "Покращений об’єкт" in the big map's legend) for both maps: icon, name, note, the OSM buildings
     whose footprints get highlighted, and for partners the site `url` (with `utm_source=driver.ck.ua`) and the pitch

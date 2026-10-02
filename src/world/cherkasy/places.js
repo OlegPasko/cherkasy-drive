@@ -89,6 +89,7 @@ export const PLACES = [
   { id: 'premierbay', kind: 'improved', name: 'Покращений об’єкт', note: 'ЖК Premier Bay (будується) · вул. Героїв Дніпра / вул. Козацька', bld: [1526030153, 1526030154, 1526030155, 1526030156] },
   { id: 'onix', kind: 'improved', name: 'Покращений об’єкт', note: 'ЖК Onix · вул. Сковороди / Теліги', rings: ONIX_RINGS },
   { id: 'pasterivskyi', kind: 'improved', name: 'Покращений об’єкт', note: 'ЖК «Пастерівський» (проєкт) · вул. Олександра Маламужа, 31', bld: [1430787298, 1430787299, 1430787297, 1430787300] },
+  { id: 'voldim', kind: 'improved', name: 'Покращений об’єкт', note: 'ЖК VOLDIM · вул. Володимира Великого, 41/3', bld: [1198239247] },
   // sights
   { id: 'mykhailo', kind: 'sight', name: 'Свято-Михайлівський собор', icon: '⛪', bld: [242469769] },
   { id: 'troitsky', kind: 'sight', name: 'Свято-Троїцький собор', icon: '⛪', bld: [157432721] },
