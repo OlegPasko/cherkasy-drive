@@ -46,8 +46,8 @@ const STREET_X = -3280;                                 // faces west of this, l
 
 const FH = 3.0, NU = 9, PARA = 0.9, GF = 3.0, GF_ST = 4.2;  // storey, upper storeys, parapet, ground storey (shops)
 const PD = 4.4, PH = 4.3;                                // shop podium reach and height
-const WHITE = '#f1f1ee', GRAPH = '#3b3e43', OLIVE = '#a19f55', GREY = '#9a9da1', PLINTH = '#73767a', FRAME = '#f5f5f2', ROOFC = '#55575a';
-const GFROM = { W: 99, G: 4, H: 7 };                     // the storey (1..NU) a wall pattern turns graphite from
+const WHITE = '#f1f1ee', GRAPH = '#3b3e43', OLIVE = '#b0ae68', GREY = '#9a9da1', PLINTH = '#73767a', FRAME = '#f5f5f2', ROOFC = '#55575a';
+const GFROM = { W: 99, G: 5, H: 7 };                     // the storey (1..NU) a wall pattern turns graphite from
 
 // ------------------------------------------------------------------------------------------------ textures
 // window stacks: per surround pattern an unlit and a lit column of 128 px (1.7 m), NU storeys of 192 px; the window
@@ -75,9 +75,9 @@ function winTex(mask, lit) {
     }
   }, { repeat: false, srgb: !mask });
 }
-// bay glazing: three variants side by side (A white spandrels, B olive from storey 6, C olive from storey 2), each 8
+// bay glazing: three variants side by side (A white spandrels, B olive from storey 7, C olive from storey 5), each 8
 // panes of 0.75 m; per storey a spandrel to 0.9 m, glass to 2.75 m with a transom, a white ledge band over it
-const PW = 0.75, NPANE = 8, BPX = 96, BFROM = [99, 6, 2];
+const PW = 0.75, NPANE = 8, BPX = 96, BFROM = [99, 7, 5];
 function bayTex(mask, lit) {
   return canvasTex(BPX * NPANE * 3, WSH * NU, (g, w, h) => {
     g.fillStyle = mask ? '#000' : WHITE; g.fillRect(0, 0, w, h);
@@ -193,7 +193,7 @@ export function buildTaraskova5({ root, map, solids: S, zips: Z, heightAt }) {
     // a canted bay: wall line s0..s1, front s0 + C..s1 - C at D out; ribbon glazing over the upper storeys, a ledge
     // at every floor, the parapet band and a cap
     const bay = (f, s0, s1, v) => {
-      const C = 0.55, D = 0.75, y0 = fy(1) - 0.05, y1 = ROOF;
+      const C = 0.5, D = 0.6, y0 = fy(1) - 0.05, y1 = ROOF;
       if (s1 - s0 < 2 * C + 0.8) return;
       f.cuts.push({ s0, s1, y0, y1: TOP });
       const P = [at(f, s0, 0), at(f, s0 + C, 0, D), at(f, s1 - C, 0, D), at(f, s1, 0)].map(xz);
@@ -257,7 +257,7 @@ export function buildTaraskova5({ root, map, solids: S, zips: Z, heightAt }) {
       }
       B.det.setColor(GRAPH);
       rect(B.det, f, 0.02, Math.min(3.2, L * 0.2), ROOF - 2.2 * FH, TOP - 0.05, 0.04);
-      rect(B.det, f, L - Math.min(4.2, L * 0.3), L - 0.02, gB, Y(gf + 1.2), 0.04);
+      if (!sec.street) rect(B.det, f, L - Math.min(4.2, L * 0.3), L - 0.02, gB, Y(gf + 1.2), 0.04);
     };
 
     for (const f of faces) {
@@ -274,8 +274,10 @@ export function buildTaraskova5({ root, map, solids: S, zips: Z, heightAt }) {
       const gableE = f.L >= 9 && f.L < 20 && ((f.nz > 0.9 && mid[1] > -2346) || (f.nx > 0.9 && mid[0] > -3224 && mid[1] < -2376) || (f.nz < -0.9 && mid[0] > -3223 && Math.abs(mid[1] + 2375) < 1));
       const prog = f.L < 9 ? 'S' : street ? 'ST' : gableE ? 'E' : yard ? 'YD' : 'OUT';
       f.prog = prog;
-      let s = 0;
-      for (const [w, p, what] of zonesFor(prog, f.L)) {
+      let s = 0, zones = zonesFor(prog, f.L);
+      // the street wing's gable has a window stack by the street corner (the street photos)
+      if (prog === 'E' && sec.street) { zones = [[0.6, 'W', ''], [1.7, 'W', 'n'], [f.L - 2.3, 'W', 'E']]; if (at(f, 0, 0)[0] > at(f, f.L, 0)[0]) zones.reverse(); }
+      for (const [w, p, what] of zones) {
         const zf = face(xz(at(f, s, 0)), xz(at(f, s + w, 0)), f.nx, f.nz), m = w / 2;
         s += w;
         if (what === 'n') { winStack(zf, m, p); if (!street) gwin(zf, m - 0.65, m + 0.65); }
@@ -298,7 +300,13 @@ export function buildTaraskova5({ root, map, solids: S, zips: Z, heightAt }) {
       if (street) {
         const L = f.L, yl = Math.min(...[0, 0.5, 1].map((t) => gAt(f, L * t, PD + 3)));
         B.det.setColor(GRAPH); box(B.det, f, 0, L, Y(3.2), Y(PH), 0, PD, 'ftlr');
-        box(B.det, f, 0, L, gB, Y(3.2), 0, PD, 'lr');
+        box(B.det, f, 0, L, gB, Y(0.1), 0, PD, 'lr');
+        for (const [e, sg] of [[0, -1], [L, 1]]) {   // the shop glazing wraps round both ends
+          const ef = face(xz(at(f, e, 0, 0)), xz(at(f, e, 0, PD)), f.ux * sg, f.uz * sg);
+          B.lit.setColor('#3e4a55'); rect(B.lit, ef, 0, PD, Y(0.1), Y(3.2));
+          B.det.setColor('#2b2d30'); for (const q of [0.1, PD / 2, PD - 0.1]) box(B.det, ef, q - 0.05, q + 0.05, Y(0.1), Y(3.2), 0, 0.04, 'flr');
+          B.det.setColor(GRAPH);
+        }
         B.det.setColor('#4a4c50'); box(B.det, f, 0, L, Y(PH), Y(PH) + 0.25, -0.01, PD + 0.05, 'ftlr');
         B.det.setColor(ROOFC); B.det.fill([0, L, L, 0].map((s, i) => xz(at(f, s, 0, i < 2 ? 0 : PD + 0.05))), [], Y(PH) + 0.25, true);
         const pf = face(xz(at(f, 0, 0, PD)), xz(at(f, L, 0, PD)), f.nx, f.nz), np = Math.max(2, Math.round(L / 1.6));
@@ -309,16 +317,21 @@ export function buildTaraskova5({ root, map, solids: S, zips: Z, heightAt }) {
         B.det.setColor(PLINTH); box(B.det, pf, 0, L, gB, Y(0.1), -0.05, 0, 'f');
         solid(S, f, 0, L, 0, PD, gB, Y(PH) + 0.25, 'wall');
         // the terrace, its steps and rail
-        const T1 = PD + 2.0, n = Math.max(1, Math.round((yF - yl) / 0.16));
+        const T1 = PD + 3.0, n = Math.max(1, Math.round((yF - yl) / 0.16));
         B.det.setColor('#b9b6ae'); box(B.det, f, 0, L, yl - 0.3, yF, PD, T1, 'ftlr');
-        for (let i = 1; i <= n; i++) { const yy = yF - (yF - yl) * i / (n + 1); B.det.setColor(i % 2 ? '#a9a69f' : '#b4b1a9'); box(B.det, f, 0.3, L - 0.3, yl - 0.3, yy, T1, T1 + 0.3 * i, 'ftlr'); }
-        solid(S, f, 0, L, PD, T1 + 0.3 * n, yl - 0.3, yF, 'step');
+        // one broad flight in the middle, rails along the rest of the edge and down the ends
+        const k0 = L * 0.35, k1 = L * 0.65;
+        for (let i = 1; i <= n; i++) { const yy = yF - (yF - yl) * i / (n + 1); B.det.setColor(i % 2 ? '#a9a69f' : '#b4b1a9'); box(B.det, f, k0, k1, yl - 0.3, yy, T1, T1 + 0.3 * i, 'ftlr'); }
+        solid(S, f, 0, L, PD, T1, yl - 0.3, yF, 'step');
+        solid(S, f, k0, k1, T1, T1 + 0.3 * n, yl - 0.3, yF, 'step');
         B.det.setColor('#b8bcc0');
-        const rail = [[0.2, 0.2 + L * 0.3], [0.2 + L * 0.55, L - 0.2]];
-        for (const [ra, rb] of rail) {
-          B.det.tube(at(f, ra, yF + 1.0, T1 - 0.1), at(f, rb, yF + 1.0, T1 - 0.1), 0.03, 4);
-          for (let q = ra; q <= rb + 0.01; q += (rb - ra) / Math.max(1, Math.round((rb - ra) / 1.8))) B.det.tube(at(f, q, yF, T1 - 0.1), at(f, q, yF + 1.0, T1 - 0.1), 0.025, 4);
-        }
+        const posts = (p0, p1) => {
+          B.det.tube(p0.map((v, i) => v + (i === 1 ? 1.0 : 0)), p1.map((v, i) => v + (i === 1 ? 1.0 : 0)), 0.03, 4);
+          const nq = Math.max(1, Math.round(Math.hypot(p1[0] - p0[0], p1[2] - p0[2]) / 1.8));
+          for (let q = 0; q <= nq; q++) { const b = p0.map((v, i) => v + (p1[i] - v) * q / nq); B.det.tube(b, b.map((v, i) => v + (i === 1 ? 1.0 : 0)), 0.025, 4); }
+        };
+        posts(at(f, 0.15, yF, T1 - 0.1), at(f, k0 - 0.1, yF, T1 - 0.1)); posts(at(f, k1 + 0.1, yF, T1 - 0.1), at(f, L - 0.15, yF, T1 - 0.1));
+        posts(at(f, 0.15, yF, PD + 0.2), at(f, 0.15, yF, T1 - 0.1)); posts(at(f, L - 0.15, yF, PD + 0.2), at(f, L - 0.15, yF, T1 - 0.1));
       }
     }
 
@@ -350,7 +363,7 @@ export function buildTaraskova5({ root, map, solids: S, zips: Z, heightAt }) {
     return { poly: rings.get(id), h: Math.max(...own.map((q) => q.top)) - Math.min(...own.map((q) => q.gLo)), kind: 'apt', name };
   });
   const all = [...rings.values()], boxes = all.map(bboxOf);
-  const podium = [-3282 - PD - 3, -3282, -2343, -2378.3];   // the shop podium and its terrace on the street front
+  const podium = [-3282 - PD - 4.5, -3282, -2343, -2378.3];   // the shop podium and its terrace on the street front
   return {
     footprints,
     // generated trees keep 3 m off the houses and off the podium terrace
