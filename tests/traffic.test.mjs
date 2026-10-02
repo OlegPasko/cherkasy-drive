@@ -61,11 +61,16 @@ let overl = 0;
 for (const L of net.links) for (let i = 1; i < L.cars.length; i++) if (L.cars[i - 1].s - L.cars[i].s < (L.cars[i - 1].len + L.cars[i].len) / 2 - 0.2) overl++;
 ok(overl === 0, `no overlapping cars on a lane (${overl})`);
 
-// ---- a walker steps onto the lane 14 m ahead of a moving car: the car stops short of them
+// ---- a walker steps onto the lane 14 m (or a hard stop) ahead of a moving car: the car stops short of them
 {
-  const c = sim.cars().filter(c => !c.parked && !c.mv && c.v > 3 && c.dist < 200 && c.L.len - c.s > 30)[0];
+  // the lane must be clear well past the walker: a car already ahead stops for them too, and this one queues behind it
+  const clear = (c) => { const i = c.L.cars.indexOf(c); return i === 0 || c.L.cars[i - 1].s - c.s > 40; };
+  const c = sim.cars().filter(c => !c.parked && !c.mv && c.v > 3 && c.dist < 200 && c.L.len - c.s > 30 && clear(c))[0];
   const fx = Math.cos(c.ry), fz = -Math.sin(c.ry);
-  walkers.push({ x: c.x + fx * (c.len / 2 + 14), z: c.z + fz * (c.len / 2 + 14), road: true });
+  // 14 m, or farther for a fast car: a hard stop (6 m/s², under the sim's B_MAX 8) plus a margin must fit; from 15 m/s
+  // no car stops in 14 m
+  const at = c.len / 2 + Math.max(14, c.v * c.v / 12 + 4);
+  walkers.push({ x: c.x + fx * at, z: c.z + fz * at, road: true });
   for (let i = 0; i < 30 * 6; i++) sim.update(dt, cam, 120 + i * dt);
   const gap = (walkers[0].x - c.x) * fx + (walkers[0].z - c.z) * fz - c.len / 2;
   ok(c.v < 0.3 && gap > 0.8 && gap < 6, `car yields to a walker on the road (gap ${gap.toFixed(1)} m, v ${c.v.toFixed(2)})`);
@@ -94,7 +99,9 @@ ok(w.sleep && Math.abs(w.p.y - w.ey - 0.002 * w.p.x) < 0.6, `wreck settles and s
 ok(Number.isFinite(w.q.x + w.q.w) && Math.abs(w.q.length() - 1) < 1e-3, 'wreck orientation normalised');
 
 // ---- collision: a player standing inside a car footprint is pushed out; above the roof it is supported
-const c2 = sim.cars().filter(c => !c.dead && c.dist < 140)[0];
+// a car with nothing else (car or wreck) within 10 m: a taller neighbour's side or roof would join the contact
+const alone = (c) => sim.cars().every(o => o === c || Math.hypot(o.x - c.x, o.z - c.z) > 10) && sim.wrecks.every(w => Math.hypot(w.p.x - c.x, w.p.z - c.z) > 10);
+const c2 = sim.cars().filter(c => !c.dead && c.dist < 140 && alone(c))[0];
 if (c2) {
   sim.setPlayer(new THREE.Vector3(c2.x, c2.y, c2.z), null, c2.y); sim.update(0, cam, 215);
   const p = new THREE.Vector3(c2.x + 0.2, c2.y + 0.3, c2.z);
