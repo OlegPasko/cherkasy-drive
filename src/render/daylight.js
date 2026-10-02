@@ -4,6 +4,9 @@
 //     daylight.update(dt)                 advance the clock (game seconds = dt * timeScale) and any preset blend
 //     daylight.setPreset(name, blendSec = 3)   'day' | 'morning' | 'sunrise' | 'sunset' | 'dusk' | 'night' | 'overcast'
 //     daylight.setTime(hours, blendSec = 0), setOvercast(v, blendSec = 0), setTimeScale(s), setDayOfYear(d)
+//     daylight.setSkipNight({ dusk = -1, dawn = 1 } | null)   with the clock running: once the setting sun sinks under
+//       `dusk` degrees the clock jumps to the morning hour of `dawn` degrees (the night is skipped); daylight.onSkip()
+//       is called right after the jump (the game hides the cut under a short fade)
 //     daylight.state  live object (mutated in place, never replaced):
 //       hours, dayOfYear, timeScale, overcast, preset, blending,
 //       sunDir / moonDir (world unit vectors toward the body), sunElev / moonElev (rad),
@@ -154,7 +157,7 @@ export function createDaylight({ preset = 'day', dayOfYear = 180, timeScale = 0 
     night: 0, lamps: 0, starVis: 0, exposure: 1, envIntensity: 1, starRot: new THREE.Matrix3(),
     version: 0, // bumps whenever something visible changed (sky / env refresh hint)
   };
-  let tween = null;
+  let tween = null, skip = null, prevSun = 0;
   const T = [0, 0, 0], L = [0, 0, 0], tmpV = new THREE.Vector3(), rotM = new THREE.Matrix4();
   const pole = enuToWorld(0, Math.cos(SITE.lat * RAD), Math.sin(SITE.lat * RAD)).normalize();
 
@@ -246,6 +249,12 @@ export function createDaylight({ preset = 'day', dayOfYear = 180, timeScale = 0 
         if (tween.t >= 1) { tween = null; S.blending = false; }
       } else if (S.timeScale) S.hours = wrap24(S.hours + dt * S.timeScale / 3600);
       derive();
+      // the night skip: only while the clock runs on its own and the sun is going down
+      if (skip && !tween && S.timeScale && S.sunDir.y < skip.dusk && S.sunDir.y < prevSun) {
+        S.hours = hourForElevation(S.dayOfYear, skip.dawnDeg, false); S.preset = 'custom'; derive();
+        try { api.onSkip?.(); } catch (e) { console.error('[daylight] onSkip', e); }
+      }
+      prevSun = S.sunDir.y;
     },
     setPreset(name, blendSec = 3) {
       const p = PRESETS[name]; if (!p) throw new Error(`daylight: unknown preset "${name}"`);
@@ -254,6 +263,8 @@ export function createDaylight({ preset = 'day', dayOfYear = 180, timeScale = 0 
     setTime(hours, blendSec = 0) { S.preset = 'custom'; startTween({ hours: wrap24(hours), overcast: S.overcast }, blendSec); },
     setOvercast(v, blendSec = 0) { startTween({ hours: S.hours, overcast: Math.min(1, Math.max(0, v)) }, blendSec); },
     setTimeScale(s) { S.timeScale = Math.max(0, +s || 0); },
+    setSkipNight(o) { skip = o ? { dusk: Math.sin((o.dusk ?? -1) * RAD), dawnDeg: o.dawn ?? 1 } : null; },
+    onSkip: null,
     setDayOfYear(d) { S.dayOfYear = Math.min(365, Math.max(1, Math.round(d))); derive(); },
     activate() { active = api; },
     dispose() { if (active === api) active = null; },

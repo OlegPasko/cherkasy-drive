@@ -65,6 +65,18 @@ const deg = (r) => r * 180 / Math.PI;
   ok(nJump < 0.05, `nightFactor has no pop during the blend (max step ${nJump.toFixed(3)})`);
   ok(handoverI < 0.01, `sun -> moon hand-over happens in the dark (${handoverI.toFixed(4)})`);
   ok(dl.state.exposure > 1.5, 'night raises exposure');
+  { // the game's clock: a day per hour, the night skipped from dusk straight to dawn
+    const d2 = createDaylight({ preset: 'sunset', dayOfYear: 180 });
+    d2.setTimeScale(24); d2.setSkipNight({ dusk: -1, dawn: 1 });
+    let skips = 0, minLamps = 1, darkest = 0; d2.onSkip = () => skips++;
+    for (let t = 0; t < 600 && !skips; t += 0.1) { d2.update(0.1); darkest = Math.max(darkest, d2.state.night); }
+    const dawn = hourForElevation(180, 1, false);
+    ok(skips === 1 && Math.abs(d2.state.hours - dawn) < 0.02, `the night skip jumps from dusk to dawn (${d2.state.hours.toFixed(2)} h)`);
+    ok(darkest < 0.7 && d2.state.lamps > 0.9, `no full night before the skip (night ${darkest.toFixed(2)}), the lights still on at dawn`);
+    for (let t = 0; t < 600; t += 0.1) { d2.update(0.1); minLamps = Math.min(minLamps, d2.state.lamps); }
+    ok(skips === 1 && minLamps < 0.02 && d2.state.sunDir.y > 0.3, 'after the skip the morning rises and the lights go off');
+    d2.dispose(); dl.activate();
+  }
   for (const p of PRESET_NAMES) { dl.setPreset(p, 0); ok(Number.isFinite(dl.state.hours) && dl.state.fogColor.r >= 0, `preset ${p} valid`); }
   dl.setPreset('overcast', 0);
   ok(dl.state.lightIntensity < 0.25 * ATMO.sunLux && dl.state.night < 0.3, 'overcast: weak sun, still daytime');

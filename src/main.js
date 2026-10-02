@@ -151,7 +151,8 @@ export function createCore({ container = document.body, quality = savedQuality()
   const ro = new ResizeObserver(() => ctx.resize());
   ro.observe(container);
   ctx.resize();
-  // renderer-level hotkeys: T cycles morning / day / evening (no night: the city reads badly in the dark), F9 cycles quality
+  // renderer-level hotkeys: T jumps to morning / day / evening (no night: the city reads badly in the dark; the game's clock
+  // runs on from there), F9 cycles quality
   input.bind('timeOfDay', ['KeyT']);
   input.bind('quality', ['F9']);
   ctx.addSystem(() => {
@@ -197,6 +198,19 @@ export async function startGame({ container = document.getElementById('app') || 
   const worldQuality = (q) => world.setQuality?.(q);
   worldQuality(ctx.quality);
   ctx.events.on('quality', worldQuality);
+  // the clock runs: a day in an hour of play, the night skipped (the city reads badly in the dark): once the sun is
+  // under the horizon after the evening, it is dawn, the cut hidden under a short fade. ?stilltime keeps the clock still
+  if (!params.has('stilltime')) {
+    const fade = Object.assign(document.createElement('div'), { className: 'time-fade' });
+    fade.style.cssText = 'position:fixed;inset:0;background:#06080d;opacity:0;pointer-events:none;z-index:5';
+    container.appendChild(fade);
+    ctx.daylight.setTimeScale(24);
+    ctx.daylight.setSkipNight({ dusk: -1, dawn: 1 });
+    ctx.daylight.onSkip = () => {
+      fade.style.transition = 'none'; fade.style.opacity = '1';
+      requestAnimationFrame(() => requestAnimationFrame(() => { fade.style.transition = 'opacity 1.6s ease-out'; fade.style.opacity = '0'; }));
+    };
+  }
 
   // the car owns the camera; the HUD is fed by the car (telemetry) and the missions (objective, markers, panel)
   const car = createCar({ scene, world, camera, input });

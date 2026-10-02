@@ -223,6 +223,7 @@ See `ARCHITECTURE.md` for the module map. Where things live:
     the Telegram bot's "🚗 Подивитись у грі" links use it.
   - `?noga` – no Google Analytics on the production site;
   - `?noadapt` – no adaptive resolution (steady pixel ratio for perf measurements);
+  - `?stilltime` – the clock stands still (the game runs a day per hour of play and skips the night, `startGame` in `main.js`);
   - `?nosound` – no sound at all (no AudioContext, nothing fetched, the radio muted); use it for every dev and test run;
   - `?mobile` / `?desktop` – force the phone map page or the game (`src/mapview.js`).
 - Handles: `window.__game` (ctx with `world`, `car`, `hud` (`hud.map`, `hud.painter`), `missions`, `perf`), `window.__car`,
@@ -230,7 +231,7 @@ See `ARCHITECTURE.md` for the module map. Where things live:
 - `window.tick(n, dt)` pauses the loop, steps n frames deterministically and returns a snapshot.
   `__game.start()` resumes the loop. Use this for scripted checks.
 - In the game: M opens the city map (Esc or M closes it), H (or the always-visible H chip) shows the controls card –
-  every key, grouped; add new keys to `HELP` in `hud.js` –, F2 hides the HUD, T cycles the time of day (morning, midday, evening – no night; the evening has the lights on: windows, lamps, signs, car lights, from `daylight.state.lamps`),
+  every key, grouped; add new keys to `HELP` in `hud.js` –, F2 hides the HUD, T jumps to a time of day (morning, midday, evening – the clock runs on from there, a day per hour, and skips the night; the evening has the lights on: windows, lamps, signs, car lights, from `daylight.state.lamps`),
   Q turns the radio on / off and E skips a track, F honks the horn (people in a cone ahead dash off to the sides), G lowers the graphics quality one step (from the lowest back to the highest; besides the post chain a lower level draws
   less: shorter tree / building / site / people / traffic draw and shadow distances, no river mirror at low), F9 cycles quality, B (or Home, or the "На старт" chip) takes a stuck car back to the start, N skips a mission call, O opens a partner's site inside its ring, Enter retries after a failure, and Backspace abandons a mission.
 - Chrome gives hidden tabs no animation frames, so a background tab looks frozen. Keep the tab in front, or use
