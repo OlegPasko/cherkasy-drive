@@ -173,6 +173,9 @@ See `ARCHITECTURE.md` for the module map. Where things live:
     `pryportova` (the new block at Припортова 22/1, under construction, built as the lun.ua renders show it: three 17-storey
     sections set corner to corner, white below a chocolate / taupe top, wood-banded loggia stacks, round wood balconies, white fins;
     the dark-glass shop podium, the paved yard with the castle playground) is `improved` too.
+    `ekohouse` (КМ «Екохаус», Сагайдачного at Симиренківська, after the lun.ua photos and renders, no signage): 33 two-storey
+    townhouses in four sawtooth rows of gabled bays (a narrow and a wide type) round two paved courts, white frames, larch,
+    balconies, gardens with screens and pergolas, the fenced lot levelled by `levelEkohouse`, a car park (`parked`), `improved`.
   - `places.js` – the sights, the paying partners (kind `ad`) and the non-landmark objects rebuilt on request (kind
     `improved`: a grey footprint only, "Покращений об’єкт" in the big map's legend) for both maps: icon, name, note, the OSM buildings
     whose footprints get highlighted, and for partners the site `url` (with `utm_source=driver.ck.ua`) and the pitch

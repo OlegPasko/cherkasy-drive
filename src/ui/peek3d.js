@@ -45,6 +45,7 @@ const SITES = {
   premierbay: ['premierbay', 'buildPremierBay'],
   onix: ['onix', 'buildOnix', 'levelOnix'],
   pasterivskyi: ['pasterivskyi', 'buildPasterivskyi'],
+  ekohouse: ['ekohouse', 'buildEkohouse', 'levelEkohouse'],
   voldim: ['voldim', 'buildVoldim'],
   ridnyidim: ['ridnyidim', 'buildRidnyiDim'],
   premierbay: ['premierbay', 'buildPremierBay', 'levelPremierBay'],
