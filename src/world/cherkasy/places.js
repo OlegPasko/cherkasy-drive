@@ -73,6 +73,7 @@ export const PLACES = [
   { id: 'ekvator', kind: 'improved', name: 'Покращений об’єкт', note: 'ТЦ «Екватор» · просп. Хіміків, 74', issue: 25, bld: [147261886] },
   { id: 'sportlife', kind: 'improved', name: 'Покращений об’єкт', note: 'Sport Life · вул. Козацька, 2', issue: 25, bld: [159700781] },
   { id: 'avrora', kind: 'improved', name: 'Покращений об’єкт', note: 'Аврора · вул. Смілянська, 144/2', issue: 26, bld: [415321196] },
+  { id: 'hrafskyi', kind: 'improved', name: 'Покращений об’єкт', note: 'ЖК «Графський» · вул. Байди Вишневецького, 68', bld: [1193290975, 1193290976, 989035400, 1193288998, 989035398, 989035397, 973321831, 19744972] },
   // sights
   { id: 'mykhailo', kind: 'sight', name: 'Свято-Михайлівський собор', icon: '⛪', bld: [242469769] },
   { id: 'troitsky', kind: 'sight', name: 'Свято-Троїцький собор', icon: '⛪', bld: [157432721] },
@@ -137,10 +138,11 @@ export function clipRing(p, { p: [ox, oz], n: [nx, nz] }) {
 export function resolvePlaces(map, geo) {
   const byId = new Map();
   const want = new Set(PLACES.flatMap((q) => q.bld || []));
-  for (const b of map?.buildings || []) if (want.has(b.id) && b.p?.length >= 6) byId.set(b.id, b.p);
+  // a multipolygon relation comes as several entries under one id: every piece is kept
+  for (const b of map?.buildings || []) if (want.has(b.id) && b.p?.length >= 6) byId.set(b.id, [...(byId.get(b.id) || []), b.p]);
   const out = [];
   for (const q of PLACES) {
-    const rings = [...(q.ring ? [q.ring] : []), ...(q.bld || []).map((id) => byId.get(id)).filter(Boolean).map((r) => [].concat(q.cut || []).reduce(clipRing, r)).filter((r) => r.length)];
+    const rings = [...(q.ring ? [q.ring] : []), ...(q.bld || []).flatMap((id) => byId.get(id) || []).map((r) => [].concat(q.cut || []).reduce(clipRing, r)).filter((r) => r.length)];
     let at = q.xz || (q.ll && geo ? geo.toXZ(q.ll[0], q.ll[1]) : null);
     if (!at && rings.length) { // the biggest footprint's centre
       const c = rings.map(ringCentre);
