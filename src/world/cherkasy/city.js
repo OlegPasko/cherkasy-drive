@@ -66,7 +66,7 @@ const SITE_MODULES = import.meta.glob(['./landmarks.js', './frame.js', './restin
   './miskrada.js', './poshtamt.js', './oblbiblioteka.js', './medakademia.js', './balloon.js', './yacht.js', './plane.js', './andriy.js', './boyan.js',
   './delikat.js', './atb.js', './mcdonalds.js', './tors.js', './urban.js', './su7.js', './overpass.js', './catcafe.js', './praska.js', './delikat399.js', './glassrotunda.js', './ekvator.js', './sportlife.js',
   './khimbridge.js', './railbridge.js', './gerb.js', './avrora.js',
-  './sviatotroitskyi.js', './hd34.js', './hrafskyi.js', './perlyna.js', './premierbay.js', './onix.js']);
+  './sviatotroitskyi.js', './hd34.js', './hrafskyi.js', './perlyna.js', './premierbay.js', './onix.js', './pasterivskyi.js']);
 async function loadSites() {
   const out = {};
   await Promise.all(Object.entries(SITE_MODULES).map(async ([path, load]) => {
@@ -171,7 +171,7 @@ export async function buildCherkasy({ scene, renderer, onProgress = null, params
     ['miskrada', 'MISKRADA_SKIP'], ['poshtamt', 'POSHTAMT_SKIP'], ['oblbiblioteka', 'OBLBIB_SKIP'], ['medakademia', 'MEDAKAD_SKIP'], ['andriy', 'ANDRIY_SKIP'], ['boyan', 'BOYAN_SKIP'],
     ['delikat', 'DELIKAT_SKIP'], ['atb', 'ATB_SKIP'], ['mcdonalds', 'MCDONALDS_SKIP'], ['urban', 'URBAN_SKIP'], ['su7', 'SU7_SKIP'], ['catcafe', 'CATCAFE_SKIP'], ['praska', 'PRASKA_SKIP'], ['delikat399', 'DELIKAT399_SKIP'], ['glassrotunda', 'ROTUNDA_SKIP'],
     ['ekvator', 'EKVATOR_SKIP'], ['sportlife', 'SPORTLIFE_SKIP'], ['zamkovapark', 'ZAMKPARK_SKIP'], ['avrora', 'AVRORA_SKIP'],
-    ['sviatotroitskyi', 'SVIATO_SKIP'], ['hd34', 'HD34_SKIP'], ['hrafskyi', 'HRAFSKYI_SKIP'], ['perlyna', 'PERLYNA_SKIP'], ['premierbay', 'PREMIERBAY_SKIP'], ['onix', 'ONIX_SKIP']]) for (const id of S[mod]?.[key] ?? []) skip.add(id);
+    ['sviatotroitskyi', 'SVIATO_SKIP'], ['hd34', 'HD34_SKIP'], ['hrafskyi', 'HRAFSKYI_SKIP'], ['perlyna', 'PERLYNA_SKIP'], ['premierbay', 'PREMIERBAY_SKIP'], ['onix', 'ONIX_SKIP'], ['pasterivskyi', 'PASTER_SKIP']]) for (const id of S[mod]?.[key] ?? []) skip.add(id);
   let groundDone = false, bldF = 0;
   const report = () => onProgress?.(0.15 + 0.55 * (0.3 * (groundDone ? 1 : 0) + 0.7 * bldF), `Рельєф, вулиці, будинки… ${Math.round(100 * (0.3 * (groundDone ? 1 : 0) + 0.7 * bldF))}%`);
   const groundP = buildGroundAsync({ scene: root, T, map, hf, strip, renderer, mapUrl: url('map.json') }).then((g) => { groundDone = true; report(); return g; });
@@ -207,7 +207,7 @@ export async function buildCherkasy({ scene, renderer, onProgress = null, params
     ['CatCafe block', 'catcafe', 'buildCatCafe'], ['Flatiron on Dashkovycha 4', 'praska', 'buildPraska'],
     ['Delikat on Shevchenka 399/2', 'delikat399', 'buildDelikat399'], ['Glass rotunda on Shevchenka', 'glassrotunda', 'buildGlassRotunda'],
     ['Ekvator', 'ekvator', 'buildEkvator'], ['Sport Life at Mytnytsia', 'sportlife', 'buildSportLife'], ['Avrora on Smilianska', 'avrora', 'buildAvrora'],
-    ['ZhK Sviatotroitskyi', 'sviatotroitskyi', 'buildSviatotroitskyi'], ['Heroiv Dnipra 34', 'hd34', 'buildHd34'], ['ZhK Hrafskyi', 'hrafskyi', 'buildHrafskyi'], ['Perlyna Dnipra', 'perlyna', 'buildPerlyna'], ['Premier Bay', 'premierbay', 'buildPremierBay'], ['ZhK Onix', 'onix', 'buildOnix']];
+    ['ZhK Sviatotroitskyi', 'sviatotroitskyi', 'buildSviatotroitskyi'], ['Heroiv Dnipra 34', 'hd34', 'buildHd34'], ['ZhK Hrafskyi', 'hrafskyi', 'buildHrafskyi'], ['Perlyna Dnipra', 'perlyna', 'buildPerlyna'], ['Premier Bay', 'premierbay', 'buildPremierBay'], ['ZhK Onix', 'onix', 'buildOnix'], ['ZhK Pasterivskyi', 'pasterivskyi', 'buildPasterivskyi']];
   const built = list.map(() => null);
   const runSites = async (late) => {
     for (const [i, [label, mod, fn]] of list.entries()) {

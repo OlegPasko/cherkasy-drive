@@ -141,6 +141,10 @@ See `ARCHITECTURE.md` for the module map. Where things live:
     `premierbay` (ЖК Premier Bay at Героїв Дніпра / Козацька, still being built, as the developer's renders show it: four
     ten-storey bars round a yard on a deck over the parking, white over a brick podium with brick towers and glass
     balconies; its walls are facade-shader quads) is `improved` too.
+    `pasterivskyi` (ЖК «Пастерівський», Маламужа 31 at Пастерівська, in project, built after the lun.ua and developer renders, no
+    signage): eight 10-storey sections as the four OSM bars, white render with violet standing-seam end towers and glowing branch
+    screens, shopfronts / garages on a graphite ground floor, end-wall balconies; the garage block on Пастерівська, the glass
+    pavilion, the playground, the sports court and the car parks (`parked`), `improved`.
   - `places.js` – the sights, the paying partners (kind `ad`) and the non-landmark objects rebuilt on request (kind
     `improved`: a grey footprint only, "Покращений об’єкт" in the big map's legend) for both maps: icon, name, note, the OSM buildings
     whose footprints get highlighted, and for partners the site `url` (with `utm_source=driver.ck.ua`) and the pitch
