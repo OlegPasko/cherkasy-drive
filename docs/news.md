@@ -1,7 +1,7 @@
 # Daily news to the bot's subscribers
 
 Players subscribe to the game news in `@driver_game_bot`: on `/start`, from the menu, with `/news`, or with the
-"🔔 Новини" chip in the game (`?start=sub`). Each day at 21:00 Kyiv time, the bot's own DigitalOcean function writes a
+"🔔 Оновлення" chip in the game (`?start=sub`). Each day at 21:00 Kyiv time, the bot's own DigitalOcean function writes a
 short post about what reached `main` and sends it to every subscriber. On a day with nothing new for players, nothing is
 sent. It runs in the cloud, so no Mac has to be awake.
 

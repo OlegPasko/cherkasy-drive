@@ -83,7 +83,7 @@ Flows:
 - **Navigation.** Every screen has "← Назад"; `/start` and `/my` always work.
 - **News.** A daily post at 21:00 Kyiv about what reached the game that day, and nothing on days without news.
   - Offered right on `/start` (the first button and a line under the welcome), then in the menu ("🔔 Підписатись" /
-    "🔕 Відписатись"), by `/news` and `/stop`, and from the game's "🔔 Новини" chip (`?start=sub` subscribes at once).
+    "🔕 Відписатись"), by `/news` and `/stop`, and from the game's "🔔 Оновлення" chip (`?start=sub` subscribes at once).
   - A subscriber is `subs/<chat>.json` in Spaces (and `sub: true` in the session, for the menu button).
   - `news.js` posts it at 21:00 Kyiv from the `daily-news` trigger: GPT-6 Luna (Gemma as the fallback) writes it from
     `main`'s new commits, and there is no model call and no post when nothing is new (`docs/news.md`; `bot/broadcast.mjs`

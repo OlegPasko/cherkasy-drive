@@ -141,7 +141,7 @@ See `ARCHITECTURE.md` for the module map. Where things live:
   live). Any key (browser shortcuts aside) or a click anywhere accepts it, a press during the load as soon as the game is
   ready; the game reads keys by `e.code`, so a Cyrillic layout works the same. The loop starts once it is accepted; acceptance is stored as `cherkasy.consent` = the `TERMS` version, so bump
   `TERMS` when the text changes materially and everyone sees it again.
-- `src/ui/botlink.js` – links into the Telegram bot: the "Бот" chip next to H, the "🔔 Новини" chip (`?start=sub`), the H card line, the big-map button,
+- `src/ui/botlink.js` – links into the Telegram bot: the "Бот" chip next to H, the "🔔 Оновлення" chip (`?start=sub`), the H card line, the big-map button,
   the right-click menu (improve / advertise at that point) and the partner card line.
 - `src/analytics.js` – Google Analytics 4: loads only on `driver.ck.ua` (never in dev, demos or tests); `track(name, params)`
   sends the game events listed in its header (missions, partner clicks, sights, load time).

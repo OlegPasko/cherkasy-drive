@@ -340,7 +340,7 @@ const buttons = (m) => (m.kb || []).flat().map((b) => b.data || b.url);
 {
   const f = fakes();
   await f.bot.onUpdate(msg('/start'));
-  assert.match(last(f).text, /Новини гри/);
+  assert.match(last(f).text, /Оновлення гри/);
   assert.equal(buttons(last(f))[0], 'nw:1');
   await f.bot.onUpdate(tap('nw:1'));
   assert.ok(f.files.has(`subs/${CHAT}.json`));
@@ -396,7 +396,7 @@ const buttons = (m) => (m.kb || []).flat().map((b) => b.data || b.url);
     assert.match(sent.at(-1).text, /надіслано 2, відписались 1/); // the report to Oleg
     head = 'd1'; commits = [{ sha: 'd1', message: 'x' }]; answers = ['<script>x</script>', 'Просто текст'];
     await assert.rejects(news.daily({ now: at(22, '2026-10-03') }), /no writer: openai: bad shape; gemma: bad shape/);
-    assert.equal(sent.at(-1).text.startsWith('📰 Новини 2026-10-03 не вийшли'), true); // Oleg hears about it
+    assert.equal(sent.at(-1).text.startsWith('📰 Оновлення 2026-10-03 не вийшло'), true); // Oleg hears about it
     assert.equal(sent.filter((m) => m.chat !== 1).length, 2); // nobody else got anything; the cursor stays for a retry
     assert.equal(JSON.parse(f.files.get('news/cursor.json')).sha, 'c1');
     const n = sent.length; answers = ['🗞 ok']; const d = await news.daily({ now: at(23, '2026-10-03'), dry: true });

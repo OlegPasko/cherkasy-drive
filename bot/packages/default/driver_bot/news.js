@@ -12,12 +12,12 @@
 // would notice (the model answers NONE): no post. Either way the cursor moves on. bot/broadcast.mjs runs the same by hand.
 const { T } = require('./texts');
 
-const PROMPT = `Ти пишеш щоденну новину для гравців браузерної гри Cherkasy Drive (відкритий світ у реальному місті Черкаси: машина, що літає, місії, пам'ятки). Нижче – коміти за день англійською.
+const PROMPT = `Ти пишеш щоденний допис про оновлення для гравців браузерної гри Cherkasy Drive (відкритий світ у реальному місті Черкаси: машина, що літає, місії, пам'ятки). Нижче – коміти за день англійською.
 
 Залиш лише те, що гравець побачить або відчує в грі: нові чи перебудовані будівлі й пам'ятки, місії, можливості, керування, звуки, карта, продуктивність і помітні виправлення, нові способи долучитися (бот, реклама). Відкинь документацію, тести, інструменти, рефакторинг, аналітику, деплой, внутрішню кухню бота і все, чого гравець не помітить. Якщо не лишилося нічого – відповідай рівно словом NONE.
 
 Формат – Telegram HTML (лише <b>, <i>, <a href>), українською, тире лише «–» (ніколи «—»):
-🗞 <b>Що нового в Cherkasy Drive</b>
+🗞 <b>Оновлення Cherkasy Drive</b>
 (порожній рядок)
 2–7 рядків: емодзі й одне коротке живе речення про одну зміну, так, як це бачить гравець («На Замковій горі тепер …»). Пов'язані коміти злий в один рядок. Зроблене на прохання гравця можна назвати «за заявкою гравця», без імен і номерів.
 (порожній рядок)
@@ -81,7 +81,7 @@ function createNews({ tg, gh, store, writers, adminChat = null, gameUrl = 'https
     await store.put(`news/${day}.html`, text, { type: 'text/html; charset=utf-8' });
     await store.put('news/last.json', JSON.stringify(rec), { type: 'application/json' });
     await store.put('news/cursor.json', JSON.stringify({ day, sha }), { type: 'application/json' });
-    await tell(`📰 Новини ${day}: надіслано ${sent}, відписались ${dropped.length}, помилки ${failed.length}`);
+    await tell(`📰 Оновлення ${day}: надіслано ${sent}, відписались ${dropped.length}, помилки ${failed.length}`);
     return rec;
   }
 
@@ -96,7 +96,7 @@ function createNews({ tg, gh, store, writers, adminChat = null, gameUrl = 'https
     if (!commits.length) return done('no new commits');
     let w;
     try { w = await write(commits); }
-    catch (e) { if (!dry) await tell(`📰 Новини ${day} не вийшли: ${e.message}`); throw e; }
+    catch (e) { if (!dry) await tell(`📰 Оновлення ${day} не вийшло: ${e.message}`); throw e; }
     if (!w.text) return done(`nothing for players in ${commits.length} commits (${w.writer})`);
     if (dry) return { day, sha: head, text: w.text, writer: w.writer, tried: w.tried, commits: commits.length };
     return { ...(await broadcast(w.text, { sha: head, day })), text: w.text, writer: w.writer };

@@ -3,7 +3,7 @@
 // (title, objective text, labelled condition bar with hit shake and "−N%" toasts, timer; centred at the top for 5 s on a
 // new mission or step, then docked on the right), banners, money with a flash, hint line), the controls card (every key the game knows, grouped; toggled by H or the always-visible "H" chip, which
 // stays on screen even with the HUD hidden; the "Бот" chip next to it opens the game's Telegram bot, the "B – На старт"
-// chip after it calls hud.onHome (a stuck car goes back to the start), the "🔔 Новини" chip opens the bot's daily news
+// chip after it calls hud.onHome (a stuck car goes back to the start), the "🔔 Оновлення" chip opens the bot's daily updates
 // subscription (t.me/…?start=sub), the "Q – Радіо" chip after that calls hud.onRadio and
 // shows what plays (hud.setRadio), and while it plays an "E – Далі" chip next to it calls hud.onRadioNext; an "M – Велика мапа"
 // chip over the minimap opens the big map) and the full-screen
@@ -93,7 +93,7 @@ export function createHud({ player, world, camera, container = globalThis.docume
     <button class="hud-helpkey" type="button" title="Керування (H)"><kbd>H</kbd><span>Керування</span></button>
     <a class="hud-botkey" href="${botLink()}" target="_blank" rel="noopener" title="Telegram-бот гри"><i>✈</i><span>Бот</span></a>
     <button class="hud-homekey" type="button" title="Повернутись на старт (B)"><kbd>B</kbd><span>На старт</span></button>
-    <a class="hud-botkey hud-newskey" href="${botLink('sub')}" target="_blank" rel="noopener" title="Раз на день, о 21:00, що нового в грі – у Telegram"><i>🔔</i><span>Новини</span></a>
+    <a class="hud-botkey hud-newskey" href="${botLink('sub')}" target="_blank" rel="noopener" title="Раз на день, о 21:00, оновлення гри в Telegram – лише коли вони є"><i>🔔</i><span>Оновлення</span></a>
     <button class="hud-radiokey" type="button" title="Радіо: Q – увімк. / вимк., E – наступний трек"><kbd>Q</kbd><span>Радіо</span></button>
     <button class="hud-radionext off" type="button" title="Наступний трек (E)"><kbd>E</kbd><span>Далі</span></button>
     <div class="hud-help"><h4>КЕРУВАННЯ</h4><div class="cols">${helpHtml()}</div>
