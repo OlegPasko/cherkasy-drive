@@ -170,6 +170,11 @@ See `ARCHITECTURE.md` for the module map. Where things live:
     from the lun.ua renders: teal-and-glass loggia bays, white-framed grey render panels, pilasters, the stair core's dark
     balcony stack on the yard side, glazed cantilevers over the dark south-west end and the car park's ramp house; one tile
     atlas, ~5k vertices; `tests/hoholia204.test.mjs`), `improved`.
+    `zhktemp` (ЖК «Темп», вул. Юрія Іллєнка 4: the nine-storey block (OSM 117808102) and its one-storey shop annex (996032042),
+    face by face from the lun.ua photos and renders – cream render over a brown plinth under a brown band, the street side's
+    loggia stacks, French and wide windows with the brown upper middle, the yard's proud end piers and stair head, the ends'
+    balcony stack –, the paved forecourt and the bar fence round the lot with the yard gate; ~6.6k vertices;
+    `tests/zhktemp.test.mjs`), `improved`.
   - `places.js` – the sights, the paying partners (kind `ad`) and the non-landmark objects rebuilt on request (kind
     `improved`: a grey footprint only, "Покращений об’єкт" in the big map's legend) for both maps: icon, name, note, the OSM buildings
     whose footprints get highlighted, and for partners the site `url` (with `utm_source=driver.ck.ua`) and the pitch

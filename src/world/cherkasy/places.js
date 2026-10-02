@@ -98,6 +98,7 @@ export const PLACES = [
   { id: 'harmony', kind: 'improved', name: 'Покращений об’єкт', note: 'Клубний комплекс Harmony · просп. Перемоги, 69', bld: [1507392909] },
   { id: 'olimpmodern', kind: 'improved', name: 'Покращений об’єкт', note: 'ЖК «Олімп Модерн» · вул. Квіткова, 10', ring: OLIMPM_RINGS },
   { id: 'hoholia204', kind: 'improved', name: 'Покращений об’єкт', note: 'Новобудова · вул. Гоголя, 204', bld: [1303437479] },
+  { id: 'zhktemp', kind: 'improved', name: 'Покращений об’єкт', note: 'ЖК «Темп» · вул. Юрія Іллєнка, 4', bld: [117808102, 996032042] },
   // sights
   { id: 'mykhailo', kind: 'sight', name: 'Свято-Михайлівський собор', icon: '⛪', bld: [242469769] },
   { id: 'troitsky', kind: 'sight', name: 'Свято-Троїцький собор', icon: '⛪', bld: [157432721] },
