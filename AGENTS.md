@@ -137,6 +137,10 @@ See `ARCHITECTURE.md` for the module map. Where things live:
     `premierbay` (ЖК Premier Bay at Героїв Дніпра / Козацька, still being built, as the developer's renders show it: four
     ten-storey bars round a yard on a deck over the parking, white over a brick podium with brick towers and glass
     balconies; its walls are facade-shader quads) is `improved` too.
+    `harmony` (house 1 of the club complex Harmony, просп. Перемоги 69, the only finished one: four storeys on the OSM outline,
+    the avenue front bay by bay from the developer's photos – graphite-framed window bays, recessed white bays with timber
+    strips, white pilasters under dark caps, a graphite shop storey –, white ends, the yard side still bare brick; its lot
+    levelled by `levelHarmony`; `tests/harmony.test.mjs`) is `improved` too.
   - `places.js` – the sights, the paying partners (kind `ad`) and the non-landmark objects rebuilt on request (kind
     `improved`: a grey footprint only, "Покращений об’єкт" in the big map's legend) for both maps: icon, name, note, the OSM buildings
     whose footprints get highlighted, and for partners the site `url` (with `utm_source=driver.ck.ua`) and the pitch
