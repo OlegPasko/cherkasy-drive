@@ -48,6 +48,7 @@ const SITES = {
   voldim: ['voldim', 'buildVoldim'],
   ridnyidim: ['ridnyidim', 'buildRidnyiDim'],
   premierbay: ['premierbay', 'buildPremierBay', 'levelPremierBay'],
+  olimp: ['olimp', 'buildOlimp'],
 };
 const MODULES = import.meta.glob('../world/cherkasy/*.js'); // lazy: a module's chunk loads on its first peek
 const MIN_R = 45, MAX_R = 170, POINT_R = 90; // crop radius round the place, m (POINT_R: a place on a point, no footprint)
