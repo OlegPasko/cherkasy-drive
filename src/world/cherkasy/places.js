@@ -18,6 +18,7 @@
 //   SHEV22_RING: the new block at бульвар Шевченка, 22 (shev22.js SHEV22_BOX; not in OSM yet)
 //   ONIX_RINGS (onix_data.js): the ЖК Onix sections, one ring each (most of them are not in OSM yet)
 //   NARB10_RING: the outline of the new block at Нарбутівська, 10 (narbutivska10.js)
+//   NADP249_RING: the stepped outline of the new club house at Надпільна, 249 (nadpilna249.js)
 import { ONIX_RINGS } from './onix_data.js';
 
 //   OLIMPM_RINGS: the section outlines of ЖК «Олімп Модерн» (olimpmodern.js; a place's `ring` may be a list of flat rings)
@@ -43,6 +44,8 @@ export const SHEV184_RING = [-75.2, -592, -74.5, -591.9, -73.8, -591.6, -73.2, -
 // the north-west tower of «Надія» at вул. Смілянська, 52 (smilianska.js SMIL52_RING; OSM has only a misplaced marker;
 // tests/smilianska.test.mjs keeps the two in step)
 export const SMIL52_RING = [-386.7, 294.1, -372.7, 294.1, -358.4, 280, -358.4, 266, -376.7, 266, -386.7, 276];
+// the new club house at Надпільна, 249 (nadpilna249.js NADP249_RING, not in OSM yet; tests/nadpilna249.test.mjs compares them)
+export const NADP249_RING = [-696.3, -518.8, -685.9, -518.8, -685.9, -519.4, -681.9, -519.4, -681.9, -516.3, -671.5, -516.3, -671.5, -516.9, -667.5, -516.9, -667.5, -513.8, -657.1, -513.8, -657.1, -503.6, -667.5, -503.6, -667.5, -502.8, -671.5, -502.8, -671.5, -506.1, -681.9, -506.1, -681.9, -505.3, -685.9, -505.3, -685.9, -508.6, -696.3, -508.6];
 
 export const PLACES = [
   // partners (paid placements; the other hand-built venues stay in the world but are not advertised)
@@ -123,6 +126,7 @@ export const PLACES = [
   { id: 'smilianska48', kind: 'improved', name: 'Покращений об’єкт', note: 'Новобудова · вул. Смілянська, 48, 50, 54', bld: [546773841] },
   { id: 'smilianska52', kind: 'improved', name: 'Покращений об’єкт', note: 'Новобудова · вул. Смілянська, 52', ring: SMIL52_RING },
   { id: 'ambrosa35', kind: 'improved', name: 'Покращений об’єкт', note: 'Новобудова · вул. Сергія Амброса, 35', bld: [1160384062] },
+  { id: 'nadpilna249', kind: 'improved', name: 'Покращений об’єкт', note: 'Новобудова · вул. Надпільна, 249', ring: NADP249_RING },
   // sights
   { id: 'mykhailo', kind: 'sight', name: 'Свято-Михайлівський собор', icon: '⛪', bld: [242469769] },
   { id: 'troitsky', kind: 'sight', name: 'Свято-Троїцький собор', icon: '⛪', bld: [157432721] },
