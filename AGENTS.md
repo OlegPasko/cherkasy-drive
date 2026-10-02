@@ -79,7 +79,12 @@ See `ARCHITECTURE.md` for the module map. Where things live:
     `fitness34` (fitness club «3-4», Надпільна 252), `torhivli` (Будинок торгівлі with the corner pavilion), `chnu` (ЧНУ
     main building), `chdtu` (ЧДТУ campus: корпуси 1–4 and the canteen), `bankinst` (the banking institute, Чорновола 164). `khrcity`
     (ТРЦ «Хрещатик-Сіті», Дашковича 19: the horseshoe round its courtyard, the arch, the towers and the atrium pavilions)
-    is built the same way and marked on the maps as an `improved` object.
+    is built the same way and marked on the maps as an `improved` object. So are its two neighbours at the Khreshchatyk
+    crossing, `improved` under their own names: `blakytnyi` (Блакитний палац, the former hotel «Слов’янський», Дашковича 20:
+    the ochre two-storey hotel with lancet windows, pinnacles, the chamfered corner with its balcony, gable, turrets and slate
+    spire, round a courtyard, plus the plain five-storey office wing of the same OSM relation) and `nbu` (the National Bank's
+    Cherkasy office, Дашковича 21: a cheap rebuild with the four-column portico and pediment, arched windows, hipped roofs).
+    `civic.js` also holds the arch, face-polygon and hipped-roof helpers they share.
     Twenty more well-known buildings are built the same way, each marked as an `improved` object: `miskrada` (city
     council), `poshtamt` (head post office), `oblbiblioteka` (regional library), `medakademia` (medical academy),
     `podatkova` (tax office, Хрещатик 235), `school17`, `kinoukraina` (Ukraina cinema), `chnu3` (ЧНУ building 3),

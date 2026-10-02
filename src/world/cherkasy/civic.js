@@ -9,9 +9,14 @@
 //   fbox(D, f, s0, s1, y0, y1, o0, o1, m = 63)   box in the face frame; m: 1 front, 2 back, 4 left, 8 right, 16 top, 32 bottom
 //   fsolid(S, f, s0, s1, o0, o1, y0, y1, kind, flags = 0)   collision prism over an s / o rectangle
 //   rampSolid(S, f, s0, s1, o0, o1, yHi, yLo, yBase)   one sloped prism over a flight of steps (yHi at o0)
+//   facePoly(D, f, pts, o = 0, uvm = null, back = false)   polygon [[s, y], …] in the face plane (star-shaped from pts[0])
+//   archPts(s0, s1, ys, 'pointed' | 'round', grow = 0, n = 6) -> [[s, y], …]   arch curve, left spring -> apex -> right;
+//     archTop(w, kind) -> its rise over the springing line
+//   hipRoof(D, x0, z0, x1, z1, y, rise)   hipped roof over a map-axis rectangle;  roofFace(D, [[x, y, z], …]) one up-facing plane
 //   wallAround(D, f, y0, y1, uvm, colour)   the wall between y0 and y1 minus f.open ({ s0, s1, y0, y1 })
 //   fillOpening(B, f, q)   reveals, frame, mullions, glass (B.glass or B.lit); q { s0, s1, y0, y1, dep, frame, glass,
 //     lit, pane, rev, sill, low, lowCol, door }
+//   plainOpening(B, f, q)   the cheap fill: reveals and a recessed pane; q { s0, s1, y0, y1, dep, rev, glass, lit, mull }
 //   stoneTex(r, base, opts), tileTex(r, base, opts), brickTex(r, opts), paveTex(r, a, b, opts)   tiling canvas
 //     textures, 512 px, near white so the vertex colour tints them
 //   paveRect(D, f, s0, s1, o0, o1, heightAt, { cell, lift, rep })   pavement draped on the terrain in front of a face
@@ -91,6 +96,46 @@ export function fsolid(S, f, s0, s1, o0, o1, y0, y1, kind, flags = 0) {
   return S.prism(Q.flat(), y0, y1, 0, 0, kind, flags);
 }
 
+// ------------------------------------------------------------------------------------------------ arches, gables, roofs
+// a polygon in a face's plane, pts [[s, y], …] star-shaped from pts[0]; turned to face along f.N (back: against it);
+// uv in metres / uvm
+export function facePoly(D, f, pts, o = 0, uvm = null, back = false) {
+  let a = 0;
+  for (let i = 0; i < pts.length; i++) { const p = pts[i], q = pts[(i + 1) % pts.length]; a += p[0] * q[1] - q[0] * p[1]; }
+  const P = (a < 0) !== back ? [...pts].reverse() : pts, k = back ? -1 : 1;
+  const id = P.map(([s, y]) => { const p = at(f, s, y, o); return D.vert(p[0], p[1], p[2], k * f.nx, 0, k * f.nz, uvm ? s / uvm[0] : 0, uvm ? y / uvm[1] : 0); });
+  for (let i = 1; i < id.length - 1; i++) D.tri(id[0], id[i], id[i + 1]);
+}
+// arch curve from the left spring over the apex to the right spring; 'pointed' (equilateral lancet) or 'round';
+// grow widens it outward (the moulding's outer edge)
+export function archPts(s0, s1, ys, kind, grow = 0, n = 6) {
+  const w = s1 - s0, m = (s0 + s1) / 2, out = [];
+  if (kind === 'round') {
+    const R = w / 2 + grow;
+    for (let i = 0; i <= 2 * n; i++) { const a = Math.PI * (1 - i / (2 * n)); out.push([m + R * Math.cos(a), ys + R * Math.sin(a)]); }
+    return out;
+  }
+  const R = w + grow, ta = Math.acos(-(w / 2) / R), pa = Math.acos((w / 2) / R);
+  for (let i = 0; i <= n; i++) { const t = Math.PI + (ta - Math.PI) * i / n; out.push([s1 + R * Math.cos(t), ys + R * Math.sin(t)]); }
+  for (let i = n - 1; i >= 0; i--) { const t = pa * i / n; out.push([s0 + R * Math.cos(t), ys + R * Math.sin(t)]); }
+  return out;
+}
+export const archTop = (w, kind) => (kind === 'round' ? w / 2 : w * Math.sin(Math.acos(-0.5)));
+// a hipped roof over an axis-aligned rectangle (map x / z), eaves at y, ridge `rise` above on the long axis
+export function hipRoof(D, x0, z0, x1, z1, y, rise) {
+  const alongX = x1 - x0 >= z1 - z0, h = (alongX ? z1 - z0 : x1 - x0) / 2, Y = y + rise;
+  const r0 = alongX ? [x0 + h, (z0 + z1) / 2] : [(x0 + x1) / 2, z0 + h], r1 = alongX ? [x1 - h, (z0 + z1) / 2] : [(x0 + x1) / 2, z1 - h];
+  const A = [x0, y, z0], B = [x1, y, z0], C = [x1, y, z1], E = [x0, y, z1], R0 = [r0[0], Y, r0[1]], R1 = [r1[0], Y, r1[1]];
+  const faces = alongX ? [[A, B, R1, R0], [C, E, R0, R1], [B, C, R1], [E, A, R0]] : [[B, C, R1, R0], [E, A, R0, R1], [A, B, R0], [C, E, R1]];
+  for (const P of faces) roofFace(D, P);
+}
+// a planar roof polygon [[x, y, z], …] facing up
+export function roofFace(D, P) {
+  const u = P[1].map((v, i) => v - P[0][i]), w = P[2].map((v, i) => v - P[0][i]);
+  const n = [u[1] * w[2] - u[2] * w[1], u[2] * w[0] - u[0] * w[2], u[0] * w[1] - u[1] * w[0]], l = Math.hypot(...n) * (n[1] < 0 ? -1 : 1);
+  D.face(P, n.map((v) => v / l));
+}
+
 // ------------------------------------------------------------------------------------------------ walls
 // the wall is cut into horizontal bands at every opening edge; each band is filled between the openings crossing it
 export function wallAround(D, f, y0, y1, uvm, col) {
@@ -125,6 +170,19 @@ export function fillOpening(B, f, q) {
   if (q.door) fbox(D, f, s0, s1, y0 + 2.1, y0 + 2.18, bk, fo, 1 | 16 | 32); // transom over a door leaf
   else if (y1 - g0 > 2.2) fbox(D, f, s0, s1, y1 - 0.6, y1 - 0.54, bk, fo, 1 | 16 | 32);
   if (q.sill) { D.setColor(q.sill); fbox(D, f, s0 - 0.04, s1 + 0.04, y0 - 0.05, y0, bk, 0.06, 1 | 4 | 8 | 16); }
+}
+// the cheap version: four reveals and a recessed pane (B.glass or B.lit), a centre mullion when q.mull is a colour
+export function plainOpening(B, f, q) {
+  const D = B.det, bk = -(q.dep ?? 0.18);
+  D.setColor(q.rev ?? '#d8d4ca');
+  quad(D, at(f, q.s0, q.y0), at(f, q.s0, q.y0, bk), at(f, q.s0, q.y1, bk), at(f, q.s0, q.y1), f.R);
+  quad(D, at(f, q.s1, q.y0), at(f, q.s1, q.y0, bk), at(f, q.s1, q.y1, bk), at(f, q.s1, q.y1), f.L);
+  quad(D, at(f, q.s0, q.y1), at(f, q.s1, q.y1), at(f, q.s1, q.y1, bk), at(f, q.s0, q.y1, bk), DOWN);
+  quad(D, at(f, q.s0, q.y0), at(f, q.s1, q.y0), at(f, q.s1, q.y0, bk), at(f, q.s0, q.y0, bk), UP);
+  const G = q.lit ? B.lit : B.glass;
+  G.setColor(q.glass ?? '#56626a');
+  quad(G, at(f, q.s0, q.y0, bk), at(f, q.s1, q.y0, bk), at(f, q.s1, q.y1, bk), at(f, q.s0, q.y1, bk), f.N);
+  if (q.mull) { const m = (q.s0 + q.s1) / 2; D.setColor(q.mull); fbox(D, f, m - 0.04, m + 0.04, q.y0, q.y1, bk, bk + 0.05, 1 | 4 | 8); }
 }
 
 // ------------------------------------------------------------------------------------------------ textures

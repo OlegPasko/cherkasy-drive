@@ -22,7 +22,7 @@ const SITES = {
   boyan: ['boyan', 'buildBoyan', 'levelBoyan'], su7: ['su7', 'buildSu7', 'levelSu7'], philharmonic: ['philharmonic', 'buildPhilharmonic', 'shapePhilharmonic'],
   bilyidim: ['bilyidim', 'buildBilyiDim', 'shapeBilyiDim'], lotus: ['lotus', 'buildLotus', 'shapeLotus'],
   station: ['station', 'buildStation', 'levelStation'], lovebridge: ['lovebridge', 'buildLoveBridge', 'shapeLoveBridge'], bridge: ['dam', 'buildDam'],
-  khimikiv44: ['khimikiv', 'buildKhimikiv'], khrcity: ['khrcity', 'buildKhrCity', 'shapeKhrCity'], spartak: ['spartak', 'buildSpartak'],
+  khimikiv44: ['khimikiv', 'buildKhimikiv'], khrcity: ['khrcity', 'buildKhrCity', 'shapeKhrCity'], blakytnyi: ['blakytnyi', 'buildBlakytnyi'], nbu: ['nbu', 'buildNbu'], spartak: ['spartak', 'buildSpartak'],
   pioner: ['pioner', 'buildPioner'], slavutych: ['slavutych', 'buildSlavutych'], lyubava: ['lyubava', 'buildLyubava'],
   budivelnyk: ['budivelnyk', 'buildBudivelnyk'], grandmarket: ['grandmarket', 'buildGrandMarket'], epicentr: ['epicentr', 'buildEpicentr'],
   dytlikarnya: ['dytlikarnya', 'buildDytlikarnya'], hoteldnipro: ['hoteldnipro', 'buildHotelDnipro'],
@@ -97,8 +97,9 @@ export function createPeek({ container, map, painter, geo }) {
     isOpen = true;
     const my = ++seq;
     $('.pk-icon').textContent = place.icon || '🏛️';
-    $('.pk-name').textContent = place.kind === 'improved' ? (place.note || place.name) : place.name;
-    $('.pk-note').textContent = place.kind === 'improved' ? place.name : place.note || '';
+    const generic = place.kind === 'improved' && place.name === 'Покращений об’єкт'; // no name of its own: the address leads
+    $('.pk-name').textContent = generic ? (place.note || place.name) : place.name;
+    $('.pk-note').textContent = generic ? place.name : place.note || '';
     ui.classList.remove('off', 'ready', 'failed');
     $('.pk-wait span').textContent = 'Будуємо 3D-модель…';
     track('peek3d', { place: place.id });

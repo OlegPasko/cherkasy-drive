@@ -39,6 +39,8 @@ export const PLACES = [
   // rebuilt on request, not landmarks (a landmark goes with the sights below)
   { id: 'khimikiv44', kind: 'improved', name: 'Покращений об’єкт', note: 'просп. Хіміків, 44', issue: 1, bld: [108980190] },
   { id: 'khrcity', kind: 'improved', name: 'Покращений об’єкт', note: 'вул. Остафія Дашковича, 19', bld: [6287196] },
+  { id: 'blakytnyi', kind: 'improved', name: 'Блакитний палац', note: 'колишній готель «Слов’янський» · вул. Остафія Дашковича, 20', bld: [2810576] },
+  { id: 'nbu', kind: 'improved', name: 'Національний банк України', note: 'Черкаське управління · вул. Остафія Дашковича, 21', bld: [157594229] },
   { id: 'spartak', kind: 'improved', name: 'Покращений об’єкт', note: 'вул. Остафія Дашковича, 23', bld: [156926550] },
   { id: 'pioner', kind: 'improved', name: 'Покращений об’єкт', note: 'вул. Митницька, 13 / бульв. Шевченка, 274', bld: [411245074] },
   { id: 'slavutych', kind: 'improved', name: 'Покращений об’єкт', note: 'вул. Небесної Сотні, 105', bld: [161603694] },
