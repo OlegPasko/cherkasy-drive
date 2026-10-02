@@ -45,6 +45,7 @@ const SITES = {
   premierbay: ['premierbay', 'buildPremierBay'],
   onix: ['onix', 'buildOnix', 'levelOnix'],
   pasterivskyi: ['pasterivskyi', 'buildPasterivskyi'],
+  ekohouse: ['ekohouse', 'buildEkohouse', 'levelEkohouse'],
   voldim: ['voldim', 'buildVoldim'],
 };
 const MODULES = import.meta.glob('../world/cherkasy/*.js'); // lazy: a module's chunk loads on its first peek
