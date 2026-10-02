@@ -1,16 +1,18 @@
 // OWNER: cherkasy. ЖК Premier Bay, вулиця Героїв Дніпра / вулиця Козацька on Mytnytsia: a residential complex by the
 // Dnipro that is still being built (sections 1–4 under way, 5–10 in the project), built here as the developer's
 // renders show it (lun.ua/new/cherkasy/premier-bay, premier-bay.ck.ua). Four ten-storey bars (OSM 1526030153–156, one
-// per group of sections) stand round a closed yard in a pinwheel, their corners left open with fences across. The
+// per group of sections) stand round a yard in a pinwheel, their corners left open as drives in from the street. The
 // short bars (to the river and to the street) are white render over a three-storey podium of red-brown clinker brick,
 // a dark grey band at the fourth floor and one stack of recessed loggias splitting the front; the long wings are white
 // over a dark ground storey with a loggia stack every ~20 m; both have dark panels beside the big windows. The accent
 // sections are eleven-storey brick towers on a dark glazed ground floor, with stacks of cantilevered glass balconies.
-// The lot rises ~5 m to the east, so the yard is a flat deck over the underground parking at the hilltop's level: the
-// ground floors open onto it, the bars' plinths run down to the street, stone walls close its open corners. The yard:
-// paved paths round four lawns, three orange playground pads with swings and slides, a round bench, a pergola, flower
+// The DEM's lot rises ~5 m to the east; levelPremierBay flattens it to the driveways round it, so the bars stand on level
+// ground and a car drives into the yard through the four corner gaps and round it. The yard:
+// paved drives round four lawns, three orange playground pads with swings and slides, a round bench, a pergola, flower
 // beds, young trees and thujas, benches and bollard lamps; entrances from the yard under dark canopies.
 //   PREMIERBAY_SKIP: the OSM ids replaced here (buildings.js skips them)
+//   levelPremierBay(hf, map) -> level | null   levels the lot (LOT, blended out over MARGIN m) to the median height of
+//     the roads and tracks within REACH m of it, before the ground is built (city.js, peek3d.js)
 //   buildPremierBay({ root, map, solids, zips, heightAt, facadeMat }) -> { update(dt), clear(x, z), footprints } | null
 // The walls are facade-shader quads (world/facade.js: windows, rooms behind them and the lit windows at night come
 // from the shader); loggias, balconies, canopies and the yard are merged meshes. Everything is laid in the complex's
@@ -21,6 +23,7 @@ import { nightK } from '../../render/daylight.js';
 import { FacadeBuilder, STYLE, LAYER } from '../facade.js';
 import { ringPts, rng } from './geo.js';
 import { paveTex } from './civic.js';
+import { GY } from './ground.js';
 import { face, ringFaces, at, rect, box, solid } from './slabkit.js';
 
 const BARS = { east: 1526030153, north: 1526030154, west: 1526030155, south: 1526030156 };
@@ -38,25 +41,47 @@ const SECTIONS = {
   south: [['v', -40, -12, 'B'], ['v', -12, 30, 'W']],
 };
 const NFL = { W: 10, L: 10, B: 11 };
-// the yard's corners left open between the bars: fences across them, [u0, v0, u1, v1]
-const DECK = [-56.2, 56.6, -54.2, 51.8];         // the yard deck, [u0, u1, v0, v1]
-const FENCES = [[56.6, 21.8, 56.6, 45.6], [56.6, -54.2, 56.6, -31.7], [-55.4, -48.5, -55.4, -29.7], [-56.2, 23.8, -56.2, 51.8]];
+const LOT = [-62, 62, -76, 74], REACH = 40, MARGIN = 48; // the levelled lot [u0, u1, v0, v1], the roads it reads, the blend
 const DARK = '#3a3d41', WOOD = '#a8774a', RAIL = '#2e3033';
 
-export function buildPremierBay({ root, map, solids: S, zips: Z, heightAt, facadeMat }) {
-  const rings = Object.fromEntries(Object.entries(BARS).map(([k, id]) => [k, map.buildings.find((b) => b.id === id)]).filter(([, b]) => b).map(([k, b]) => [k, ringPts(b.p)]));
-  if (!rings.east || !facadeMat) return null;
-  const t0 = performance.now(), n0 = S.count, r = rng(1526030153 % 65521);
-  // the frame from the east bar's yard-side edge
+// the bars' rings and the complex's frame (u, v), from the east bar's yard-side edge
+function frameOf(map) {
+  const rings = Object.fromEntries(Object.entries(BARS).map(([k, id]) => [k, map.buildings?.find((b) => b.id === id)]).filter(([, b]) => b).map(([k, b]) => [k, ringPts(b.p)]));
+  if (!rings.east) return null;
   const [a0, a1] = rings.east, L0 = Math.hypot(a1[0] - a0[0], a1[1] - a0[1]), U = [(a1[0] - a0[0]) / L0, (a1[1] - a0[1]) / L0], V = [-U[1], U[0]];
   const uOf = (p) => (p[0] - ORIGIN[0]) * U[0] + (p[1] - ORIGIN[1]) * U[1], vOf = (p) => (p[0] - ORIGIN[0]) * V[0] + (p[1] - ORIGIN[1]) * V[1];
   const P = (u, v) => [ORIGIN[0] + U[0] * u + V[0] * v, ORIGIN[1] + U[1] * u + V[1] * v];
+  return { rings, U, V, uOf, vOf, P };
+}
+
+// level the lot (the bars, the yard and the strip round them) to the driveways round it: the median height of the
+// motor roads and tracks within REACH m of the lot; the blend out to MARGIN m carries the roads and the sand with it
+export function levelPremierBay(hf, map) {
+  const F = frameOf(map);
+  if (!F) return null;
+  const { uOf, vOf, P } = F, [u0, u1, v0, v1] = LOT, hs = [];
+  const near = (x, z) => { const u = uOf([x, z]), v = vOf([x, z]); return Math.max(u0 - u, u - u1, 0) ** 2 + Math.max(v0 - v, v - v1, 0) ** 2 < REACH * REACH; };
+  for (const rd of map.roads ?? []) {
+    if (rd.k !== 'm' && rd.k !== 'd') continue;
+    for (let i = 2; i < rd.p.length; i += 2) {
+      const ax = rd.p[i - 2], az = rd.p[i - 1], bx = rd.p[i], bz = rd.p[i + 1], n = Math.ceil(Math.hypot(bx - ax, bz - az) / 2);
+      for (let k = 0; k <= n; k++) { const x = ax + (bx - ax) * k / n, z = az + (bz - az) * k / n; if (near(x, z)) hs.push(hf.heightAt(x, z)); }
+    }
+  }
+  if (hs.length < 8) return null;
+  hs.sort((a, b) => a - b);
+  return hf.pad([P(u0, v0), P(u1, v0), P(u1, v1), P(u0, v1)], MARGIN, hs[hs.length >> 1]);
+}
+
+export function buildPremierBay({ root, map, solids: S, zips: Z, heightAt, facadeMat }) {
+  const F = frameOf(map);
+  if (!F || !facadeMat) return null;
+  const { rings, U, V, uOf, vOf, P } = F;
+  const t0 = performance.now(), n0 = S.count, r = rng(1526030153 % 65521);
   const hs = Object.values(rings).flat().map((p) => heightAt(p[0], p[1])), gLo = Math.min(...hs), gHi = Math.max(...hs);
-  // the yard is the deck over the underground parking, level with the hilltop the lot rises to (the ground falls ~5 m
-  // to the west and to both ends); the bars' ground floors open onto it, their plinths run down to the street
-  let hDeck = -Infinity;
-  for (let u = DECK[0]; u <= DECK[1] + 0.01; u += (DECK[1] - DECK[0]) / 24) for (let v = DECK[2]; v <= DECK[3] + 0.01; v += (DECK[3] - DECK[2]) / 24) { const p = P(u, v); hDeck = Math.max(hDeck, heightAt(p[0], p[1])); }
-  const base = hDeck + 0.2, Y = (h) => base + h, yLo = gLo - 1.5;
+  // levelPremierBay flattened the lot to the driveways' level before the ground was built: the bars and the yard stand
+  // on it (without the hook the lowest corner keeps every wall on the ground)
+  const base = gLo + GY.WALK, Y = (h) => base + h, yLo = gLo - 0.6;   // the doors open at the yard paving
   const roofOf = (T) => Y(G + (NFL[T] - 1) * FH), topOf = (T) => roofOf(T) + PARA;
 
   const FB = new FacadeBuilder();
@@ -194,8 +219,8 @@ export function buildPremierBay({ root, map, solids: S, zips: Z, heightAt, facad
   for (const [f, m] of canopies) solid(S, f, m - 2.4, m + 2.4, 0, 1.8, Y(2.95), Y(3.3), 'awning', 1);
 
   // ---- the yard: paving draped on the ground, four lawns, playgrounds, a round bench, a pergola, trees and lamps
-  const onDeck = (u, v) => u >= DECK[0] - 0.01 && u <= DECK[1] + 0.01 && v >= DECK[2] - 0.01 && v <= DECK[3] + 0.01;
-  const gy = (u, v) => { if (onDeck(u, v)) return base; const p = P(u, v); return heightAt(p[0], p[1]); };
+  // the yard lies just over the ground's own walks and lawns (GY: the land is drawn 0.15–0.19 m over the terrain)
+  const gy = (u, v) => { const p = P(u, v); return heightAt(p[0], p[1]) + GY.WALK; };
   const drape = (M, u0, u1, v0, v1, lift, cell = 4, tint = null) => {
     const nu = Math.max(1, Math.ceil((u1 - u0) / cell)), nv = Math.max(1, Math.ceil((v1 - v0) / cell)), id = [];
     for (let j = 0; j <= nv; j++) for (let i = 0; i <= nu; i++) {
@@ -217,36 +242,30 @@ export function buildPremierBay({ root, map, solids: S, zips: Z, heightAt, facad
     M.setColor(col); M.extrude(pts, [], y + h0, y + h1, { top: true, sides: true });
   };
   B.pave.setColor('#d8d4cc');
-  for (const [u0, u1, v0, v1] of [[-59.3, 59.4, -74, DECK[2]], [-59.3, 59.4, DECK[3], 71.3], [-59.3, DECK[0], DECK[2], DECK[3]], [DECK[1], 59.4, DECK[2], DECK[3]]]) drape(B.pave, u0, u1, v0, v1, 0.06);
-  drape(B.pave, DECK[0], DECK[1], DECK[2], DECK[3], 0.02, 8);
-  // the deck's open edges in the corner gaps: a dark stone wall down to the ground (the bars hide the rest)
-  for (const u of [DECK[0], DECK[1]]) {
-    const n = 26, sg = u > 0 ? 1 : -1, ids = [];
-    D.setColor('#6f6b66');
-    for (let i = 0; i <= n; i++) { const v = DECK[2] + (DECK[3] - DECK[2]) * i / n, p = P(u, v); ids.push([D.vert(p[0], base + 0.02, p[1], U[0] * sg, 0, U[1] * sg), D.vert(p[0], heightAt(p[0], p[1]) - 0.6, p[1], U[0] * sg, 0, U[1] * sg)]); }
-    for (let i = 0; i < n; i++) { const [a, b] = ids[i], [c, d] = ids[i + 1]; if (sg > 0) D.quad(a, c, d, b); else D.quad(a, b, d, c); }
-    D.setColor('#9a958d'); for (let i = 0; i < n; i++) { const v0 = DECK[2] + (DECK[3] - DECK[2]) * i / n, v1 = v0 + (DECK[3] - DECK[2]) / n; bx(D, u - sg * 0.15, (v0 + v1) / 2, 0.25, (v1 - v0) / 2, -0.02, 0.12, '#9a958d'); }
-  }
-  { const pts = [P(DECK[0], DECK[2]), P(DECK[1], DECK[2]), P(DECK[1], DECK[3]), P(DECK[0], DECK[3])]; S.prism(pts.flat(), yLo, base, 0, 0, 'wall'); }
+  drape(B.pave, -59.3, 59.4, -74, 71.3, 0.02);
   const lawn = () => { const k = 0.9 + r() * 0.2; return [0.1 * k, 0.21 * k, 0.05 * k]; };
-  const LAWNS = [[-36, -2, -52, -2], [2, 37, -52, -2], [-36, -2, 2, 49.5], [2, 37, 2, 49.5], [41, 55, 24, 43], [41, 55, -52, -34], [-54, -40, -46, -32], [-54, -40, 26, 49.5]];
-  for (const [u0, u1, v0, v1] of LAWNS) drape(B.soft, u0, u1, v0, v1, 0.1, 4, lawn);
+  // four big lawns inside a ring drive ~3.5 m wide along the bars; the corner gaps keep a 7 m paved drive through the
+  // middle between two small lawns each
+  const LAWNS = [[-35, -2, -51, -2], [2, 36, -51, -2], [-35, -2, 2, 48.5], [2, 36, 2, 48.5],
+    [42, 56, 24, 30.5], [42, 56, 37.5, 43.5], [42, 56, -52, -46.5], [42, 56, -39.5, -34],
+    [-54, -40, -46.5, -42.6], [-54, -40, -35.6, -32], [-54, -40, 26, 34], [-54, -40, 41, 49.5]];
+  for (const [u0, u1, v0, v1] of LAWNS) drape(B.soft, u0, u1, v0, v1, 0.05, 4, lawn);
   const PADS = [[-20, -27, 11], [-19, 26, 10], [21, -30, 8]];
   // paths across the lawns: to the pergola, to the far corners, to the playgrounds
   const path = (u0, v0, u1, v1, w = 2.2) => {
     const L = Math.hypot(u1 - u0, v1 - v0), du = (u1 - u0) / L * w / 2, dv = (v1 - v0) / L * w / 2;
-    const [a, b, c, d] = [[u0 + dv, v0 - du], [u1 + dv, v1 - du], [u1 - dv, v1 + du], [u0 - dv, v0 + du]].map(([u, v]) => { const p = P(u, v); return B.pave.vert(p[0], base + 0.13, p[1], 0, 1, 0, p[0] / 4.8, p[1] / 4.8); });
+    const [a, b, c, d] = [[u0 + dv, v0 - du], [u1 + dv, v1 - du], [u1 - dv, v1 + du], [u0 - dv, v0 + du]].map(([u, v]) => { const p = P(u, v); return B.pave.vert(p[0], base + 0.08, p[1], 0, 1, 0, p[0] / 4.8, p[1] / 4.8); });
     B.pave.quad(a, d, c, b);  // counter-clockwise in (u, v) is clockwise from above: U x V points down
   };
   path(-5, -5, -33, -49); path(5, 5, 33, 46); path(-3, 26, -11, 26, 2.6); path(3, -27, 11.5, -27, 2.6); path(-3, 40, -30, 47, 1.8); path(3, -40, 32, -48, 1.8);
   // flower beds (lavender and white) ringed with low shrubs
   const BEDS = [[-28, -14, 2.6], [-12, -40, 2.2], [14, -10, 2.4], [30, -40, 2.0], [-30, 12, 2.4], [-8, 44, 2.0], [12, 16, 2.2], [30, 32, 2.4]];
   for (const [u, v, rad] of BEDS) {
-    disc(B.soft, u, v, rad, 0.16, r() < 0.6 ? [0.22, 0.13, 0.42] : [0.6, 0.6, 0.56], 12);
-    for (let i = 0; i < 7; i++) { const t = i / 7 * Math.PI * 2 + r(), p = P(u + Math.cos(t) * (rad + 0.6), v + Math.sin(t) * (rad + 0.6)); B.leaf.setColor([0.14, 0.27 + r() * 0.08, 0.1]); B.leaf.ellipsoid([p[0], base + 0.45, p[1]], [0.7, 0.5, 0.7], 6, 4); }
+    disc(B.soft, u, v, rad, 0.1, r() < 0.6 ? [0.22, 0.13, 0.42] : [0.6, 0.6, 0.56], 12);
+    for (let i = 0; i < 7; i++) { const t = i / 7 * Math.PI * 2 + r(), p = P(u + Math.cos(t) * (rad + 0.6), v + Math.sin(t) * (rad + 0.6)); B.leaf.setColor([0.14, 0.27 + r() * 0.08, 0.1]); B.leaf.ellipsoid([p[0], base + 0.4, p[1]], [0.7, 0.5, 0.7], 6, 4); }
   }
-  for (const [u, v, rad] of PADS) disc(B.soft, u, v, rad, 0.14, [0.62, 0.2, 0.04], 20);
-  disc(B.soft, 0, 0, 5, 0.13, [0.3, 0.29, 0.27], 20);           // the round plaza in the middle
+  for (const [u, v, rad] of PADS) disc(B.soft, u, v, rad, 0.08, [0.62, 0.2, 0.04], 20);
+  disc(B.soft, 0, 0, 5, 0.09, [0.3, 0.29, 0.27], 20);           // the round plaza in the middle
 
   // playgrounds: a swing frame, a slide tower, a climbing frame on each pad
   for (const [u, v] of PADS) {
@@ -298,14 +317,6 @@ export function buildPremierBay({ root, map, solids: S, zips: Z, heightAt, facad
   for (const v of [-50, -30, -10, 10, 30, 48]) lamps.push([-2.6, v], [2.6, v]);
   for (const u of [-34, -14, 14, 34]) lamps.push([u, -2.6], [u, 2.6]);
   for (const [u, v] of lamps) { bx(D, u, v, 0.08, 0.08, 0, 0.9, '#2a2b2d'); bx(B.lit, u, v, 0.09, 0.09, 0.75, 0.88, '#fff0d0'); }
-  // fences across the open corners: posts every 1.5 m, two rails
-  for (const [u0, v0, u1, v1] of FENCES) {
-    const len = Math.hypot(u1 - u0, v1 - v0), n = Math.round(len / 1.5), rot = Math.atan2(v1 - v0, u1 - u0);
-    for (let i = 0; i <= n; i++) { const t = i / n; bx(D, u0 + (u1 - u0) * t, v0 + (v1 - v0) * t, 0.04, 0.04, 0, 1.8, RAIL); }
-    for (const h of [0.1, 1.7]) bx(D, (u0 + u1) / 2, (v0 + v1) / 2, len / 2, 0.03, h, h + 0.06, RAIL, rot);
-    const yA = Math.min(gy(u0, v0), gy(u1, v1));
-    S.prism([P(u0, v0 - 0.05), P(u1, v1 - 0.05), P(u1, v1 + 0.05), P(u0, v0 + 0.05)].flat(), yA - 0.5, yA + 1.8, 0, 0, 'wall');
-  }
 
   // ---- meshes
   const group = Object.assign(new THREE.Group(), { name: 'premierbay' });

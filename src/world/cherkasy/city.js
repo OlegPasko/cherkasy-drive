@@ -147,6 +147,7 @@ export async function buildCherkasy({ scene, renderer, onProgress = null, params
   if (S.urban?.levelUrban) guard('URBAN terrain', () => S.urban.levelUrban(hf)); // the shop row's lot, level
   if (S.perlyna?.levelPerlyna) guard('Perlyna Dnipra terrain', () => S.perlyna.levelPerlyna(hf)); // the new block's lot, level
   if (S.ekvator?.levelEkvator) guard('Ekvator terrain', () => S.ekvator.levelEkvator(hf, map)); // the drift lot and the hall, level
+  if (S.premierbay?.levelPremierBay) guard('Premier Bay terrain', () => S.premierbay.levelPremierBay(hf, map)); // the lot and the yard, at the driveways' level
   if (S.su7?.levelSu7 && geo) guard('Su-7 square terrain', () => S.su7.levelSu7(hf, map, geo)); // the square round the plinth, level
   if (S.overpass?.shapeOverpass && geo) guard('Dakhnivska overpass terrain', () => S.overpass.shapeOverpass(hf, map, geo)); // the cutting under the bridge
   const strip = guard('shore strip', () => { const s = S.shore?.shoreStrip?.(map); return s ? { A: s.A, B: s.B, y0: S.shore.STRIP.y0, y1: S.shore.STRIP.y1 } : null; });
