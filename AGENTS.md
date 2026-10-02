@@ -124,6 +124,8 @@ See `ARCHITECTURE.md` for the module map. Where things live:
     `avrora` (the «Аврора» multimarket in the old wholesale-market hall at Смілянська 144/2: the yellow portal with the shop's own sign,
     the old wing's docks, the yard, the car park with bays the traffic sim parks in), `improved`; the map region's x0 moved out to reach it. They share five small wall kits: `civic.js`, `blockkit.js`,
     `bldkit.js`, `shellkit.js` and `slabkit.js` (walls per footprint edge, windows with reveals, collision, mesh wrap-up).
+    `sviatotroitskyi` (ЖК «Святотроїцький», бульвар Шевченка 202, still being built: the 26-storey tower as the lun.ua renders show it –
+    an L of two sections over a black glass podium, the round bronze curtain-glass corner, white render, a dark top and a wavy crown frame) is `improved` too.
   - `places.js` – the sights, the paying partners (kind `ad`) and the non-landmark objects rebuilt on request (kind
     `improved`: a grey footprint only, "Покращений об’єкт" in the big map's legend) for both maps: icon, name, note, the OSM buildings
     whose footprints get highlighted, and for partners the site `url` (with `utm_source=driver.ck.ua`) and the pitch
