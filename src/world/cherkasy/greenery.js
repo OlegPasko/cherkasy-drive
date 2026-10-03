@@ -2,12 +2,14 @@
 // along the streets with Lombardy poplars mixed in, pine stands in the forests (the Sosnovyi bir pine forest wraps the
 // city on the north-west and north), park groves, sparse courtyards between the Soviet blocks (poplars, birches and
 // broad crowns lifted high, so the blocks show under them; lawns stay mostly open) and fruit trees in the private
-// sector. No street rows along BARE_ROADS or on farmland, no yard trees in the fields. Spots keep off carriageways,
+// sector. No street rows along BARE_ROADS or on farmland, no yard trees in the fields, no generated trees on small
+// roundabout islands (roundaboutIslands, issue #36). Spots keep off carriageways,
 // water, buildings (1 m raster, grown ~1.5 m) and junction mouths, sports pitches and running tracks, and keep a
 // minimum spacing.
 //
 //   footprintRaster(footprints, region) -> BitRaster (1 m) of the building footprints (also people.js isBuilding)
 //   BARE_ROADS: Set of OSM road names with no generated street rows
+//   roundaboutIslands(map) -> [{ c: [x, z], r }]   the roundabouts' central islands (closed rings of road pieces)
 //   treeSpots({ map, ground, footprints, occ?, y = 0.15, clear = [], extra = [], sparse = null }) -> spots
 //     ground: { heightAt, onAsphalt, isWater };  clear: [(x, z) -> bool] no generated tree there (hand-built sites);
 //     extra: hand-placed spots appended as given;  sparse(x, z) -> 0..1 thinning of generated trees (the sandy shore)
@@ -18,6 +20,61 @@ import { ringPts, triangulate, BitRaster, rng, bboxOf, inPoly } from './geo.js';
 // Country roads with no planted rows (issue #34): the road out of Lunacharka to Heronymivka runs between fields and
 // the dachas with bare verges; the village's own trees start past the map's edge. Their OSM-mapped trees still grow.
 export const BARE_ROADS = new Set(['вулиця Онопрієнка']);
+
+// Roundabout islands (issue #36: the ring at Lunacharka by the АТБ is a lawn): map.json keeps no junction tag, so a
+// roundabout is found as a closed chain of short motor-road pieces (arcs bending one way, or short links between
+// entries) whose points all lie at nearly one radius from their centre. -> [{ c: [x, z], r }] r: the island's radius
+// (to 2 m inside the ring's centre line).
+export function roundaboutIslands(map) {
+  const key = (x, z) => `${Math.round(x * 2)},${Math.round(z * 2)}`, edges = [], at = new Map(), loops = [];
+  for (const rd of map.roads ?? []) {
+    if (rd.k !== 'm' || rd.br) continue;
+    const p = rd.p, n = p.length / 2;
+    let len = 0, turn = 0, pos = 0, neg = 0;
+    for (let i = 1; i < n; i++) len += Math.hypot(p[2 * i] - p[2 * i - 2], p[2 * i + 1] - p[2 * i - 1]);
+    if (len > 400) continue;
+    const closed = n > 3 && Math.hypot(p[0] - p[2 * n - 2], p[1] - p[2 * n - 1]) < 0.5;
+    if (len > 140 && !closed) continue;
+    for (let i = 2; i < n; i++) {
+      const ax = p[2 * i - 2] - p[2 * i - 4], az = p[2 * i - 1] - p[2 * i - 3], bx = p[2 * i] - p[2 * i - 2], bz = p[2 * i + 1] - p[2 * i - 1];
+      const a = Math.atan2(ax * bz - az * bx, ax * bx + az * bz);
+      turn += a; if (a > 0.01) pos++; else if (a < -0.01) neg++;
+    }
+    if (!(len < 20 || (Math.abs(turn) > 0.25 && (pos === 0 || neg === 0)))) continue;
+    const e = { a: key(p[0], p[1]), b: key(p[2 * n - 2], p[2 * n - 1]), len, rd };
+    if (closed) { loops.push([e]); continue; } // a ring drawn as one way
+    edges.push(e);
+    for (const k of [e.a, e.b]) (at.get(k) ?? at.set(k, []).get(k)).push(e);
+  }
+  const found = [], island = (path) => {
+    const pts = path.flatMap((e) => Array.from({ length: e.rd.p.length / 2 }, (_, i) => [e.rd.p[2 * i], e.rd.p[2 * i + 1]]));
+    const cx = pts.reduce((s, q) => s + q[0], 0) / pts.length, cz = pts.reduce((s, q) => s + q[1], 0) / pts.length;
+    const rs = pts.map(([x, z]) => Math.hypot(x - cx, z - cz)), r0 = Math.min(...rs), r1 = Math.max(...rs);
+    if (r1 > 60 || r0 < 6 || r1 / r0 > 1.45) return;
+    if (found.some((q) => Math.hypot(q.c[0] - cx, q.c[1] - cz) < 8)) return;
+    // the drawn carriageway is often narrower than map.json's width: the island reaches to 2 m short of the ring's
+    // centre line (no tree stands on the asphalt anyway)
+    found.push({ c: [cx, cz], r: Math.max(r0 - Math.max(...path.map((e) => e.rd.w)) / 2, r0 - 2) });
+  };
+  for (const l of loops) island(l);
+  for (const e0 of edges) {
+    // depth-first round from e0's end back to its start over the other pieces (at most 10, 400 m)
+    const path = [e0], used = new Set([e0]);
+    const walk = (node, len) => {
+      if (node === e0.a && path.length >= 3) return true;
+      if (path.length >= 10) return false;
+      for (const e of at.get(node) ?? []) {
+        if (used.has(e) || len + e.len > 400) continue;
+        used.add(e); path.push(e);
+        if (walk(e.a === node ? e.b : e.a, len + e.len)) return true;
+        used.delete(e); path.pop();
+      }
+      return false;
+    };
+    if (walk(e0.b, e0.len)) island(path);
+  }
+  return found.filter((q) => q.r > 2);
+}
 
 export function footprintRaster(footprints, R) {
   const occ = new BitRaster(R.x0 - 50, R.z0 - 50, R.x1 + 50, R.z1 + 50, 1);
@@ -166,8 +223,13 @@ export function treeSpots({ map, ground, footprints, occ = null, y = 0.15, clear
   }
   mark('yards', n0);
 
-  const kept = clear.length ? spots.filter((s) => !clear.some((f) => f(s.x, s.z))) : spots;
-  counts.cleared = spots.length - kept.length;
+  // small roundabout islands are mown lawns: no generated tree in them (the OSM-mapped ones, first in spots, stay)
+  const islands = roundaboutIslands(map).filter((q) => q.r <= 22), nOsm = counts.osm;
+  const lawn = (s, i) => i >= nOsm && islands.some((q) => Math.hypot(s.x - q.c[0], s.z - q.c[1]) < q.r + 0.5);
+  const grown = spots.filter((s, i) => !lawn(s, i));
+  counts.islands = spots.length - grown.length;
+  const kept = clear.length ? grown.filter((s) => !clear.some((f) => f(s.x, s.z))) : grown;
+  counts.cleared = grown.length - kept.length;
   counts.extra = extra.length;
   const out = kept.concat(extra);
   out.stats = { ...counts, total: out.length, ms: Math.round(performance.now() - t0) };
