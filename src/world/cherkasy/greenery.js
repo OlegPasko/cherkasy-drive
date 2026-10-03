@@ -2,16 +2,22 @@
 // along the streets with Lombardy poplars mixed in, pine stands in the forests (the Sosnovyi bir pine forest wraps the
 // city on the north-west and north), park groves, sparse courtyards between the Soviet blocks (poplars, birches and
 // broad crowns lifted high, so the blocks show under them; lawns stay mostly open) and fruit trees in the private
-// sector. Spots keep off carriageways, water, buildings (1 m raster, grown ~1.5 m) and
-// junction mouths, sports pitches and running tracks, and keep a minimum spacing.
+// sector. No street rows along BARE_ROADS or on farmland, no yard trees in the fields. Spots keep off carriageways,
+// water, buildings (1 m raster, grown ~1.5 m) and junction mouths, sports pitches and running tracks, and keep a
+// minimum spacing.
 //
 //   footprintRaster(footprints, region) -> BitRaster (1 m) of the building footprints (also people.js isBuilding)
+//   BARE_ROADS: Set of OSM road names with no generated street rows
 //   treeSpots({ map, ground, footprints, occ?, y = 0.15, clear = [], extra = [], sparse = null }) -> spots
 //     ground: { heightAt, onAsphalt, isWater };  clear: [(x, z) -> bool] no generated tree there (hand-built sites);
 //     extra: hand-placed spots appended as given;  sparse(x, z) -> 0..1 thinning of generated trees (the sandy shore)
 //     spot: { x, z, y, kind: 'street' | 'park' | 'elm' | 'small' | 'conifer', sc, pal, s3?, variant? }
 import { PARK_GREENS, PARK_PINE, PAL } from '../trees.js';
 import { ringPts, triangulate, BitRaster, rng, bboxOf, inPoly } from './geo.js';
+
+// Country roads with no planted rows (issue #34): the road out of Lunacharka to Heronymivka runs between fields and
+// the dachas with bare verges; the village's own trees start past the map's edge. Their OSM-mapped trees still grow.
+export const BARE_ROADS = new Set(['вулиця Онопрієнка']);
 
 export function footprintRaster(footprints, R) {
   const occ = new BitRaster(R.x0 - 50, R.z0 - 50, R.x1 + 50, R.z1 + 50, 1);
@@ -56,6 +62,7 @@ export function treeSpots({ map, ground, footprints, occ = null, y = 0.15, clear
     (buckets.get(k) ?? buckets.set(k, []).get(k)).push(x, z);
     spots.push({ x, z, y: ground.heightAt(x, z) + y, kind, sc, pal, s3, variant });
   };
+  const skip = () => {};
   // urban trees are old and tall: crowns start well above a car roof, so the blocks stay visible under them
   const LIFT = [0.82, 1.3, 0.82];
   const poplarS3 = () => [0.4, 1.8 + r() * 0.5, 0.4];
@@ -75,12 +82,15 @@ export function treeSpots({ map, ground, footprints, occ = null, y = 0.15, clear
   }
   mark('osm', n0);
 
-  // 2) street rows, both sides of the main streets and some sides of the residential ones
+  // 2) street rows, both sides of the main streets and some sides of the residential ones; none along the country
+  // roads in BARE_ROADS or on farmland (fields have no planted rows; OSM-mapped rows stay, step 1)
   n0 = spots.length;
   const MAIN = /^(trunk|primary|secondary|tertiary)$/;
+  const farm = cover(['farm'], 4);
   for (const rd of map.roads) {
     const main = MAIN.test(rd.c);
     if (rd.k !== 'm' || !(main || rd.c === 'residential' || rd.c === 'unclassified')) continue;
+    const bareRoad = BARE_ROADS.has(rd.n);
     const off = rd.w / 2 + (main ? 2.0 : 1.4), step = main ? 12 : 15, poplar = r() < (main ? 0.3 : 0.15);
     for (const side of [-1, 1]) {
       if (!main && r() < 0.5) continue;
@@ -92,8 +102,10 @@ export function treeSpots({ map, ground, footprints, occ = null, y = 0.15, clear
         for (; s < L; s += step * (0.85 + r() * 0.3)) {
           const x = ax + ux * s - uz * side * off, z = az + uz * s + ux * side * off;
           if (!inRegion(x, z) || blocked(x, z, 1.6) || crowded(x, z, 6) || thinned(x, z)) continue;
-          if (poplar) put(x, z, 'conifer', 1.1 + r() * 0.3, green(), poplarS3());
-          else put(x, z, 'street', 1.0 + r() * 0.4, green(), LIFT);
+          // a bare spot still draws its random numbers: the trees elsewhere keep their places
+          const plant = bareRoad || farm.get(x, z) === 1 ? skip : put;
+          if (poplar) plant(x, z, 'conifer', 1.1 + r() * 0.3, green(), poplarS3());
+          else plant(x, z, 'street', 1.0 + r() * 0.4, green(), LIFT);
         }
         s -= L;
       }
@@ -143,12 +155,13 @@ export function treeSpots({ map, ground, footprints, occ = null, y = 0.15, clear
       const x = gx + r() * 12, z = gz + r() * 12, privateSector = (houses.get(hk(x, z)) || 0) >= 4;
       if (r() > (privateSector ? 0.22 : 0.2) || blocked(x, z, 2.5) || crowded(x, z, privateSector ? 7 : 11) || thinned(x, z)) continue;
       if (r() < 0.6 && indus.get(x, z) === 1) continue;
-      if (privateSector) { put(x, z, 'small', 0.7 + r() * 0.5, green()); continue; }
+      const plant = farm.get(x, z) === 1 ? skip : put; // ploughed fields stay open
+      if (privateSector) { plant(x, z, 'small', 0.7 + r() * 0.5, green()); continue; }
       // between the blocks: pyramidal poplars and birches are slim, the broad crowns are lifted
       const q = r();
-      if (q < 0.3) put(x, z, 'conifer', 1.1 + r() * 0.35, green(), poplarS3());
-      else if (q < 0.5) put(x, z, 'park', 1.0 + r() * 0.3, green(), birchS3(), 'birch');
-      else put(x, z, r() < 0.5 ? 'street' : r() < 0.6 ? 'park' : 'elm', 1.0 + r() * 0.4, green(), LIFT);
+      if (q < 0.3) plant(x, z, 'conifer', 1.1 + r() * 0.35, green(), poplarS3());
+      else if (q < 0.5) plant(x, z, 'park', 1.0 + r() * 0.3, green(), birchS3(), 'birch');
+      else plant(x, z, r() < 0.5 ? 'street' : r() < 0.6 ? 'park' : 'elm', 1.0 + r() * 0.4, green(), LIFT);
     }
   }
   mark('yards', n0);
