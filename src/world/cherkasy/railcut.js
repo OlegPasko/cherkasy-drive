@@ -7,10 +7,13 @@
 // with, and the ground triangles it touches are re-tessellated onto it. Its walls stop short of the streets, the garage
 // rows and the buildings beside the line (the depth is cut back where they leave too little room), so their ground
 // keeps its original level.
-// shapeRailCut(hf, map, geo) -> { carved, length, route } | null: before the ground is built (and before
+// Issue #36: the line stays at grade up to the Lunacharka level crossing (the service road and footpath at OSM node
+// 1685711953): the cut starts LEVEL m past the last at-grade road / path crossing before the first bridge over the
+// line (the school footbridge), and is ~5 m deep under that bridge.
+// shapeRailCut(hf, map, geo) -> { carved, start, length, route } | null: before the ground is built (and before
 //   shapeOverpass): makes T and patches hf.heightAt = min(lattice, T) inside the cutting's box (hf.latticeAt keeps
 //   the lattice: buildGroundData builds from it, so the worker and the synchronous ground agree). carved: raster nodes
-//   lowered. map.buildings (when present) bounds the walls too.
+//   lowered; start: the arc length where the cut begins. map.buildings (when present) bounds the walls too.
 // buildRailCut({ ground }) -> { clear(x,z), update(), stats } | null: re-tessellates the ground tiles the trench touches
 //   (grass on the excavated slopes), no trees on the bed or the walls. ground: null skips the mesh work (tests).
 // Rails, people, the car and trees read the patched heightAt; the buildings and the street strips (workers, lattice)
@@ -33,6 +36,7 @@ const COARSE = 8;       // the re-tessellation grid elsewhere in a re-laid groun
 const DS = 2.5;         // station spacing along the route (m)
 const GRADE = 0.03;     // the steepest the bed may rise where the depth is cut back
 const KEEP = { road: 2, service: 1.5, building: 1.5 }; // room left between a wall's top and a street edge / a house
+const LEVEL = 20;       // the level run past the last level crossing before the cut starts (m)
 let shaped = null;
 
 // signed offset of (x, z) from polyline L (+ to the left of its direction) and the arc length there
@@ -65,17 +69,28 @@ export function shapeRailCut(hf, map, geo) {
   const hit = crossing(route, ...AXIS.map(([la, lo]) => geo.toXZ(la, lo)));
   if (!hit) return null;
   const L = hf.heightAt, cum = cumulate(route);
-  // The railway drops into the trench over ~500 m, stays below the Sosnivka hilltops, then climbs gently to
-  // the existing overpass approach. Its original rail profile starts at s=-298, y=31 with a 3% back extension.
-  const end = hit.s - 340, start = L(...route[0]);
-  const profile = [[0, start], [500, 25.4], [950, 24.7], [1250, 26.1], [end, 32.26]];
+  // Issue #36: the line runs at grade as far as its last level crossing before the first bridge over it (the
+  // Lunacharka service road and footpath, OSM node 1685711953, just short of the school footbridge 160513325), so
+  // the crossing, its road and its path keep their level; the cut starts LEVEL m past it.
+  const pairs = (p) => Array.from({ length: p.length / 2 }, (_, i) => [p[2 * i], p[2 * i + 1]]);
+  const over = [];
+  for (const r of map.roads ?? []) {
+    const P = pairs(r.p);
+    for (let k = 1; k < P.length; k++) { const c = crossing(route, P[k - 1], P[k]); if (c) over.push({ s: c.s, br: !!r.br }); }
+  }
+  const firstBridge = Math.min(Infinity, ...over.filter((c) => c.br).map((c) => c.s));
+  const s0 = Math.max(0, ...over.filter((c) => !c.br && c.s < firstBridge).map((c) => c.s + LEVEL));
+  // Past it the railway drops into the trench (it is ~6 m deep under the footbridge), stays below the Sosnivka
+  // hilltops, then climbs gently to the existing overpass approach (its rail profile starts at s=-298, y=31).
+  const end = hit.s - 340, start = L(...pointAt(route, cum, s0));
+  const profile = [[s0, start], [Math.max(s0 + 270, 500), 25.6], [950, 24.7], [1250, 26.1], [end, 32.26]];
   const level = (s) => {
     let k = 1;
     while (k < profile.length - 1 && profile[k][0] < s) k++;
     const [a, ya] = profile[k - 1], [b, yb] = profile[k];
     return ya + (yb - ya) * ease(a, b, s);
   };
-  const reach = route.filter((_, i) => cum[i] < end + 80);
+  const reach = route.filter((_, i) => cum[i] < end + 80 && (cum[i + 1] ?? Infinity) > s0 - REACH);
   const box = [Math.min(...reach.map(p => p[0])) - REACH - 6, Math.min(...reach.map(p => p[1])) - REACH - 6,
     Math.max(...reach.map(p => p[0])) + REACH + 6, Math.max(...reach.map(p => p[1])) + REACH + 6];
   const inBox = (x, z) => x >= box[0] && x <= box[2] && z >= box[1] && z <= box[3];
@@ -100,7 +115,6 @@ export function shapeRailCut(hf, map, geo) {
       for (let j = 0; j <= m; j++) block(ax + (bx - ax) * j / m, az + (bz - az) * j / m, r);
     }
   };
-  const pairs = (p) => Array.from({ length: p.length / 2 }, (_, i) => [p[2 * i], p[2 * i + 1]]);
   for (const r of map.roads ?? []) if (r.k === 'm' && !r.br) dense(pairs(r.p), 2, r.w / 2 + (r.c === 'service' ? KEEP.service : KEEP.road));
   for (const b of map.buildings ?? []) {
     let hit = false;
@@ -137,7 +151,7 @@ export function shapeRailCut(hf, map, geo) {
   }
   const trench = (x, z) => {
     const q = nearest(route, cum, x, z);
-    if (q.s <= 0 || q.s >= end || Math.abs(q.o) > REACH + 4) return Infinity;
+    if (q.s <= s0 || q.s >= end || Math.abs(q.o) > REACH + 4) return Infinity;
     const u = q.s / DS, i = Math.min(n - 2, Math.floor(u)), f = u - i, side = q.o > 0 ? 0 : 1;
     const bed = F[i] + (F[i + 1] - F[i]) * f, k = K[side][i] + (K[side][i + 1] - K[side][i]) * f;
     return bed + Math.max(0, Math.abs(q.o) - FLOOR_W) * k;
@@ -168,19 +182,19 @@ export function shapeRailCut(hf, map, geo) {
     const t = Tq(x, z);
     return t < h ? t : h;
   };
-  shaped = { route, cum, end, box, L, Tq, T, rx, rz };
-  return { carved, length: end, route };
+  shaped = { route, cum, s0, end, box, L, Tq, T, rx, rz };
+  return { carved, start: s0, length: end, route };
 }
 
 export function buildRailCut({ ground }) {
   if (!shaped) return null;
-  const { route, end, box, L, Tq, T, rx, rz } = shaped;
+  const { route, s0, end, box, L, Tq, T, rx, rz } = shaped;
   const depth = (x, z) => { const t = Tq(x, z); return t === Infinity ? 0 : Math.max(0, L(x, z) - t); };
   const clear = (x, z) => {
     if (x < box[0] || x > box[2] || z < box[1] || z > box[3]) return false;
     if (depth(x, z) > 0.05) return true;
     const q = along(route, x, z);
-    return q.s > 0 && q.s < end && q.d < FLOOR_W + 4;
+    return q.s > s0 && q.s < end && q.d < FLOOR_W + 4;
   };
   const stats = { dropped: 0, verts: 0 };
   const site = { clear, update() {}, stats };
