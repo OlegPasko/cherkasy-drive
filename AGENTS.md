@@ -91,6 +91,10 @@ See `ARCHITECTURE.md` for the module map. Where things live:
     no terrain change) with short beam bridges over Смілянська, Байди Вишневецького, Грушевського and Сумгаїтська;
     `railLevelFn` gives `station_rails` the bed height there (`buildStation({ railLevel })`). `bridgekit` holds the
     helpers the three bridge modules share (frames along an axis, planar prisms, resurfacing, paint drop, deck meshes).
+    `odeskabridge` (issue #38) is the Lunacharka interchange: Н-16 on a beam bridge over Одеська, the dam railway (in
+    its `railcut` trench) and Сумгаїтська, the four loop ramps down to the streets. `shapeOdeskaBridge` (after
+    `shapeRailCut`) lowers the valley floor along the line by 3 m under it and raises short embankments at the deck
+    ends, so the streets get ~5 m under the girders; its `deckAt` feeds the lanes (`tests/odeskabridge.test.mjs`).
     `gerb` is the coat-of-arms stele (Стела з гербом України, 2017) on the Велике коло, площа Перемоги. Several shape the terrain with a guarded
     `shape*` / `level*` hook next to `shapeZamkova`. A site builder that reads `ground` must be listed in `GROUND_SITES`
     in `city.js`; the others build while the ground workers run.
