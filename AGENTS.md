@@ -222,6 +222,12 @@ See `ARCHITECTURE.md` for the module map. Where things live:
     render, canted ribbon-glazed bays with olive spandrels on the upper floors, graphite panels over the top storeys, gables
     with nested olive / grey Г-stripes, yard entrances under dark canopies, and a graphite shop podium on a raised terrace
     along Тараскова; `tests/taraskova5.test.mjs`.
+    `chnudorms` (issue #35, `improved`): the ЧНУ dormitories №3 and №4 (Хрещатик 64 / 62), twin five-storey blocks of
+    light sand-lime brick whose entrances face each other across one yard, from the university's photos – №4's peach
+    vestibule under a brown canopy with steps, a ramp and yellow loggia stacks, №3's wide canopy between dark-red walls
+    with the yellow gas pipe – and the yard's pavements in detail: the asphalt drive and forecourts, block-paver walks,
+    the diagonal path, both Хрещатик pavements, flower beds, benches, bins, thujas and lamps; kerbs are found by
+    rasterising the surfaces (0.1 m) and edging paving against lawn or ground; `tests/chnudorms.test.mjs`.
   - `places.js` – the sights, the paying partners (kind `ad`) and the non-landmark objects rebuilt on request (kind
     `improved`: a grey footprint only, "Покращений об’єкт" in the big map's legend) for both maps: icon, name, note, the OSM buildings
     whose footprints get highlighted, and for partners the site `url` (with `utm_source=driver.ck.ua`) and the pitch
