@@ -1,6 +1,6 @@
 // Lane network for street traffic, derived from the motor roads of map.json (no hand-kept road data).
 //   buildLaneNetwork(map, ground, opts?) -> net
-//     map: map.json ({ region, roads[{ p, w, c, k, n, ow, ln, tw, br }] }); ground: { heightAt(x, z) } or a function (x, z) -> y
+//     map: map.json ({ region, roads[{ p, w, c, k, n, ow, ln, tw, br }] }; ways are cut 100 m past the region); ground: { heightAt(x, z) } or a function (x, z) -> y
 //     opts: { cluster = 20, clusterMax = 48 } junction clustering (m); deckAt(x, z) -> y | null: a bridge deck's top
 //       there. On a chain that has a bridge way (br), a lane end over a deck takes its height, and the lane is flagged
 //       `bridge` (posed straight between its end heights, not on the terrain under it); such a chain is cut into
@@ -19,12 +19,45 @@ const CLASS = { primary: 5, primary_link: 4, secondary: 4, secondary_link: 3, te
 const DENSITY = { primary: 1.0, primary_link: 0.5, secondary: 0.85, secondary_link: 0.4, tertiary: 0.45, tertiary_link: 0.3, residential: 0.14, unclassified: 0.12, living_street: 0.06 };
 const BUSY_NAMES = /Шевченка|Смілянськ|Хрещатик|Перемоги|Героїв Дніпра|Чорновола|Благовісн/;
 const SEG_MIN = 14, PIECE_MIN = 12, DP_TOL = 0.7, CYCLE = 48, DECK_STEP = 16; // DECK_STEP: lane pieces over a deck (m)
+const REGION_PAD = 100; // lanes end this far past map.region (its asphalt reaches 150 m past it)
 
 const hyp = Math.hypot;
 function segDist(px, pz, ax, az, bx, bz) {
   const ex = bx - ax, ez = bz - az, q = ex * ex + ez * ez || 1;
   const t = Math.min(1, Math.max(0, ((px - ax) * ex + (pz - az) * ez) / q));
   return hyp(px - ax - ex * t, pz - az - ez * t);
+}
+// ways cut to the region + REGION_PAD; a way that leaves and comes back becomes two pieces, each ending at the edge
+function clipRoads(roads, R) {
+  if (!R) return roads;
+  const x0 = R.x0 - REGION_PAD, x1 = R.x1 + REGION_PAD, z0 = R.z0 - REGION_PAD, z1 = R.z1 + REGION_PAD;
+  const inside = (x, z) => x >= x0 && x <= x1 && z >= z0 && z <= z1;
+  const cross = (ax, az, bx, bz) => { // where segment a (inside) -> b (outside) leaves the rectangle
+    let t = 1;
+    if (bx < x0) t = Math.min(t, (x0 - ax) / (bx - ax)); if (bx > x1) t = Math.min(t, (x1 - ax) / (bx - ax));
+    if (bz < z0) t = Math.min(t, (z0 - az) / (bz - az)); if (bz > z1) t = Math.min(t, (z1 - az) / (bz - az));
+    return [ax + (bx - ax) * t, az + (bz - az) * t];
+  };
+  const out = [];
+  for (const r of roads) {
+    const P = r.p, m = P.length / 2;
+    let all = true;
+    for (let i = 0; i < m && all; i++) all = inside(P[2 * i], P[2 * i + 1]);
+    if (all) { out.push(r); continue; }
+    let cur = null;
+    const flush = () => { if (cur && cur.length >= 4) out.push({ ...r, p: cur }); cur = null; };
+    for (let i = 0; i < m; i++) {
+      const x = P[2 * i], z = P[2 * i + 1], inn = inside(x, z);
+      if (i > 0) {
+        const px = P[2 * i - 2], pz = P[2 * i - 1], pin = inside(px, pz);
+        if (pin && !inn) { cur.push(...cross(px, pz, x, z)); flush(); }
+        else if (!pin && inn) cur = cross(x, z, px, pz);
+      }
+      if (inn) (cur ||= []).push(x, z);
+    }
+    flush();
+  }
+  return out;
 }
 function cumLen(P) { const s = [0]; for (let i = 2; i < P.length; i += 2) s.push(s[s.length - 1] + hyp(P[i] - P[i - 2], P[i + 1] - P[i - 1])); return s; }
 function turnKind(ax, az, bx, bz) {
@@ -75,7 +108,9 @@ export function buildLaneNetwork(map, ground, opts = {}) {
   const cluster = opts.cluster ?? 20, clusterMax = opts.clusterMax ?? 48, deckAt = opts.deckAt ?? null;
   let deckChain = false; // the chain being laid has a bridge way: its lane ends may sit on a deck
   const R = map?.region || { x0: -1e9, x1: 1e9, z0: -1e9, z1: 1e9 };
-  const roads = (map?.roads || []).filter(r => r.k === 'm' && CLASS[r.c] !== undefined && r.p && r.p.length >= 4);
+  // map.json keeps whole ways that only touch the region (some run 600 m out); the ground paints asphalt to only
+  // REGION_PAD past it, so lanes are cut there too: no traffic out on the grass beyond the map
+  const roads = clipRoads((map?.roads || []).filter(r => r.k === 'm' && CLASS[r.c] !== undefined && r.p && r.p.length >= 4), map?.region);
   const empty = () => ({ nodes: [], links: [], signals: [], stats: { links: 0, nodes: 0, junctions: 0, signals: 0, ms: 0 }, linksNear: (x, z, r, out = []) => out, phase: signalPhase, CYCLE });
   if (!roads.length) return empty();
 

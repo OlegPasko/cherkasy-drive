@@ -6,6 +6,7 @@ import { makeLook, FEAT } from '../src/npc/people/looks.js';
 import { buildBodyGeometry, CLIP } from '../src/npc/people/body.js';
 import { createPolyMask } from '../src/npc/people/mask.js';
 import { createNetwork } from '../src/npc/people/network.js';
+import { createWalkArea } from '../src/npc/people/area.js';
 import { createPeople } from '../src/npc/people.js';
 
 let fails = 0;
@@ -55,6 +56,22 @@ const bMask = createPolyMask(buildings), aMask = createPolyMask(map.asphalt), wM
     if (p.road[k]) road++;
   }
   ok(bad === 0, `no path sample in a building / water / on asphalt unmarked (${bad} bad of ${n}; ${road} crossing samples)`);
+}
+// the walk area (issue #31): the whole map's network stays inside the region, near buildings or in parks
+{
+  const R = map.region, area = createWalkArea({ region: R, buildings, cover: map.cover });
+  ok(area.has(0, 0) && !area.has(R.x1 + 200, 0) && !area.has(0, R.z0 - 300), 'walk area: the centre in, beyond the region out');
+  const t0 = performance.now();
+  const net = createNetwork({ map, isBuilding: bMask.has, isAsphalt: aMask.has, isWater: wMask.has, allow: area.has });
+  for (let x = R.x0 - 1000; x < R.x1 + 1000; x += 96) for (let z = R.z0 - 1000; z < R.z1 + 1000; z += 96) net.request(net.cellKey(x + 1, z + 1));
+  while (net.pending()) net.pump(1000);
+  let n = 0, outR = 0, outA = 0;
+  for (const p of net.paths) for (let k = 0; k < p.n; k++) {
+    n++;
+    if (p.x[k] < R.x0 || p.x[k] > R.x1 || p.z[k] < R.z0 || p.z[k] > R.z1) outR++;
+    else if (!p.road[k] && !area.has(p.x[k], p.z[k])) outA++;
+  }
+  ok(n > 300000 && outR === 0 && outA === 0, `whole-map walking network in ${(performance.now() - t0).toFixed(0)} ms: ${n} samples, ${outR} beyond the region, ${outA} out in the fields`);
 }
 // the full system, headless
 {
@@ -152,6 +169,13 @@ const bMask = createPolyMask(buildings), aMask = createPolyMask(map.asphalt), wM
   for (let f = 0; f < 600; f++) people.update(1 / 60, cam);
   const s2 = people.stats();
   ok(W.every(p => p.kind === 2 || Math.hypot(p.x + 1500, p.z - 1500) < 450), `after a long move only nearby walkers remain (${s2.walkers} walkers, ${s2.cells} cells, maxMs ${s2.maxMs})`);
+  // the camera just past the south edge, over the fields there: the town's edge keeps its people, nobody beyond it
+  const R = map.region;
+  cam.position.set(-250, 120, R.z0 - 120); cam.lookAt(-250, 80, R.z0 - 170);
+  for (let f = 0; f < 600; f++) people.update(1 / 60, cam);
+  const amb = [...W, ...people.statics].filter(p => p.kind !== 2 && !p._drop && !p.dead);
+  const beyond = amb.filter(p => p.x < R.x0 || p.x > R.x1 || p.z < R.z0 || p.z > R.z1).length;
+  ok(amb.length > 0 && beyond === 0, `at the map's edge: ${amb.length} people in town, ${beyond} beyond the edge`);
 }
 console.log(fails ? `\n${fails} FAILED` : '\nall passed');
 process.exit(fails ? 1 : 0);

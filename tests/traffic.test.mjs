@@ -23,6 +23,10 @@ ok(sinks < net.links.length * 0.01, `links without a way on: ${sinks}`);
 ok(net.signals.length > 20, `signal heads ${net.signals.length}`);
 ok(net.links.some(L => L.bridge), 'bridge links flagged');
 ok(buildLaneNetwork({ roads: [] }, null).links.length === 0, 'empty map -> empty network');
+{ // issue #31: no lanes out on the grass past the map region (its asphalt ends 150 m past it)
+  const R = map.region, past = net.links.filter(L => [0, L.len].some(s => { const x = L.ax + L.dx * s, z = L.az + L.dz * s; return x < R.x0 - 150 || x > R.x1 + 150 || z < R.z0 - 150 || z > R.z1 + 150; })).length;
+  ok(past === 0, `lanes past the map's edge: ${past}`);
+}
 { // one plan: axis 0 and axis 1 are never both green
   const ax = net.links.find(L => L.signal).axis, other = { o: ax.o, g: 1 - ax.g };
   let clash = 0, greens = 0;

@@ -6,7 +6,8 @@
 //     buildings: map_buildings.json footprints [{ p, k }]; traffic: optional (setPeds(api), carNear(x, z, r) or
 //       sim.cars() for crossing waits); gibs: optional npc/gibs.js debris (hit bursts)
 //     opts: { maxWalkers = 1400, density = 1, radius = 250, birds = true, blobs = true, budgetMs = 2,
-//       standY(x, z, onRoad) -> y, carNear(x, z, r) -> bool }
+//       standY(x, z, onRoad) -> y, carNear(x, z, r) -> bool, area = true (false: walk every way of the map; else people
+//       stay in people/area.js's walk area: inside map.region, near buildings or in parks, never out in the fields) }
 //   api: { walkers[] (stable array: ambient walkers + actors; .x .z .road), statics[], actors[], lanes (paths),
 //     update(dt, camera), hitBox(q) -> people hit, alarm(pos, r), honk(q), spawnActor({ x, z, ry, clip, seed, kind }) -> actor,
 //     removeActor(actor), pedOnRoad(x, z, r) -> bool, setTraffic(t), stats(), root, dispose(),
@@ -20,6 +21,7 @@
 import * as THREE from 'three';
 import { createPolyMask } from './people/mask.js';
 import { createNetwork, KIND } from './people/network.js';
+import { createWalkArea } from './people/area.js';
 import { makeLook } from './people/looks.js';
 import { createCrowdMaterials, createCrowdLayer, CLIP } from './people/body.js';
 import { createFlocks } from './people/birds.js';
@@ -43,7 +45,8 @@ export function createPeople({ scene, map, ground, buildings = null, traffic = n
   const isAsphalt = ground.onAsphalt ? (x, z) => ground.onAsphalt(x, z) : (x, z) => aMask.has(x, z);
   const isWater = ground.isWater ? (x, z) => ground.isWater(x, z) : (x, z) => wMask.has(x, z);
   const standY = opts.standY || ((x, z, road) => H(x, z) + (road ? 0.02 : 0.19));
-  const net = createNetwork({ map, isBuilding, isAsphalt, isWater, cell: CELL });
+  const area = opts.area === false ? null : createWalkArea({ region: map.region, buildings: blds, cover: map.cover });
+  const net = createNetwork({ map, isBuilding, isAsphalt, isWater, allow: area?.has, cell: CELL });
 
   // busy-ness per cell: apartment / public buildings around it and closeness to the centre (Soborna square = origin)
   const urb = new Map();

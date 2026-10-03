@@ -1,7 +1,9 @@
 // Walking network built lazily from map.json: sidewalk bands beside streets, footways, park paths, steps and zebra
 // crossings, resampled and checked against buildings, water and carriageway asphalt, then linked end-to-path and at
 // intersections so walkers can turn corners and cross streets.
-//   createNetwork({ map, isBuilding, isAsphalt, isWater, cell = 96 }) -> {
+//   createNetwork({ map, isBuilding, isAsphalt, isWater, allow?, cell = 96 }) -> {
+//     allow(x, z) -> bool: where walkers may be at all (people.js: the playable region, near buildings or in a park);
+//       a sample outside it is cut like one in a building, so paths end there and nobody spawns or walks beyond
 //     STEP, CELL, paths, cellKey(x, z), request(key, prio = 0) (lower prio is processed first; re-requesting re-prioritises), pump(budgetMs) -> sources done, ready(key) -> bool,
 //     cellSamples(key) -> { s: [pathId, index, ...], wlen, wide: [pathId, index, ...] } | null,
 //     place(path, u, lat, out) -> out { x, z, tx, tz, lo, hi, road }, stats() }
@@ -14,7 +16,7 @@ const SIDE = new Set([...MAIN, 'residential', 'living_street', 'unclassified']);
 const BUSY = /Шевченка|Хрещатик|Соборн|Смілянськ|Байди Вишневецького|Гоголя|Святотроїцьк|Небесної Сотні|Дашковича|Благовісн/;
 const STEP = 2.5, LINK_END = 4.2, LINK_X = 1.4;
 
-export function createNetwork({ map, isBuilding, isAsphalt, isWater, cell = 96 }) {
+export function createNetwork({ map, isBuilding, isAsphalt, isWater, allow = null, cell = 96 }) {
   const K = (i, j) => (i + 32768) * 65536 + (j + 32768);
   const cellKey = (x, z) => K(Math.floor(x / cell), Math.floor(z / cell));
   const srcs = [], cellSrc = new Map();
@@ -51,7 +53,7 @@ export function createNetwork({ map, isBuilding, isAsphalt, isWater, cell = 96 }
   const hpush = (M, x, z, a, b) => { const k = hk(x, z); let L = M.get(k); if (!L) M.set(k, L = []); L.push(a, b); };
   let nSamples = 0, nLinks = 0;
 
-  const blocked = (x, z) => isBuilding(x, z) || isWater(x, z);
+  const blocked = allow ? (x, z) => !allow(x, z) || isBuilding(x, z) || isWater(x, z) : (x, z) => isBuilding(x, z) || isWater(x, z);
   const free = (x, z) => !blocked(x, z) && !isAsphalt(x, z);
   const clearLine = (x0, z0, x1, z1, asphOk) => {
     const dt = 0.5 / (Math.hypot(x1 - x0, z1 - z0) || 1);

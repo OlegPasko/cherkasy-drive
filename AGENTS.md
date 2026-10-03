@@ -257,13 +257,14 @@ See `ARCHITECTURE.md` for the module map. Where things live:
     `buildRailCut` resurfaces its slopes after ground creation. The playable south-east boundary reaches z=5800
     to include Петра Дорошенка and more of Чигиринська.
 - `src/npc/` – everything that moves on its own:
-  - `lanes.js` – the lane graph and signals; with `opts.deckAt` (a site's deck heights) the lanes of a chain with an
+  - `lanes.js` – the lane graph and signals (ways cut 100 m past `map.region`, where the asphalt ends); with `opts.deckAt` (a site's deck heights) the lanes of a chain with an
     OSM bridge way take the deck's height where they end on it, split into pieces of at most `DECK_STEP` (16 m) on a
     deck so they follow a humped one;
   - `vehicles.js` – loads the glb models, instanced fleet, `makeMesh`; the ad tiles on vans, bus sides and backs and roof signs (tile 1 is URBAN's, paid: a quarter of the 12 m buses wear it in URBAN blue) and `makeUrbanLivery`, the URBAN box-truck livery (sides and back doors) a quarter of the box trucks wear; both are picked by `urbanDress` in `traffic.js`, which every dress hook calls last (`defaultDress` there, `dressCar` in `world/cherkasy/traffic.js`);
   - `traffic.js` and `wrecks.js` – the traffic sim, rigid-body wrecks and dents; the car rams through
     `ram(q)`;
-  - `people.js` and `people/` – procedural, GPU-animated pedestrians and pigeons;
+  - `people.js` and `people/` – procedural, GPU-animated pedestrians and pigeons; `people/area.js` keeps them inside
+    `map.region`, near buildings or in parks (map.json's ways run on into the fields past the region);
   - `gibs.js` – gore chunks and debris.
 - `src/game/` – gameplay:
   - `car/` – `car.js` (control, flight, camera), `model.js` (the Cybertruck), `collide.js` (car
