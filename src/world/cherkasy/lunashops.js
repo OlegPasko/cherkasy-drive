@@ -10,7 +10,9 @@
 // found (Google Street View is not reachable here, Mapillary / KartaView / Panoramax have nothing): the storefronts,
 // the fascia colours and the unit widths are guesses; АТБ wears the chain's red lettering (as atb.js / atb26.js),
 // the others plain colour fascias without names.
-//   LUNASHOPS_SKIP – the replaced OSM annex
+// Issue #37: the paving runs on past the kiosk to Генерала Момота (the small OSM block 160525375 in the way is
+// dropped).
+//   LUNASHOPS_SKIP – the replaced OSM annex and the block dropped for the passage
 //   buildLunaShops({ root, map, solids, zips, heightAt, ground }) -> { footprints, clear(x, z), parked, update() } | null
 //     ground (a GROUND_SITES member): the paved apron, the car park and the lane down to the service road are laid in
 //     the ground's own material (asphalt, pavers); without it (the phone peek) only the building is made.
@@ -24,7 +26,9 @@ import { OVERHANG } from '../collision.js';
 import { topMesh, groundMat } from './bridgekit.js';
 import { SURF } from './ground.js';
 
-export const LUNASHOPS_SKIP = new Set([1041448576]);
+// 160525375: a one-storey OSM block filling the gap between the annex's east end and the three-storey building in
+// front (Онопрієнка 2); the satellite and a player (issue #37) show a passage through there to Генерала Момота
+export const LUNASHOPS_SKIP = new Set([1041448576, 160525375]);
 const H = 4.6;               // one tall shop storey over the floor
 // the units along the front, u metres from its west end (the block's side): АТБ at its OSM node (u ~60), Прем'єр
 // (u ~69) and Тачівка (u ~79) next to it, the rest of the strip in plain shops
@@ -40,7 +44,10 @@ const UNITS = [
 // park in front of the west half (bays along the apron, an aisle that joins the west lane), and the lane down the
 // OSM service road to the south service road (bays along its west side)
 const APRON = [-11, 103, 0, 3.6];
-const LOTS = [[-11, 74, 3.6, 16.5], [62, 74, 16.5, 66]];
+// Issue #37: the passage on along the shop fronts past the kiosk to Генерала Момота (beside the canopy posts, then
+// round the annex's east end).
+const PASSAGE = [[74, 103, 3.6, 6.2], [103, 124, 2.6, 9.5], [124, 147, -0.2, 5.4]];
+const LOTS = [[-11, 74, 3.6, 16.5], [62, 74, 16.5, 66], ...PASSAGE];
 const BAY = { w: 2.6, d: 5 };
 
 const signTex = () => canvasTex(1024, 192, (g, w, h) => {
@@ -51,7 +58,7 @@ const signTex = () => canvasTex(1024, 192, (g, w, h) => {
 }, { repeat: false });
 
 export function buildLunaShops({ root, map, solids: S, zips: Z, heightAt, ground }) {
-  const b = map.buildings?.find((q) => LUNASHOPS_SKIP.has(q.id));
+  const b = map.buildings?.find((q) => q.id === 1041448576);
   if (!b) return null;
   const ring = ringPts(b.p), faces = edgeFaces(ring), front = faces.reduce((a, f) => (f.L > a.L ? f : a));
   if (front.L < 100) return null;
