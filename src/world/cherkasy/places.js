@@ -131,6 +131,7 @@ export const PLACES = [
   { id: 'ambrosa35', kind: 'improved', name: 'Покращений об’єкт', note: 'Новобудова · вул. Сергія Амброса, 35', bld: [1160384062] },
   { id: 'nadpilna249', kind: 'improved', name: 'Покращений об’єкт', note: 'Новобудова · вул. Надпільна, 249', ring: NADP249_RING },
   { id: 'taraskova5', kind: 'improved', name: 'Покращений об’єкт', note: 'Новобудова · вул. Тараскова, 5', bld: [994859234, 1318428500] },
+  { id: 'lunashops', kind: 'improved', name: 'Покращений об’єкт', note: 'АТБ і магазини · вул. Генерала Момота, 1', issue: 34, bld: [1041448576] },
   // sights
   { id: 'mykhailo', kind: 'sight', name: 'Свято-Михайлівський собор', icon: '⛪', bld: [242469769] },
   { id: 'troitsky', kind: 'sight', name: 'Свято-Троїцький собор', icon: '⛪', bld: [157432721] },

@@ -258,6 +258,11 @@ See `ARCHITECTURE.md` for the module map. Where things live:
     function that `hf.heightAt` takes the minimum with, its walls kept short of the streets, garages and houses;
     `buildRailCut` re-lays the ground triangles it touches onto it after ground creation. The playable south-east boundary reaches z=5800
     to include Петра Дорошенка and more of Чигиринська.
+  - Issue #34: `lunashops` rebuilds the shop annex of вул. Генерала Момота, 1 in Луначарка (АТБ, Прем'єр and their
+    neighbours; OSM 1041448576 used to extrude as a second nine-storey slab) as one storey with shop fronts and a
+    canopy, plus the car park in front in the ground material (bays, `parked`) and the lane down to the service road;
+    `improved`. Facades are guesses (no street photos found). `greenery.js BARE_ROADS` keeps street rows off вул.
+    Онопрієнка, the road to Геронимівка, and no generated tree grows on farmland.
 - `src/npc/` – everything that moves on its own:
   - `lanes.js` – the lane graph and signals; with `opts.deckAt` (a site's deck heights) the lanes of a chain with an
     OSM bridge way take the deck's height where they end on it, split into pieces of at most `DECK_STEP` (16 m) on a
