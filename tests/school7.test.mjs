@@ -21,4 +21,11 @@ assert.ok(solids.groundHeight(x,z,32)<33,'bridge can be driven underneath');
 assert.ok(site.footprints.some(f=>f.h>9 && f.h<11));
 assert.ok(site.footprints.filter(f=>f.h<8).length===1);
 assert.ok(site.footprints.some(f=>f.h>8.5 && f.h<9.6),'old school retains OSM nine metre height');
+// issue #33: the lot is fenced, the west footpath gate and the east service-road gate are open
+const ray=(x,z,dx,dz,max)=>solids.raycast({x,y:31,z},{x:dx,y:0,z:dz},max);
+assert.equal(ray(-997,-2620,1,0,15)?.kind,'fence','west lot fence');
+assert.equal(ray(-997,-2596.1,1,0,15),null,'west gate open');
+assert.equal(ray(-875,-2643.1,-1,0,20),null,'east service-road gate open');
+assert.equal(ray(-875,-2610,-1,0,12)?.kind,'fence','east lot fence');
+assert.equal(ray(-968,-2540,0,-1,20)?.kind,'fence','court fence on the north side');
 console.log(`school7: all ok (${verts} vertices)`);
