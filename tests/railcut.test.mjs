@@ -16,7 +16,7 @@ const cut = shapeRailCut(hf, map, geo);
 assert(cut?.carved > 100, 'the missed railway trench is carved over many raster nodes');
 const route = cut.route, cum = cumulate(route);
 let maxDepth = 0, worstGrade = 0;
-for (let s = 100; s < cut.length - 100; s += 5) {
+for (let s = cut.start; s < cut.length - 100; s += 5) {
   const a = pointAt(route, cum, s), b = pointAt(route, cum, s + 5);
   const y = hf.heightAt(a[0], a[1]), old = baseline.heightAt(a[0], a[1]);
   assert(y <= old + 0.001, 'the cutting never raises the terrain');
@@ -28,7 +28,7 @@ assert(worstGrade < 0.035, `no abrupt track steps (${(100 * worstGrade).toFixed(
 // The bed is level across the full ballast width (below its 0.13 m toe clearance), so grass cannot poke through
 // the track where the trench is deep.
 let bedTilt = 0;
-for (let s = 100; s < cut.length - 150; s += 2) {
+for (let s = cut.start; s < cut.length - 150; s += 2) {
   const [x, z, dx, dz] = pointAt(route, cum, s);
   if (baseline.heightAt(x, z) - hf.heightAt(x, z) < 1) continue;
   const y = hf.heightAt(x, z);
@@ -56,7 +56,14 @@ for (const r of map.roads) {
 }
 assert(streets > 1000 && tilted === 0, `no street beside the cutting leans into it (${tilted} of ${streets} samples)`);
 const p = geo.toXZ(49.455026, 32.019907);
-assert(baseline.heightAt(...p) - hf.heightAt(...p) > 7, 'the school footbridge crosses a deep cutting');
+assert(baseline.heightAt(...p) - hf.heightAt(...p) > 4.5, 'the school footbridge crosses a deep cutting');
+// Issue #36: the line runs at grade through the Lunacharka level crossing (OSM node 1685711953: the service road and
+// its footpath) and everything before it; the cut starts only past it, short of the footbridge.
+const lx = geo.toXZ(49.4534998, 32.0199931);
+assert(cut.start > along(route, ...lx).s && cut.start < along(route, ...lx).s + 40, `the cut starts just past the level crossing (${cut.start.toFixed(0)} m)`);
+for (let dx = -12; dx <= 12; dx += 3) for (let dz = -12; dz <= 12; dz += 3)
+  assert(baseline.heightAt(lx[0] + dx, lx[1] + dz) - hf.heightAt(lx[0] + dx, lx[1] + dz) < 0.03, 'the level crossing, its road and path keep their level');
+for (let s = 0; s < cut.start; s += 5) { const [x, z] = pointAt(route, cum, s); assert.equal(hf.heightAt(x, z), baseline.heightAt(x, z), 'no cut before the crossing'); }
 const site = buildRailCut({ ground: null });
 assert(site.clear(...p), 'generated trees stay off the railway bed');
 assert(!site.clear(p[0] + 100, p[1] + 100), 'the wider neighbourhood is not cleared');

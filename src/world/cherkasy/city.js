@@ -67,7 +67,7 @@ const SITE_MODULES = import.meta.glob(['./landmarks.js', './frame.js', './restin
   './miskrada.js', './poshtamt.js', './oblbiblioteka.js', './medakademia.js', './balloon.js', './yacht.js', './plane.js', './andriy.js', './boyan.js',
   './delikat.js', './atb.js', './atb26.js', './school7.js', './railcut.js', './mcdonalds.js', './tors.js', './urban.js', './su7.js', './overpass.js', './catcafe.js', './praska.js', './delikat399.js', './glassrotunda.js', './ekvator.js', './sportlife.js',
   './khimbridge.js', './railbridge.js', './gerb.js', './avrora.js',
-  './sviatotroitskyi.js', './hd34.js', './hrafskyi.js', './perlyna.js', './premierbay.js', './onix.js', './pasterivskyi.js', './voldim.js', './ridnyidim.js', './olimp.js', './harmony.js', './olimpmodern.js', './hoholia204.js', './pryportova.js', './ekohouse.js', './narbutivska10.js', './parkovyi.js', './shev22.js', './shev184.js', './comfortpark.js', './zhktemp.js', './smilianska.js', './ambrosa35.js', './nadpilna249.js', './taraskova5.js', './chnudorms.js', './lunashops.js', './drama.js']);
+  './sviatotroitskyi.js', './hd34.js', './hrafskyi.js', './perlyna.js', './premierbay.js', './onix.js', './pasterivskyi.js', './voldim.js', './ridnyidim.js', './olimp.js', './harmony.js', './olimpmodern.js', './hoholia204.js', './pryportova.js', './ekohouse.js', './narbutivska10.js', './parkovyi.js', './shev22.js', './shev184.js', './comfortpark.js', './zhktemp.js', './smilianska.js', './ambrosa35.js', './nadpilna249.js', './taraskova5.js', './chnudorms.js', './lunashops.js', './drama.js', './odeskabridge.js']);
 async function loadSites() {
   const out = {};
   await Promise.all(Object.entries(SITE_MODULES).map(async ([path, load]) => {
@@ -78,7 +78,7 @@ async function loadSites() {
 }
 const guard = (label, fn, fallback = null) => { try { return fn() ?? fallback; } catch (e) { console.error(`[cherkasy] ${label} failed`, e); return fallback; } };
 // the sites that read the ground (isWater / onAsphalt / its meshes): they wait for its workers, the others do not
-const GROUND_SITES = new Set(['rosevalley', 'restaurants', 'beaches', 'yachtclub', 'embankment', 'prystan', 'station', 'lovebridge', 'overpass', 'railcut', 'delikat399', 'glassrotunda', 'khimbridge', 'railbridge', 'lunashops']);
+const GROUND_SITES = new Set(['rosevalley', 'restaurants', 'beaches', 'yachtclub', 'embankment', 'prystan', 'station', 'lovebridge', 'overpass', 'railcut', 'delikat399', 'glassrotunda', 'khimbridge', 'railbridge', 'lunashops', 'odeskabridge']);
 // a macrotask turn (not a frame): lets worker messages in between synchronous builds
 const nextTask = () => new Promise((res) => { const ch = new MessageChannel(); ch.port1.onmessage = () => { ch.port1.close(); res(); }; ch.port2.postMessage(0); });
 const nextFrame = () => new Promise((res) => (typeof requestAnimationFrame === 'function' && !document.hidden ? requestAnimationFrame(() => res()) : setTimeout(res, 0)));
@@ -155,6 +155,7 @@ export async function buildCherkasy({ scene, renderer, onProgress = null, params
   if (S.su7?.levelSu7 && geo) guard('Su-7 square terrain', () => S.su7.levelSu7(hf, map, geo)); // the square round the plinth, level
   if (S.railcut?.shapeRailCut && geo) guard('Lunacharka railway cutting', () => S.railcut.shapeRailCut(hf, map, geo));
   if (S.overpass?.shapeOverpass && geo) guard('Dakhnivska overpass terrain', () => S.overpass.shapeOverpass(hf, map, geo)); // the cutting under the bridge
+  if (S.odeskabridge?.shapeOdeskaBridge) guard('Odeska interchange terrain', () => S.odeskabridge.shapeOdeskaBridge(hf, map)); // the streets lowered, the embankments raised
   if (S.ekohouse?.levelEkohouse) guard('Ekokhaus terrain', () => S.ekohouse.levelEkohouse(hf)); // the townhouse lot, level
   if (S.onix?.levelOnix) guard('ZhK Onix terrain', () => S.onix.levelOnix(hf)); // a level terrace under each block
   if (S.drama?.levelDrama) guard('drama theatre terrain', () => S.drama.levelDrama(hf)); // the theatre, its terrace and apron, level
@@ -210,7 +211,7 @@ export async function buildCherkasy({ scene, renderer, onProgress = null, params
     ['City council', 'miskrada', 'buildMiskrada'], ['Head post office', 'poshtamt', 'buildPoshtamt'], ['Regional library', 'oblbiblioteka', 'buildOblBiblioteka'], ['Medical academy', 'medakademia', 'buildMedAkademia'],
     ['Balloon', 'balloon', 'buildBalloon'], ['Yacht', 'yacht', 'buildYacht'], ['Plane', 'plane', 'buildPlane'], ['St Andrew church', 'andriy', 'buildAndriy'], ['Boyan monument', 'boyan', 'buildBoyan'],
     ['Delikat on Blahovisna', 'delikat', 'buildDelikat'], ['ATB on Shevchenka 239', 'atb', 'buildAtb'], ['ATB on Dashkovycha 26', 'atb26', 'buildAtb26'], ['School 7 and footbridge', 'school7', 'buildSchool7'], ['Railway cutting', 'railcut', 'buildRailCut'], ["McDonald's", 'mcdonalds', 'buildMcDonalds'], ['Tors sign', 'tors', 'buildTors'], ['URBAN', 'urban', 'buildUrban'], ['Su-7 memorial', 'su7', 'buildSu7'],
-    ['Dakhnivska overpass', 'overpass', 'buildOverpass'], ['Khimikiv viaduct', 'khimbridge', 'buildKhimBridge'], ['Railway bridges', 'railbridge', 'buildRailBridges'],
+    ['Dakhnivska overpass', 'overpass', 'buildOverpass'], ['Khimikiv viaduct', 'khimbridge', 'buildKhimBridge'], ['Railway bridges', 'railbridge', 'buildRailBridges'], ['Odeska interchange bridge', 'odeskabridge', 'buildOdeskaBridge'],
     ['Coat of arms stele', 'gerb', 'buildGerb'],
     ['CatCafe block', 'catcafe', 'buildCatCafe'], ['Flatiron on Dashkovycha 4', 'praska', 'buildPraska'],
     ['Delikat on Shevchenka 399/2', 'delikat399', 'buildDelikat399'], ['Glass rotunda on Shevchenka', 'glassrotunda', 'buildGlassRotunda'],
@@ -270,7 +271,7 @@ export async function buildCherkasy({ scene, renderer, onProgress = null, params
   const debris = createGibs(root, (x, z, y) => collision.groundHeight(x, z, y ?? 1e4), { blood: params.has('blood') });
   let traffic = null, people = null;
   if (!params.has('notraffic')) {
-    // bridge lanes ride the hand-built decks (overpass.js, khimbridge.js deckAt), not the terrain under them
+    // bridge lanes ride the hand-built decks (overpass.js, khimbridge.js, odeskabridge.js deckAt), not the terrain under them
     const decks = sites.filter((s) => s.deckAt); // two or three of the sites, not a scan of all of them per lane end
     const deckAt = (x, z) => { for (const s of decks) { const y = s.deckAt(x, z); if (y != null) return y; } return null; };
     try { traffic = await buildCherkasyTraffic({ scene: root, map, ground, deckAt }); } catch (e) { console.error('[cherkasy] traffic failed', e); }
