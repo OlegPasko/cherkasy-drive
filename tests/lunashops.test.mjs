@@ -23,8 +23,9 @@ assert.ok(solids.groundHeight(...annex, 40) > 34, 'the annex has collision');
 assert.equal(solids.groundHeight(...lot, 40), 30, 'no invisible wall in the car park');
 assert.ok(site.clear(...lot) && site.clear(...annex), 'no generated trees in the lot or the building');
 assert.ok(!site.clear(-1250, -2990), 'the lawns beyond the lot keep their trees');
-// issue #37: the passage past the kiosk to Генерала Момота (where OSM 160525375 stood)
-for (const [x, z, what] of [[-1152.8, -2988.4, 'the passage']]) {
+// issue #37: the passage past the kiosk to Генерала Момота (where OSM 160525375 stood); issue #36: the paved
+// driveway in from the roundabout along the small shops
+for (const [x, z, what] of [[-1152.8, -2988.4, 'the passage'], [-1187.6, -2945.4, 'the driveway from the ring']]) {
   assert.ok(site.clear(x, z), `${what} is paved and clear of trees`);
   assert.equal(solids.groundHeight(x, z, 40), 30, `${what} has no wall`);
 }

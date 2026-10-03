@@ -10,8 +10,8 @@
 // found (Google Street View is not reachable here, Mapillary / KartaView / Panoramax have nothing): the storefronts,
 // the fascia colours and the unit widths are guesses; АТБ wears the chain's red lettering (as atb.js / atb26.js),
 // the others plain colour fascias without names.
-// Issue #37: the paving runs on past the kiosk to Генерала Момота (the small OSM block 160525375 in the way is
-// dropped).
+// Issues #36 / #37: the paving runs on past the kiosk to Генерала Момота (the small OSM block 160525375 in the way is
+// dropped), and the driveway in from the roundabout is one wide apron with bays along the Онопрієнка 2 shops.
 //   LUNASHOPS_SKIP – the replaced OSM annex and the block dropped for the passage
 //   buildLunaShops({ root, map, solids, zips, heightAt, ground }) -> { footprints, clear(x, z), parked, update() } | null
 //     ground (a GROUND_SITES member): the paved apron, the car park and the lane down to the service road are laid in
@@ -45,9 +45,12 @@ const UNITS = [
 // OSM service road to the south service road (bays along its west side)
 const APRON = [-11, 103, 0, 3.6];
 // Issue #37: the passage on along the shop fronts past the kiosk to Генерала Момота (beside the canopy posts, then
-// round the annex's east end).
+// round the annex's east end). Issue #36: the driveway in from the roundabout – the lane (OSM 673's service road, v ~67)
+// widened into one paved apron up to the small shops on Онопрієнка 2 (v ~55), with bays along them, as the satellite
+// shows it, instead of a 4.5 m lane with a lawn strip that stopped short of the ring.
 const PASSAGE = [[74, 103, 3.6, 6.2], [103, 124, 2.6, 9.5], [124, 147, -0.2, 5.4]];
-const LOTS = [[-11, 74, 3.6, 16.5], [62, 74, 16.5, 66], ...PASSAGE];
+const DRIVE = [74, 137.5, 54.7, 65.2];
+const LOTS = [[-11, 74, 3.6, 16.5], [62, 74, 16.5, 66], ...PASSAGE, DRIVE];
 const BAY = { w: 2.6, d: 5 };
 
 const signTex = () => canvasTex(1024, 192, (g, w, h) => {
@@ -148,6 +151,10 @@ export function buildLunaShops({ root, map, solids: S, zips: Z, heightAt, ground
     const [l0, l1, w0, w1] = LOTS[1], nB = Math.floor((w1 - 2 - (w0 + 1)) / BAY.w);
     for (let i = 0; i <= nB; i++) stripe(l0, w0 + 1 + i * BAY.w, l0 + BAY.d, w0 + 1 + i * BAY.w);
     for (let i = 0; i < nB; i++) if ((i * 3 + 1) % 5 < 2) car(l0 + BAY.d / 2, w0 + 1 + (i + 0.5) * BAY.w, -1, 0);
+    // bays nose-in along the small shops at the driveway's north side
+    const [d0, d1, dv0] = DRIVE, nD = Math.floor((d1 - 4 - (d0 + 6)) / BAY.w);
+    for (let i = 0; i <= nD; i++) stripe(d0 + 6 + i * BAY.w, dv0 + 0.3, d0 + 6 + i * BAY.w, dv0 + BAY.d);
+    for (let i = 0; i < nD; i++) if ((i * 5 + 2) % 7 < 3) car(d0 + 6 + (i + 0.5) * BAY.w, dv0 + BAY.d / 2, 0, -1);
     // a zebra from the lane's bays across the aisle to the shops
     for (let k = 0; k < 6; k++) { const u = 56 + k * 0.9; stripe(u, APRON[3] + 0.2, u, APRON[3] + 5.6, 0.45); }
     void l1;
