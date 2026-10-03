@@ -91,7 +91,12 @@ See `ARCHITECTURE.md` for the module map. Where things live:
     no terrain change) with short beam bridges over Смілянська, Байди Вишневецького, Грушевського and Сумгаїтська;
     `railLevelFn` gives `station_rails` the bed height there (`buildStation({ railLevel })`). `bridgekit` holds the
     helpers the three bridge modules share (frames along an axis, planar prisms, resurfacing, paint drop, deck meshes).
-    `gerb` is the coat-of-arms stele (Стела з гербом України, 2017) on the Велике коло, площа Перемоги. Several shape the terrain with a guarded
+    `gerb` is the coat-of-arms stele (Стела з гербом України, 2017) on the Велике коло, площа Перемоги.
+    `drama` is the drama theatre (бульвар Шевченка 234, as rebuilt in 2021: seven glazed bays between white pilasters, the
+    red granite canopy and terrace, the name on the attic, the hipped roof, the service block, the fly tower and the back
+    annex; lit foyer and facade lamps at night) with the square in front – paving, beds, lamps, benches – and the 1964
+    Shevchenko monument (bronze figure on a granite shaft with the kobzar and Kateryna groups, place `shevchenko`);
+    `levelDrama` levels the lot, `tests/drama.test.mjs` also guards against coplanar faces (the old model's roof z-fought). Several shape the terrain with a guarded
     `shape*` / `level*` hook next to `shapeZamkova`. A site builder that reads `ground` must be listed in `GROUND_SITES`
     in `city.js`; the others build while the ground workers run.
   - hand-built ordinary buildings (not sights, not in `places.js`): `simeinyi` (ЖК «Сімейний Lux», Героїв Дніпра 4),

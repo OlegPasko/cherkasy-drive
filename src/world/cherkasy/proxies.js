@@ -9,7 +9,7 @@
 //   createSiteProxies({ parent, roots, places, map, skip, heightAt, facadeMat, detailMat }) -> proxies
 //     roots: the sites' top-level Object3Ds (left alone: a root wider than 400 m – parks, the embankment, the station –,
 //       the moving ones, and those whose silhouette is the point at any distance – KEEP: the landmarks' towers and
-//       domes, the churches, the monuments, the New Year tree, the park under Zamkova hora); places: world.places (rings + ringIds); skip: the OSM ids the sites replace (an OSM
+//       domes, the churches, the monuments, the drama theatre, the New Year tree, the park under Zamkova hora); places: world.places (rings + ringIds); skip: the OSM ids the sites replace (an OSM
 //       ring a site only decorates keeps its city building, so it gets no box)
 //     proxies.set(near)     metres; Infinity (the default, 'high') = every site draws itself. The first finite call
 //                           starts the boxes, built ~4 ms a frame by update(); the sites draw themselves meanwhile.
@@ -20,7 +20,7 @@ import * as THREE from 'three';
 import { buildBuildings, inRing } from '../buildings.js';
 import { mergeGeometries } from '../../kit/batch.js';
 
-const WIDE = 400, CELL = 512, HYST = 1.15, KEEP = /^(landmark-|balloon|plane|yacht|yalynka$|zamkovapark$|andriy$|lotus$|kobzar$)/, STUCCO = 0.55;
+const WIDE = 400, CELL = 512, HYST = 1.15, KEEP = /^(landmark-|balloon|plane|yacht|yalynka$|zamkovapark$|andriy$|lotus$|kobzar$|drama$)/, STUCCO = 0.55;
 
 export function createSiteProxies({ parent, roots, places, map, skip, heightAt, facadeMat, detailMat }) {
   let near = Infinity, built = null, lx = Infinity, ly = 0, lz = 0;

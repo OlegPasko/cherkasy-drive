@@ -13,7 +13,7 @@ import { track } from '../analytics.js';
 // height field before the build, as in the city)
 const LM = ['landmarks', 'buildLandmarks', 'levelStadium'];
 const SITES = {
-  mykhailo: LM, tvtower: LM, chimney: LM, drama: LM, arena: LM, rivport: LM, hyperboloid: LM,
+  mykhailo: LM, tvtower: LM, chimney: LM, arena: LM, rivport: LM, hyperboloid: LM,
   andriy: ['andriy', 'buildAndriy'], druzhba: ['druzhba', 'buildDruzhba'], pagorb: ['pagorb', 'buildPagorb'],
   roses: ['rosevalley', 'buildRoseValley'], zamkova: ['zamkova', 'buildZamkova', 'shapeZamkova'], yalynka: ['yalynka', 'buildYalynka'],
   embankment: ['embankment', 'buildEmbankment'], sosnivka: ['beaches', 'buildBeaches'], kazbet: ['beaches', 'buildBeaches'],
@@ -65,6 +65,7 @@ const SITES = {
   taraskova5: ['taraskova5', 'buildTaraskova5'],
   chnudorms: ['chnudorms', 'buildChnuDorms'],
   lunashops: ['lunashops', 'buildLunaShops'],
+  drama: ['drama', 'buildDrama', 'levelDrama'], shevchenko: ['drama', 'buildDrama', 'levelDrama'],
 };
 const MODULES = import.meta.glob('../world/cherkasy/*.js'); // lazy: a module's chunk loads on its first peek
 const MIN_R = 45, MAX_R = 170, POINT_R = 90; // crop radius round the place, m (POINT_R: a place on a point, no footprint)

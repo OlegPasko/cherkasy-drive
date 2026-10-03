@@ -7,10 +7,10 @@
 //     root: THREE.Group to add meshes to; heightAt(x, z): ground y; geo.toXZ(lat, lon) -> [x, z]
 // Models (research notes, section 2): St Michael's cathedral (9 gilded domes), the 196 m lattice TV tower, the 150 m
 // Mytnytsia boiler chimney + every other OSM chimney / water tower, the Shukhov hyperboloid water tower, river-port
-// portal cranes (quay found from the water polygon), the drama theatre colonnade and the Cherkasy-Arena stands +
+// portal cranes (quay found from the water polygon) and the Cherkasy-Arena stands +
 // floodlights. Each model emits its exact collision (boxes, frustums, plane-topped prisms) and zip points; a failing
 // model only logs (the rest of the city is unaffected).
-// Pagorb Slavy has its own module (pagorb.js).
+// Pagorb Slavy has its own module (pagorb.js), the drama theatre too (drama.js).
 import * as THREE from 'three';
 import { MB, M4 } from '../../kit/mesh.js';
 import { FacadeBuilder, STYLE, LAYER } from '../facade.js';
@@ -19,9 +19,9 @@ import { OVERHANG } from '../collision.js';
 import { nightK } from '../../render/daylight.js';
 import { ringPts, area2, centroid, inPoly, hash01, obb } from './geo.js';
 
-// cathedral, TV tower, Mytnytsia chimney, drama theatre, stadium grandstands (2)
+// cathedral, TV tower, Mytnytsia chimney, stadium grandstands (2)
 // + river station
-export const LANDMARK_SKIP = new Set([242469769, 412764704, 879198835, 154341828, 928316618, 928316619, 103630072]);
+export const LANDMARK_SKIP = new Set([242469769, 412764704, 879198835, 928316618, 928316619, 103630072]);
 
 const PI = Math.PI;
 const polyK = (n) => (1 + Math.cos(PI / n)) / 2; // n-gon collision radius factor (mean of in- and circumradius)
@@ -476,44 +476,6 @@ function crane(L, D, F, psi) {
   D.setXf(null);
 }
 
-// ================================================================================================ 7. drama theatre
-// rebuilt 2020: glazed foyer block behind a colonnade of tall square white pillars under a thin flat roof slab, low
-// red-brown granite entrance canopy, plain rendered stage-house block behind (footprint split at x ~ -152.5)
-function theatre(L) {
-  const { S, Z } = L, b = L.map.buildings.find(q => q.id === 154341828); if (!b) return;
-  const P = ringPts(b.p), bb = (Q) => Q.reduce((o, [x, z]) => ({ x0: Math.min(o.x0, x), x1: Math.max(o.x1, x), z0: Math.min(o.z0, z), z1: Math.max(o.z1, z) }), { x0: Infinity, x1: -Infinity, z0: Infinity, z1: -Infinity });
-  const fr = bb(P.filter(([x]) => x > -153)), rr = bb(P.filter(([x]) => x < -152));
-  const base = groundMin(L.g, P) + 0.15, D = new MB();
-  const Hr = 22, Hf = 17.5;
-  const FB = new FacadeBuilder(), blank = { all: { style: STYLE.BLANK, gH: -4 } };
-  FB.box(rr.x0, base - 1, rr.z0, rr.x1, base + Hr, rr.z1, { floorH: 4.5, bayW: 3, layer: LAYER.STUCCO, base: LAYER.GRANITE, seed: 5, tint: [1.04, 1.01, 0.95], baseY: base - 1, topY: base + Hr }, blank, true);
-  D.setPart(DP.CONC).setColor(0xb8b2a8).box(rr.x0 - 0.3, base + Hr - 0.6, rr.z0 - 0.3, rr.x1 + 0.3, base + Hr, rr.z1 + 0.3);
-  S.box(rr.x0, base - 1, rr.z0, rr.x1, base + Hr, rr.z1, 'wall');
-  // glazed foyer set back 1.8 m behind the pillars
-  const g = { x0: rr.x1 - 0.5, x1: fr.x1 - 1.8, z0: fr.z0 + 1.8, z1: fr.z1 - 1.8 };
-  FB.box(g.x0, base - 0.5, g.z0, g.x1, base + Hf, g.z1, { floorH: 4.3, bayW: 2.1, winW: 0.94, winH: 0.9, layer: LAYER.METAL, base: LAYER.GRANITE, seed: 11, glass: 1, tint: [0.9, 0.92, 0.95], depth: 0.1, margin: 0.1, baseY: base - 0.5, topY: base + Hf }, { all: { style: STYLE.CURTAIN, gH: -4.3 } }, false);
-  L.out(FB, L.facadeMat, 'drama-theatre-walls');
-  D.setPart(DP.CONC).setColor(0xefece6);
-  S.box(g.x0, base - 1, g.z0, g.x1, base + Hf, g.z1, 'glass');
-  // roof slab (overhang) + pillars along the three free sides
-  const rs = { x0: rr.x1 - 0.5, x1: fr.x1 + 1.2, z0: fr.z0 - 1.2, z1: fr.z1 + 1.2 };
-  D.setColor(0xefece6).box(rs.x0, base + Hf, rs.z0, rs.x1, base + Hf + 1.1, rs.z1);
-  S.box(rs.x0, base + Hf, rs.z0, rs.x1, base + Hf + 1.1, rs.z1, 'roof');
-  const pil = (x, z) => { D.box(x - 0.65, base - 0.5, z - 0.65, x + 0.65, base + Hf, z + 0.65); S.box(x - 0.65, base - 0.5, z - 0.65, x + 0.65, base + Hf, z + 0.65, 'wall'); };
-  const nz = Math.round((fr.z1 - fr.z0) / 4.2); for (let i = 0; i <= nz; i++) pil(fr.x1 - 0.2, fr.z0 + 0.4 + i / nz * (fr.z1 - fr.z0 - 0.8));
-  const nx = Math.round((fr.x1 - rr.x1) / 4.4); for (let i = 1; i < nx; i++) for (const z of [fr.z0 + 0.4, fr.z1 - 0.4]) pil(rr.x1 + i / nx * (fr.x1 - rr.x1), z);
-  // granite canopy over the entrance
-  const zc = (fr.z0 + fr.z1) / 2;
-  D.setColor(0x5c3a33).box(fr.x1 - 1.8, base + 4.2, zc - 8, fr.x1 + 5, base + 4.9, zc + 8);
-  S.box(fr.x1 - 1.8, base + 4.2, zc - 8, fr.x1 + 5, base + 4.9, zc + 8, 'awning', OVERHANG);
-  // zip points: roof slab and stage-house parapets
-  for (const [q, y] of [[rs, base + Hf + 1.1], [rr, base + Hr]]) {
-    Z.edge(q.x0 + 0.12, q.z0, q.x0 + 0.12, q.z1, y, -1, 0); Z.edge(q.x1 - 0.12, q.z0, q.x1 - 0.12, q.z1, y, 1, 0);
-    Z.edge(q.x0, q.z0 + 0.12, q.x1, q.z0 + 0.12, y, 0, -1); Z.edge(q.x0, q.z1 - 0.12, q.x1, q.z1 - 0.12, y, 0, 1);
-  }
-  L.out(D, L.detailMat, 'drama-theatre');
-}
-
 // ================================================================================================ 8. Cherkasy-Arena
 // raked stands (0.8 m rows, 0.4 m risers) swept along the running track wherever OSM has a grandstand (ways
 // 928316618 / 928316619), blue seats with red sectors, concrete back walls; 4 floodlight masts at the corners
@@ -691,7 +653,7 @@ export function buildLandmarks({ root, T, map, solids, zips, heightAt, facadeMat
     note(s) { notes.push(s); },
     clears: [],
   };
-  const MODELS = { cathedral, 'tv tower': tvTower, chimneys, shukhov, cranes, theatre, stadium, 'river station': riverStation, flags: (l) => { flagSpots = flags(l); } };
+  const MODELS = { cathedral, 'tv tower': tvTower, chimneys, shukhov, cranes, stadium, 'river station': riverStation, flags: (l) => { flagSpots = flags(l); } };
   for (const name in MODELS) {
     try { MODELS[name](L); } catch (e) { console.warn(`[cherkasy] landmark ${name} failed`, e); }
   }
