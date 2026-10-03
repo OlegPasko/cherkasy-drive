@@ -259,9 +259,16 @@ See `ARCHITECTURE.md` for the module map. Where things live:
   - Requests #28–#30: `atb26` rebuilds the supermarket at Остафія Дашковича 26 with a charcoal shopfront beneath
     the three-storey tiled street block; `school7` builds both school №7 blocks at Добровольчих батальйонів 13 and
     the yellow-railed Odeska pedestrian bridge over the roads, garages and railway. Both schools and ATB are
-    `improved` places with phone peeks. `railcut.shapeRailCut` carves the OSM railway cutting before `shapeOverpass`;
-    `buildRailCut` resurfaces its slopes after ground creation. The playable south-east boundary reaches z=5800
+    `improved` places with phone peeks. `railcut.shapeRailCut` makes the OSM railway cutting before `shapeOverpass`:
+    not in the 16 m lattice (that tilted Одеська and Сумгаїтська beside it, issue #34) but as its own 2 m height
+    function that `hf.heightAt` takes the minimum with, its walls kept short of the streets, garages and houses;
+    `buildRailCut` re-lays the ground triangles it touches onto it after ground creation. The playable south-east boundary reaches z=5800
     to include Петра Дорошенка and more of Чигиринська.
+  - Issue #34: `lunashops` rebuilds the shop annex of вул. Генерала Момота, 1 in Луначарка (АТБ, Прем'єр and their
+    neighbours; OSM 1041448576 used to extrude as a second nine-storey slab) as one storey with shop fronts and a
+    canopy, plus the car park in front in the ground material (bays, `parked`) and the lane down to the service road;
+    `improved`. Facades are guesses (no street photos found). `greenery.js BARE_ROADS` keeps street rows off вул.
+    Онопрієнка, the road to Геронимівка, and no generated tree grows on farmland.
 - `src/npc/` – everything that moves on its own:
   - `lanes.js` – the lane graph and signals (ways cut 100 m past `map.region`, where the asphalt ends); with `opts.deckAt` (a site's deck heights) the lanes of a chain with an
     OSM bridge way take the deck's height where they end on it, split into pieces of at most `DECK_STEP` (16 m) on a

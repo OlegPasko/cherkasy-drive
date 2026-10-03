@@ -5,6 +5,7 @@
 // per-vertex surface id, in world-space texture coordinates; the meshes are cut into 1 km tiles (8 km over the far fields).
 //
 //   createHeightField(map, dem: Int16Array) -> hf { heightAt(x, z), hMax, cell, x0, z0, x1, z1, pad(P, margin = 30, level?), data }
+//     (a site may overlay hf.heightAt and keep the lattice as hf.latticeAt: the ground meshes are built from that)
 //   heightFieldFrom(hf.data) -> the same field over the same grid (workers)
 //     pad(ring [[x,z]...], margin = 30, level?) levels the terrain under a hand-built site (call before buildGround) to
 //       `level`, or by default to the median of the lattice nodes in and near the ring; returns the level
@@ -278,7 +279,8 @@ function clipHalf(P, axis, v, sign) {
 // the CPU part (no materials, no scene): tile geometries, markings, rasters, bank segments, water distance
 export function buildGroundData({ map, hf, parts = ['land', 'roads', 'cover'] }) {
   const t0 = performance.now();
-  const R = map.region, H = hf.heightAt, TILE = 1024;
+  // the lattice alone (hf.latticeAt when a site overlays heightAt, railcut.js): the same field the workers build from
+  const R = map.region, H = hf.latticeAt ?? hf.heightAt, TILE = 1024;
   const tiles = new Map();
   // 1 km tiles over the city, 8 km ones over the far fields (few draw calls toward the horizon)
   const tileAt = (x, z) => {

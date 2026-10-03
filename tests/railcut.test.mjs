@@ -5,14 +5,15 @@ import { FRAME_OF } from '../src/world/cherkasy/frame.js';
 import { createHeightField } from '../src/world/cherkasy/ground.js';
 import { shapeRailCut, buildRailCut } from '../src/world/cherkasy/railcut.js';
 import { shapeOverpass } from '../src/world/cherkasy/overpass.js';
-import { cumulate, pointAt } from '../src/world/cherkasy/bridgekit.js';
+import { cumulate, pointAt, along } from '../src/world/cherkasy/bridgekit.js';
 
 const map = JSON.parse(readFileSync(new URL('../public/assets/cherkasy/map.json', import.meta.url)));
+map.buildings = JSON.parse(readFileSync(new URL('../public/assets/cherkasy/map_buildings.json', import.meta.url)));
 const bytes = readFileSync(new URL('../public/assets/cherkasy/dem.bin', import.meta.url));
 const dem = new Int16Array(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength));
 const geo = FRAME_OF(map), baseline = createHeightField(map, dem), hf = createHeightField(map, dem);
 const cut = shapeRailCut(hf, map, geo);
-assert(cut?.carved > 100, 'the missed railway trench is carved over many lattice cells');
+assert(cut?.carved > 100, 'the missed railway trench is carved over many raster nodes');
 const route = cut.route, cum = cumulate(route);
 let maxDepth = 0, worstGrade = 0;
 for (let s = 100; s < cut.length - 100; s += 5) {
@@ -24,19 +25,36 @@ for (let s = 100; s < cut.length - 100; s += 5) {
 }
 assert(maxDepth > 7 && maxDepth < 12, `a deep trench is visible (${maxDepth.toFixed(1)}m)`);
 assert(worstGrade < 0.035, `no abrupt track steps (${(100 * worstGrade).toFixed(1)}% max lattice grade)`);
-// Ground triangles and bilinear height sampling can disagree in a saddle-shaped lattice cell.
-// Bound that error across the full ballast width below its 0.13 m toe clearance, so grass cannot poke
-// through the track as alternating grey islands. Both cell diagonal choices obey this cross-term bound.
-let saddleError = 0;
-const { meta: { x0, z0, cell, nx }, grid } = hf.data;
+// The bed is level across the full ballast width (below its 0.13 m toe clearance), so grass cannot poke through
+// the track where the trench is deep.
+let bedTilt = 0;
 for (let s = 100; s < cut.length - 150; s += 2) {
   const [x, z, dx, dz] = pointAt(route, cum, s);
-  for (const side of [-2.55, 0, 2.55]) {
-    const i = Math.floor((x - dz * side - x0) / cell), j = Math.floor((z + dx * side - z0) / cell), n = j * nx + i;
-    saddleError = Math.max(saddleError, Math.abs(grid[n] - grid[n + 1] - grid[n + nx] + grid[n + nx + 1]) / 4);
+  if (baseline.heightAt(x, z) - hf.heightAt(x, z) < 1) continue;
+  const y = hf.heightAt(x, z);
+  for (const side of [-2.55, 2.55]) bedTilt = Math.max(bedTilt, Math.abs(hf.heightAt(x - dz * side, z + dx * side) - y));
+}
+assert(bedTilt < 0.1, `the trench bed is level under the ballast (${bedTilt.toFixed(3)}m)`);
+// Issue #34: Odeska and Sumhaitska run along the top of the cutting. The terrain lattice is not carved any more, and
+// no street within reach of the trench leans sideways more than it did on the natural ground.
+assert.deepEqual(hf.data.grid, baseline.data.grid, 'the 16 m terrain lattice is left as it was');
+let tilted = 0, streets = 0;
+for (const r of map.roads) {
+  if (r.k !== 'm' || r.br) continue;
+  for (let i = 2; i < r.p.length; i += 2) {
+    const ax = r.p[i - 2], az = r.p[i - 1], ex = r.p[i] - ax, ez = r.p[i + 1] - az, len = Math.hypot(ex, ez);
+    if (len < 1) continue;
+    const nx = -ez / len * r.w / 2, nz = ex / len * r.w / 2;
+    for (let t = 0; t < len; t += 4) {
+      const x = ax + ex * t / len, z = az + ez * t / len;
+      if (along(route, x, z).d > 70) continue;
+      const fall = (h) => Math.abs(h.heightAt(x + nx, z + nz) - h.heightAt(x - nx, z - nz)) / r.w;
+      streets++;
+      if (fall(hf) > fall(baseline) + 0.01) tilted++;
+    }
   }
 }
-assert(saddleError < 0.12, `terrain cannot bury ballast between samples (${saddleError.toFixed(3)}m)`);
+assert(streets > 1000 && tilted === 0, `no street beside the cutting leans into it (${tilted} of ${streets} samples)`);
 const p = geo.toXZ(49.455026, 32.019907);
 assert(baseline.heightAt(...p) - hf.heightAt(...p) > 7, 'the school footbridge crosses a deep cutting');
 const site = buildRailCut({ ground: null });
