@@ -271,6 +271,7 @@ export async function startGame({ container = document.getElementById('app') || 
   input.bind('radio', ['KeyQ']);
   input.bind('radioNext', ['KeyE']);
   audio.radio.onChange = (st) => hud.setRadio(st);
+  hud.onMissions = () => missions.toggle();
   hud.onRadio = () => audio.radio.toggle();
   hud.onRadioNext = () => audio.radio.next();
   // a sustained low frame rate offers G (simpler graphics) at the bottom; G steps the quality down any time, the lowest wraps to the highest

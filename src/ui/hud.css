@@ -17,6 +17,11 @@
 .hud-mapkey { align-self: flex-end; pointer-events: auto; cursor: pointer; display: flex; align-items: center; gap: 7px; margin-bottom: 2px;
   padding: 4px 10px 4px 4px; border-radius: 8px; border: 1px solid rgba(255, 255, 255, .16); background: rgba(12, 16, 26, .62);
   color: #dfe6f0; font: 600 12px system-ui, sans-serif; letter-spacing: .06em; transition: background .15s, border-color .15s; }
+.hud-navkeys { align-self: flex-end; display: flex; gap: 6px; }
+.hud-navkeys .hud-mapkey { align-self: auto; }
+.hud-misskey i { width: 8px; height: 8px; border-radius: 50%; background: #6b7488; }
+.hud-misskey.act i { background: #6ee08a; box-shadow: 0 0 6px #6ee08a; }
+.hud-misskey:not(.act) { color: #9aa4b8; }
 .hud-mapkey:hover { background: rgba(22, 30, 46, .85); border-color: rgba(255, 255, 255, .32); }
 
 /* objective: diamond on screen, arrow pinned to the edge; the distance under it */

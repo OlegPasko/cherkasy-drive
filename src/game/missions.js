@@ -10,6 +10,8 @@
 //   Обліт (tour)           fly through rings over Cherkasy's monuments against the clock
 // A call stands as a coloured light pillar (minimap: a coloured disc with a letter); drive into it to start. Backspace
 // abandons the running mission, N skips a call, Enter retries after a failure. Fines only for the player's own fault.
+// J (or the HUD's "Місії" chip, hud.onMissions) turns the dispatcher off and on: off, the running mission and the call
+// are dropped quietly and no new call comes until it is on again; the choice is kept in localStorage ('cherkasy.missions').
 // Money (₴) is kept in localStorage ('cherkasy.money').
 //
 //   createMissions({ world, player, hud?, scene, input? }) -> api
@@ -24,7 +26,8 @@
 //   kind: call | skip | lapse | start | say | end (ok, reward, fine) | ring | low (timer under 10 s) | tick (each second
 //   under 10) | ram (the getaway car hit, pos); vo names a line in tools/audio/sounds.json (groups vo / pax).
 //   api: { update(dt), start(type) (debug: a call of `type` right here, started at once), abandon(), skip(), retry(),
-//          offers, active, money, addMoney(n), available() -> types that can run here, TYPES }
+//          offers, active, money, addMoney(n), available() -> types that can run here, TYPES,
+//          enabled, setEnabled(on), toggle() }
 import * as THREE from 'three';
 import { cue } from '../audio/cue.js';
 import { track } from '../analytics.js';
@@ -38,7 +41,7 @@ export const TYPES = {
 };
 const UP = new THREE.Vector3(0, 1, 0);
 const CAR = { hl: 2.84, hw: 1.02 };
-const MONEY_KEY = 'cherkasy.money';
+const MONEY_KEY = 'cherkasy.money', ON_KEY = 'cherkasy.missions';
 const clamp = THREE.MathUtils.clamp;
 const angW = (a) => Math.atan2(Math.sin(a), Math.cos(a));
 // the HUD's mission panel API, as no-ops (headless tests, a game without a HUD)
@@ -638,10 +641,11 @@ export function createMissions({ world, player, hud = null, scene, input = null 
   const keyQ = [];
   if (input?.bind) {
     input.bind('missionAbort', ['Backspace']); input.bind('missionSkip', ['KeyN']); input.bind('missionRetry', ['Enter', 'NumpadEnter']);
+    input.bind('missionToggle', ['KeyJ']);
   } else if (typeof addEventListener === 'function') {
     addEventListener('keydown', (e) => {
       if (e.code === 'Backspace' && active) e.preventDefault();
-      keyQ.push(e.code === 'Backspace' ? 'missionAbort' : e.code === 'KeyN' ? 'missionSkip' : /Enter$/.test(e.code) ? 'missionRetry' : null);
+      keyQ.push(e.code === 'Backspace' ? 'missionAbort' : e.code === 'KeyN' ? 'missionSkip' : /Enter$/.test(e.code) ? 'missionRetry' : e.code === 'KeyJ' ? 'missionToggle' : null);
     });
   }
   function pollKeys() {
@@ -649,16 +653,37 @@ export function createMissions({ world, player, hud = null, scene, input = null 
     if (hit('missionAbort')) abandon();
     if (hit('missionSkip')) skip();
     if (hit('missionRetry')) retry();
+    if (hit('missionToggle')) setEnabled(!enabled);
     keyQ.length = 0;
   }
+  // the on / off switch: off drops everything without a fine or a failure banner
+  let enabled = true;
+  try { enabled = localStorage.getItem(ON_KEY) !== 'off'; } catch { /* storage off */ }
+  const setEnabled = (on) => {
+    on = !!on; if (on === enabled) return enabled;
+    enabled = on;
+    try { localStorage.setItem(ON_KEY, on ? 'on' : 'off'); } catch { /* storage off */ }
+    if (!on) {
+      const m = active; active = null; endInfo = null; retryT = 0;
+      try { m?.cleanup?.(false); } catch (e) { console.error('[missions] cleanup', e); }
+      for (const o of offers.slice()) dropOffer(o);
+      ui.setPanel(false); setObj('', null); ui.setHint(null); hintO = null; hud?.setMarkers?.([]);
+      banner('Місії вимкнено', 'Виклики не надходитимуть · J – увімкнути', '#9aa4b8');
+    } else { cool = 3; spawnT = 0; banner('Місії увімкнено', 'Новий виклик за мить · J – вимкнути', '#6ee08a'); }
+    hud?.setMissionsOn?.(enabled);
+    track('missions_toggle', { on: enabled });
+    return enabled;
+  };
+  hud?.setMissionsOn?.(enabled);
   const onEnd = (ok, type) => { cool = ok ? 7 : 5; spawnT = 0; if (!ok) { retryType = type; retryT = 10; } else retryT = 0; };
 
   let hintO = null;
   const api = {
     get offers() { return offers; }, get active() { return active; }, get money() { return money; },
     TYPES, addMoney, abandon, skip, retry, available,
+    get enabled() { return enabled; }, setEnabled, toggle: () => setEnabled(!enabled),
     start(type) { // debug: a call of `type` right here, started at once
-      if (!available().includes(type)) return false;
+      if (!enabled || !available().includes(type)) return false;
       for (const o of offers.slice()) dropOffer(o);
       const o = makeOffer(type); if (!o) return false; offers.push(o); stage(o); return tryStart(o);
     },
@@ -669,6 +694,7 @@ export function createMissions({ world, player, hud = null, scene, input = null 
       clock += dt;
       for (let i = jobs.length - 1; i >= 0; i--) if (jobs[i].at <= clock) { const j = jobs.splice(i, 1)[0]; try { j.fn(); } catch (e) { console.error('[missions] job', e); } }
       pollKeys();
+      if (!enabled) return;
       const p = P();
       if (active) {
         try { active.update(dt); } catch (e) { console.error('[missions]', e); end(false, 'Помилка місії'); }
@@ -682,7 +708,7 @@ export function createMissions({ world, player, hud = null, scene, input = null 
       if (o && !active) {
         const d = Math.hypot(o.x - p.x, o.z - p.z);
         o.ttl -= dt;
-        if (o.ttl <= 0 || d > 1300) { dropOffer(o); banner('Виклик скасовано', o.ttl <= 0 ? 'Ніхто не приїхав' : 'Надто далеко', '#9aa4b8'); cool = 3; cue('mission', { kind: 'lapse' }); }
+        if (o.ttl <= 0 || d > 1300) { dropOffer(o); banner('Виклик скасовано', o.ttl <= 0 ? 'Ніхто не приїхав' : 'Надто далеко', '#9aa4b8'); cool = 25; cue('mission', { kind: 'lapse' }); } // a pause, so a fast flight past calls is not a stream of them
         else {
           if (!o.staged && d < 260) stage(o); else if (o.staged && d > 420) unstage(o);
           const k = 1 + 0.06 * Math.sin(clock * 3.3); o.b.ring.scale.setScalar(o.b.r * k);

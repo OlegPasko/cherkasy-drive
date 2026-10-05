@@ -6,7 +6,8 @@
 // chip after it calls hud.onHome (a stuck car goes back to the start), the "🔔 Оновлення" chip opens the bot's daily updates
 // subscription (t.me/…?start=sub), the "Q – Радіо" chip after that calls hud.onRadio and
 // shows what plays (hud.setRadio), and while it plays an "E – Далі" chip next to it calls hud.onRadioNext; an "M – Велика мапа"
-// chip over the minimap opens the big map) and the full-screen
+// chip over the minimap opens the big map, and the "J – Місії" chip beside it calls hud.onMissions and shows whether
+// calls come in (hud.setMissionsOn)) and the full-screen
 // city map (bigmap.js). Both maps share one painter (mapdraw.js):
 // tiles with the sight / partner footprints highlighted, the world.places badges and street names (on the minimap: the few
 // nearest, anchored to their streets).
@@ -34,6 +35,7 @@
 //   hud.map = { open(), close(), toggle(), isOpen }   the full-screen map (M in main.js; Esc closes it too)
 //   hud.onHome = fn                      set by main: the "На старт" chip calls it
 //   hud.onGo = fn(place)                 set by main: the big map's "Переміститись сюди?" – move the car beside that place
+//   hud.onMissions = fn, hud.setMissionsOn(on)   the missions on / off chip over the minimap
 //   hud.onRadio = fn, hud.onRadioNext = fn, hud.setRadio({ on, loading, title, artist, empty })   the radio chips
 //                                        (src/audio/radio.js state)
 //   hud.root (the HUD layer, hidden by F2), hud.stats() -> { tilesPending, mapMs, features, places }, hud.dispose()
@@ -58,7 +60,7 @@ const HELP = [
   ['Політ', [['Shift', 'тримай: крила + реактивна тяга, відрив ~150 км/год'], ['W', 'крейсерська тяга'], ['S', 'повітряне гальмо'],
     ['↑ / ↓', 'ніс вниз / вгору'], ['Space / Ctrl', 'набір висоти / пікірування'], ['A / D', 'віраж']]],
   ['Камера', [['C', 'кабіна / вид ззаду'], ['Миша', 'огляд (клік по грі захоплює курсор)'], ['Esc', 'відпустити курсор']]],
-  ['Місії', [['', 'заїдь у стовп світла, щоб узяти виклик'], ['N', 'інший виклик'], ['Backspace', 'скасувати місію'], ['Enter', 'ще раз після невдачі']]],
+  ['Місії', [['', 'заїдь у стовп світла, щоб узяти виклик'], ['J', 'приймати виклики / вимкнути місії (просто кататись)'], ['N', 'інший виклик'], ['Backspace', 'скасувати місію'], ['Enter', 'ще раз після невдачі']]],
   ['Мапа', [['M', 'карта міста (гра на паузі)'], ['M / Esc', 'закрити карту'], ['Колесо / + −', 'масштаб'], ['Тягни / ←↑→↓ / WASD', 'рух карти'],
     ['Space', 'до авто'], ['Клік', 'по мапі – поставити мітку (жовта стрілка на мінікарті), ще клік по ній – прибрати'], ['', 'наведи на значок – опис місця і відстань'], ['', 'під’їдь до кожної пам’ятки: відвідані на мапі з ✓, решта бліді'], ['Клік', 'по рожевому значку – сайт партнера']]],
   ['Партнери', [['', 'рожеве коло біля будівлі – заїдь, щоб побачити пропозицію'], ['O', 'відкрити сайт партнера']]],
@@ -81,7 +83,7 @@ export function createHud({ player, world, camera, container = globalThis.docume
   root.className = 'hud';
   root.innerHTML = `
     <div class="hud-speed"><div class="v">0</div><div class="u">КМ/ГОД</div></div>
-    <div class="hud-nav"><button class="hud-mapkey" type="button" title="Карта міста (M)"><kbd>M</kbd><span>Велика мапа</span></button><canvas class="hud-compass"></canvas><canvas class="hud-map"></canvas></div>
+    <div class="hud-nav"><div class="hud-navkeys"><button class="hud-mapkey hud-misskey act" type="button" title="Приймати виклики на місії чи ні (J)"><kbd>J</kbd><i></i><span>Місії: увімк.</span></button><button class="hud-mapkey" type="button" title="Карта міста (M)"><kbd>M</kbd><span>Велика мапа</span></button></div><canvas class="hud-compass"></canvas><canvas class="hud-map"></canvas></div>
     <div class="hud-pin off"><div class="mk"></div><div class="d"></div></div>
     <div class="hud-money"><b>₴</b><span>0</span></div>
     <button class="hud-explore off" type="button" title="Пам’ятки Черкас: під’їдь до кожної (M – мапа)"><i>📍</i><b>0</b><span>/ 0 пам’яток</span></button>
@@ -107,7 +109,7 @@ export function createHud({ player, world, camera, container = globalThis.docume
     compass: $('.hud-compass'), map: $('.hud-map'), pin: $('.hud-pin'), pinMk: $('.hud-pin .mk'), pinD: $('.hud-pin .d'),
     money: $('.hud-money'), moneyV: $('.hud-money span'), panel: $('.hud-panel'), ttl: $('.hud-panel .ttl'), obj: $('.hud-panel .obj'),
     bl: $('.hud-panel .bl'), bar: $('.hud-panel .bar'), barI: $('.hud-panel .bar i'), tm: $('.hud-panel .tm'),
-    toast: $('.hud-toast'), banner: $('.hud-banner'), hint: $('.hud-hint'), fly: $('.hud-fly:not(.hud-turbo)'), turbo: $('.hud-turbo'), help: $('.hud-help'), helpKey: $('.hud-helpkey'), botKey: $('.hud-botkey'), newsKey: $('.hud-newskey'), homeKey: $('.hud-homekey'), radioKey: $('.hud-radiokey'), radioT: $('.hud-radiokey span'), radioNext: $('.hud-radionext'), mapKey: $('.hud-mapkey'),
+    toast: $('.hud-toast'), banner: $('.hud-banner'), hint: $('.hud-hint'), fly: $('.hud-fly:not(.hud-turbo)'), turbo: $('.hud-turbo'), help: $('.hud-help'), helpKey: $('.hud-helpkey'), botKey: $('.hud-botkey'), newsKey: $('.hud-newskey'), homeKey: $('.hud-homekey'), radioKey: $('.hud-radiokey'), radioT: $('.hud-radiokey span'), radioNext: $('.hud-radionext'), mapKey: $('.hud-mapkey:not(.hud-misskey)'), missKey: $('.hud-misskey'), missT: $('.hud-misskey span'),
     explore: $('.hud-explore'), exploreN: $('.hud-explore b'), exploreT: $('.hud-explore span'),
   };
   const mapG = el.map.getContext('2d'), cmpG = el.compass.getContext('2d');
@@ -440,13 +442,15 @@ export function createHud({ player, world, camera, container = globalThis.docume
   el.homeKey.addEventListener('click', (e) => { e.preventDefault(); el.homeKey.blur(); hud.onHome?.(); });
   el.radioKey.addEventListener('click', (e) => { e.preventDefault(); el.radioKey.blur(); hud.onRadio?.(); });
   el.radioNext.addEventListener('click', (e) => { e.preventDefault(); el.radioNext.blur(); hud.onRadioNext?.(); });
+  el.missKey.addEventListener('click', (e) => { e.preventDefault(); el.missKey.blur(); hud.onMissions?.(); });
   el.mapKey.addEventListener('click', (e) => { e.preventDefault(); el.mapKey.blur(); bigmap.open(); }); // main.js pauses on hud.map.isOpen
   el.explore.addEventListener('click', (e) => { e.preventDefault(); el.explore.blur(); bigmap.open(); });
   let exploreFlip = false;
   applyHelp();
 
   const hud = {
-    mission, setTelemetry, onHome: null, onGo: null, onRadio: null, onRadioNext: null,
+    mission, setTelemetry, onHome: null, onGo: null, onRadio: null, onRadioNext: null, onMissions: null,
+    setMissionsOn(on) { setClass(el.missKey, 'act', !!on); setText(el.missT, on ? 'Місії: увімк.' : 'Місії: вимк.'); },
     setRadio({ on, loading, title, artist, empty }) {
       setClass(el.radioKey, 'act', on);
       setText(el.radioT, empty ? 'Радіо: немає треків' : !on ? 'Радіо' : loading && !title ? 'Радіо…' : `♪ ${title}${loading ? '…' : ''}`);

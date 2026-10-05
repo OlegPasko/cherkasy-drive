@@ -96,6 +96,17 @@ for (let g = 0; g < 8 && ms.active === m; g++) { // fly through each ring by tel
 }
 check('tour completes and pays', !ms.active && ms.money > -150, `money ${ms.money}`);
 
+// the missions switch (J / the HUD chip): off drops the running mission and the call quietly, no new call comes, it is kept
+ms.start('courier');
+const before = ms.money;
+check('switching missions off', ms.setEnabled(false) === false && !ms.active && !ms.offers.length && ms.money === before);
+check('the choice is stored', store.get('cherkasy.missions') === 'off');
+tickM(12);
+check('no calls while off', !ms.offers.length && !ms.start('courier'));
+check('a new dispatcher reads it back', createMissions({ world, player: car, scene }).enabled === false);
+ms.toggle(); tickM(5);
+check('back on: a call comes in again', ms.enabled && ms.offers.length === 1 && store.get('cherkasy.missions') === 'on');
+
 // the light plane's engine: heard only right next to it, never from the ground under its ~150-190 m loop
 {
   const { planeGain, PLANE_NEAR, PLANE_FAR } = await import('../src/audio/game.js');
