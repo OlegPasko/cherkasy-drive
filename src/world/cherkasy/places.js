@@ -135,6 +135,7 @@ export const PLACES = [
   { id: 'lunashops', kind: 'improved', name: 'Покращений об’єкт', note: 'АТБ і магазини · вул. Генерала Момота, 1', issue: 34, bld: [1041448576] },
   { id: 'smil117', kind: 'improved', name: 'Покращений об’єкт', note: 'вул. Смілянська, 117', issue: 40, bld: [105315513] },
   { id: 'smil119', kind: 'improved', name: 'Покращений об’єкт', note: 'вул. Смілянська, 119', issue: 40, bld: [105315529] },
+  { id: 'rozkopnahouses', kind: 'improved', name: 'Покращений об’єкт', note: 'вул. Розкопна: старі одноповерхові хати', bld: [400651147, 710718771, 400651135, 924834486, 710718772, 402017390, 727552942, 401291143, 401291111, 924855257] },
   // sights
   { id: 'mykhailo', kind: 'sight', name: 'Свято-Михайлівський собор', icon: '⛪', bld: [242469769] },
   { id: 'troitsky', kind: 'sight', name: 'Свято-Троїцький собор', icon: '⛪', bld: [157432721] },
