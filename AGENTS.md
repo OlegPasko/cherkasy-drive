@@ -243,6 +243,12 @@ See `ARCHITECTURE.md` for the module map. Where things live:
     balcony stacks with the blue-diamond fronts, some glazed; the yard's entrances under canopies are the series' layout,
     a guess. One section per stair, each on its own level, so No.119 steps up its slope; No.119's shop porch with the red
     fascia, No.117's pink-rendered shop strip; `tests/smil117.test.mjs`.
+    `pryrody` (Будинок природи, Верхня Горова 1, OSM relation 12524139, a `sight`): the Society for Nature Protection's
+    two-storey modernist ring on Дзеленьгора, where the old castle and the Миколаївський собор stood – a glazed ground floor
+    behind square columns on three sides, the blank panelled front box with the green «БУДИНОК ПРИРОДИ» and the tree badge,
+    rows of windows elsewhere and a lower storey where the hill falls to the Dnipro; the open hexagonal courtyard (paving
+    bands, a stepped planter) and the raised hexagonal hall traced from the aerial view, two antenna masts;
+    `tests/pryrody.test.mjs`.
   - `places.js` – the sights, the paying partners (kind `ad`) and the non-landmark objects rebuilt on request (kind
     `improved`: a grey footprint only, "Покращений об’єкт" in the big map's legend) for both maps: icon, name, note, the OSM buildings
     whose footprints get highlighted, and for partners the site `url` (with `utm_source=driver.ck.ua`) and the pitch
