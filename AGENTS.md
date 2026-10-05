@@ -243,6 +243,15 @@ See `ARCHITECTURE.md` for the module map. Where things live:
     balcony stacks with the blue-diamond fronts, some glazed; the yard's entrances under canopies are the series' layout,
     a guess. One section per stair, each on its own level, so No.119 steps up its slope; No.119's shop porch with the red
     fascia, No.117's pink-rendered shop strip; `tests/smil117.test.mjs`.
+    `questcentre` (four `improved` entries `belakhov` / `sklovsky` / `horodetsky` / `tobacco`, the cards of the quest
+    «Таємниці Черкас» with those ids): Будинок Белахова (Хрещатик 219: shopfronts, the yellow-brick upper floor with the
+    diamond frieze, the arched balcony window, two crenellated turrets, the oculus attic, the roof railing), Будинок
+    Скловського (Слави 11: the yellow-and-green ground floor with sunrise lunettes, two sand-brick floors with
+    balconies), Жіноча гімназія Городецького (Смілянська 33: the chevron plan, two pedimented 45-degree fronts with fluted
+    pilasters and the triglyph frieze, end blocks with attics, the Chikovani plaque) and the tobacco works (Благовісна
+    170 / Дашковича: four storeys of yellow brick and pink render on rubble granite, the cream hall with the red roof and
+    loading canopy, the forecourt fence; how the parts split over the three OSM outlines is a guess); one group per
+    building, the ironwork, friezes and lunettes from one alpha-tested atlas; `tests/questcentre.test.mjs`.
   - `places.js` – the sights, the paying partners (kind `ad`) and the non-landmark objects rebuilt on request (kind
     `improved`: a grey footprint only, "Покращений об’єкт" in the big map's legend) for both maps: icon, name, note, the OSM buildings
     whose footprints get highlighted, and for partners the site `url` (with `utm_source=driver.ck.ua`) and the pitch
