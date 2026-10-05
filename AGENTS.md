@@ -266,7 +266,7 @@ See `ARCHITECTURE.md` for the module map. Where things live:
     170 / Дашковича: four storeys of yellow brick and pink render on rubble granite, the cream hall with the red roof and
     loading canopy, the forecourt fence; how the parts split over the three OSM outlines is a guess); one group per
     building, the ironwork, friezes and lunettes from one alpha-tested atlas; `tests/questcentre.test.mjs`.
-    Quest «Таємниці Черкас» places (each `improved`; `tests/questrosava.test.mjs`): `rosava` (the former hotel «Росава»,
+  - Quest «Таємниці Черкас» places (each `improved`; `tests/questrosava.test.mjs`): `rosava` (the former hotel «Росава»,
     Верхня Горова 29, the appeal court since 2013: the two-storey podium with brick-red fins, the nine-storey tower with
     its sawtooth balcony sides and the stair block with the emblem panel, and in front the Пам’ятник варенику as it stood
     in 2006–2013 – the ceramic Mamai with his pot and the crescent varenyk, a smooth SG skin; its own place `varenyk`),
@@ -274,7 +274,7 @@ See `ARCHITECTURE.md` for the module map. Where things live:
     `maiboroda` (Будинок Майбороди, бульвар Шевченка 287: one tall storey over a rusticated plinth, the arched risalits
     with pediments, the portal and attic, the balustrade, a hip roof), `simonenko` (бульвар Шевченка 345, the П-shaped
     five-storey red-brick block with Василь Симоненко's memorial plaque on its west wall; the rest of the block a guess).
-    Quest places of «Таємниці Черкас» in the south, each `improved`: `rafinad` (the old sugar refinery on Сінна, OSM's one
+  - Quest places of «Таємниці Черкас» in the south, each `improved`: `rafinad` (the old sugar refinery on Сінна, OSM's one
     outline split into the brick wings, the pale mill block with its roof lantern, the red tower and the banded chimney),
     `brewery` (the brewery's front on Кобзарська: tiled office and brewhouse tower, the gate, the gatehouse, the brick
     block, the fence, and a guessed sculpture with the plant's medals at OSM node 13034435620) and `kobzarska` (school №15
