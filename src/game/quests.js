@@ -3,11 +3,11 @@
 // grey dashed search circle round it (its centre shifted off the spot, so the circle says "somewhere here"), the book
 // shows the card's hint, and in the world the spot is a quiet grey light that shows only from close by (under ~220 m).
 // Driving into it (on the road beside the place, low flight counts) opens the card on the right: the story and its
-// source; the book keeps every found card to read again. Entering a search circle for the first time shows the hint.
+// source, and it closes as the car drives off (like a partner's card); the book keeps every found card to read again. Entering a search circle for the first time shows the hint.
 // Progress lives in localStorage ('cherkasy.quests': { active, found: [card ids] }). The game pauses while the book is
 // open (main.js reads quests.isOpen, like the big map).
 //   createQuests({ world, player, scene, hud?, reward?(n), quests? (QUESTS), storage?, container? })
-//     -> { update(dt), open(), close(), toggle(), isOpen, active: quest | null, setActive(id | null),
+//     -> { update(dt), open(), close(), toggle(), isOpen, shown (the story card's card | null), active: quest | null, setActive(id | null),
 //          zones() -> [{ x, z, r, label }] (the active quest's open cards, for the big map), find(cardId) (debug),
 //          reset() (debug), list: [{ quest, cards: [{ ..., x, z, spot: { x, y, z }, zone: { x, z, r }, found }] }], dispose() }
 //   curbSpot(map, x, z, maxR?) -> { x, z, d } | null: the point on the nearest motor road's edge toward (x, z)
@@ -23,7 +23,7 @@ const KEY = 'cherkasy.quests';
 const REACH = 14, MAX_ALT = 40;          // metres from the light, over the ground
 const SHOW_FAR = 220, SHOW_NEAR = 70;    // the light fades in between these
 const ZONE_R = 170;                       // the big map's search circle
-const CARD_AWAY = 160;                    // the story card closes once the car is this far from the spot
+const CARD_AWAY = 24;                     // the story card closes once the car drives this far from where it opened (like a partner's card)
 const EVERY = 0.2;
 const esc = (t) => String(t ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 const hash = (s) => { let h = 2166136261; for (const c of s) h = Math.imul(h ^ c.charCodeAt(0), 16777619); return (h >>> 0) / 4294967296; };
@@ -116,9 +116,9 @@ export function createQuests({ world, player, scene, hud = null, reward = null, 
     chip.classList.toggle('all', !!active && n === active.cards.length);
   };
 
-  let shown = null;
-  function showCard(c) {
-    shown = c;
+  let shown = null, anchor = null; // anchor: where the card opened (the light, or the car when re-read from the book)
+  function showCard(c, at = null) {
+    shown = c; anchor = c ? (at || c.spot) : null;
     if (!card) return;
     if (!c) { card.classList.remove('on'); return; }
     const q = list.find((l) => l.cards.includes(c)), n = q.cards.filter((k) => k.found).length;
@@ -156,7 +156,7 @@ export function createQuests({ world, player, scene, hud = null, reward = null, 
     const t = e.target.closest?.('button'); if (!t) { if (e.target === book) api.close(); return; }
     e.preventDefault();
     if (t.dataset.q) { pick = list.find((l) => l.quest.id === t.dataset.q) || null; renderBook(); return; }
-    if (t.dataset.c) { const c = list.flatMap((l) => l.cards).find((k) => k.id === t.dataset.c); if (c) { api.close(); showCard(c); } return; }
+    if (t.dataset.c) { const c = list.flatMap((l) => l.cards).find((k) => k.id === t.dataset.c); if (c) { api.close(); showCard(c, { x: player.position.x, z: player.position.z }); } return; }
     const a = t.dataset.a;
     if (a === 'close') api.close();
     else if (a === 'start') { api.setActive((pick || list[0]).quest.id); renderBook(); }
@@ -186,6 +186,7 @@ export function createQuests({ world, player, scene, hud = null, reward = null, 
   const api = {
     list,
     get isOpen() { return isOpen; },
+    get shown() { return shown; }, // the card on screen, or null
     get active() { return active?.quest || null; },
     open() { if (!book) return; isOpen = true; pick = active; renderBook(); book.classList.add('on'); showCard(null); },
     close() { if (!book) return; isOpen = false; book.classList.remove('on'); },
@@ -209,7 +210,7 @@ export function createQuests({ world, player, scene, hud = null, reward = null, 
         l.mR.opacity = f * (0.55 + 0.2 * k); l.mW.opacity = f * (0.3 + 0.12 * k);
         l.ring.scale.setScalar(4 * (1 + 0.04 * k));
       }
-      if (shown && Math.hypot(P.x - shown.spot.x, P.z - shown.spot.z) > CARD_AWAY) showCard(null);
+      if (shown && Math.hypot(P.x - anchor.x, P.z - anchor.z) > CARD_AWAY) showCard(null);
       if ((acc += dt) < EVERY || !active) return;
       acc = 0;
       const alt = P.y - gh(P.x, P.z);
