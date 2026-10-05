@@ -243,6 +243,14 @@ See `ARCHITECTURE.md` for the module map. Where things live:
     balcony stacks with the blue-diamond fronts, some glazed; the yard's entrances under canopies are the series' layout,
     a guess. One section per stair, each on its own level, so No.119 steps up its slope; No.119's shop porch with the red
     fascia, No.117's pink-rendered shop strip; `tests/smil117.test.mjs`.
+  - `queststreets.js` – the street cards of «Таємниці Черкас» made visible (`kavkazka`, `gogol`, `gurzhiivska`, `rozkopna`,
+    `cherkasy2`; it reads their `ll` from `game/quests/secrets.js`): beside the road at each card's spot (`findSpot`: the
+    first place along the street clear of the carriageways and buildings) a post with the old enamel name plate under
+    today's (Новочигиринська, Кладовищенська…), Гоголя's arrow «НА ЧИГИРИН», and a story stand; at the end of
+    Грушевського the never-built Черкаси-2 bridge as a dashed blueprint and a «0 м» marker. Canvas texts, a faint glow
+    at night. On Розкопна ten near-rectangular one-storey OSM houses are rebuilt as 19th-century town houses (high
+    plinth, white casings, shutters on the street side, hipped iron roofs; the type, no photos found), one `improved`
+    entry `rozkopnahouses`; `tests/queststreets.test.mjs`.
   - `places.js` – the sights, the paying partners (kind `ad`) and the non-landmark objects rebuilt on request (kind
     `improved`: a grey footprint only, "Покращений об’єкт" in the big map's legend) for both maps: icon, name, note, the OSM buildings
     whose footprints get highlighted, and for partners the site `url` (with `utm_source=driver.ck.ua`) and the pitch
