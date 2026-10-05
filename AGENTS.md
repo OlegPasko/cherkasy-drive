@@ -251,6 +251,12 @@ See `ARCHITECTURE.md` for the module map. Where things live:
     at night. On Розкопна ten near-rectangular one-storey OSM houses are rebuilt as 19th-century town houses (high
     plinth, white casings, shutters on the street side, hipped iron roofs; the type, no photos found), one `improved`
     entry `rozkopnahouses`; `tests/queststreets.test.mjs`.
+  - `pryrody` (Будинок природи, Верхня Горова 1, OSM relation 12524139, a `sight`): the Society for Nature Protection's
+    two-storey modernist ring on Дзеленьгора, where the old castle and the Миколаївський собор stood – a glazed ground floor
+    behind square columns on three sides, the blank panelled front box with the green «БУДИНОК ПРИРОДИ» and the tree badge,
+    rows of windows elsewhere and a lower storey where the hill falls to the Dnipro; the open hexagonal courtyard (paving
+    bands, a stepped planter) and the raised hexagonal hall traced from the aerial view, two antenna masts;
+    `tests/pryrody.test.mjs`.
   - `places.js` – the sights, the paying partners (kind `ad`) and the non-landmark objects rebuilt on request (kind
     `improved`: a grey footprint only, "Покращений об’єкт" in the big map's legend) for both maps: icon, name, note, the OSM buildings
     whose footprints get highlighted, and for partners the site `url` (with `utm_source=driver.ck.ua`) and the pitch
