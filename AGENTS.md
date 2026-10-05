@@ -237,6 +237,12 @@ See `ARCHITECTURE.md` for the module map. Where things live:
     with the yellow gas pipe – and the yard's pavements in detail: the asphalt drive and forecourts, block-paver walks,
     the diagonal path, both Хрещатик pavements, flower beds, benches, bins, thujas and lamps; kerbs are found by
     rasterising the surfaces (0.1 m) and edging paving against lawn or ground; `tests/chnudorms.test.mjs`.
+    `smil117` (issue #40, two `improved` entries `smil117` / `smil119`): the twin five-storey 1969 large-panel blocks at
+    вул. Смілянська 117 and 119 (OSM had no levels, so they stood nine storeys), from the 2015 Street View on Смілянська:
+    grey panels with dark seams (one wall quad per face and section over a painted 8 x 5 panel atlas), a window per panel,
+    balcony stacks with the blue-diamond fronts, some glazed; the yard's entrances under canopies are the series' layout,
+    a guess. One section per stair, each on its own level, so No.119 steps up its slope; No.119's shop porch with the red
+    fascia, No.117's pink-rendered shop strip; `tests/smil117.test.mjs`.
   - `places.js` – the sights, the paying partners (kind `ad`) and the non-landmark objects rebuilt on request (kind
     `improved`: a grey footprint only, "Покращений об’єкт" in the big map's legend) for both maps: icon, name, note, the OSM buildings
     whose footprints get highlighted, and for partners the site `url` (with `utm_source=driver.ck.ua`) and the pitch
