@@ -2,7 +2,8 @@
 //   Грабіжники (mugging)   thugs rob a passer-by on the pavement: run them over (never the victim), then pick the victim up
 //                          and drive them to the police (the regional police HQ from OSM)
 //   Пограбування (chase)   robbers flee in a getaway SUV through the traffic (ploughing cars out of the way): ram it (5 hard to 10 light rams) until
-//                          it is wrecked before it gets away
+//                          it is wrecked before it gets away; it keeps to its lane path, stops at walls, and a ram knocks it
+//                          sliding, spinning and hopping off the road before it steers back on
 //   Кур'єр (courier)       pick up a parcel, deliver it in time to a named place or onto a rooftop (fly); hard crashes
 //                          break what is inside
 //   Таксі (taxi)           someone hails you from the kerb: stop next to them, drive them to a named place; crashes and
@@ -262,6 +263,7 @@ export function createMissions({ world, player, hud = null, scene, input = null 
     const g = {
       type, col, len: VT.len, wid: VT.wid, h: VT.h, x: rp.x, z: rp.z, y: gh(rp.x, rp.z), fx: rp.dx, fz: rp.dz, v: 0, spin: 0, roll: 0,
       L: rp.L, wp: [], hp: 1, go: false, mm, vel: new THREE.Vector3(),
+      px: rp.x, pz: rp.z, sx: 0, sz: 0, hop: 0, vy: 0, snapT: 0, // path segment start, slide (knocks), hop
       dispose() { if (!mm || g.gone) return; g.gone = true; mm.mesh.parent?.remove(mm.mesh); if (mm.dispose) mm.dispose(); else { mm.g?.dispose(); mm.mesh.dispose(); } },
     };
     g.wp.push([rp.L.ax + rp.L.dx * rp.L.len, rp.L.az + rp.L.dz * rp.L.len]);
@@ -269,7 +271,7 @@ export function createMissions({ world, player, hud = null, scene, input = null 
       if (!mm) return;
       const ry = Math.atan2(-g.fz, g.fx);
       _q.setFromAxisAngle(UP, ry); _q2.setFromAxisAngle(_ax, g.roll); _q.multiply(_q2);
-      _m.compose(_pv.set(g.x, g.y, g.z), _q, _one);
+      _m.compose(_pv.set(g.x, g.y + g.hop, g.z), _q, _one);
       mm.mesh.instanceMatrix.array.set(_m.elements); mm.mesh.instanceMatrix.needsUpdate = true;
     };
     g.draw();
@@ -296,19 +298,57 @@ export function createMissions({ world, player, hud = null, scene, input = null 
     }
     return { nx, nz, depth: best };
   };
+  // It follows its lane path by pursuit along the segment (previous waypoint -> next), so after a knock it steers back
+  // onto the road rather than cutting a straight line to the next waypoint; far off (>22 m) it re-snaps to the nearest
+  // lane. Buildings stop it (collision.pushBox), and a ram leaves it sliding sideways (sx, sz) and hopping.
+  const _gb = { x: 0, y: 0, z: 0, yaw: 0, hl: 0, hw: 0, h: 0, step: 0.6 }, _go = {};
   const driveGetaway = (g, dt) => {
     extend(g);
-    const t = g.wp[0];
-    if (t && Math.hypot(t[0] - g.x, t[1] - g.z) < Math.max(5, g.v * 0.4)) g.wp.shift();
-    const tgt = g.wp[0] || [g.x + g.fx * 20, g.z + g.fz * 20];
+    // the segment it is on; done once it passes the far end
+    let ax = g.px, az = g.pz, b = g.wp[0], off = 0;
+    for (let k = 0; b && k < 3; k++) {
+      const sx = b[0] - ax, sz = b[1] - az, L = Math.hypot(sx, sz) || 1, t = ((g.x - ax) * sx + (g.z - az) * sz) / L;
+      if (t < L - 3 && Math.hypot(b[0] - g.x, b[1] - g.z) > 4) break;
+      g.px = ax = b[0]; g.pz = az = b[1]; g.wp.shift(); extend(g); b = g.wp[0];
+    }
+    let tgt, corner = 0; // a sharp turn at the end of this segment, close enough to brake for
+    if (b) {
+      const sx = b[0] - ax, sz = b[1] - az, L = Math.hypot(sx, sz) || 1, ux = sx / L, uz = sz / L;
+      const t = clamp((g.x - ax) * ux + (g.z - az) * uz, 0, L);
+      off = t >= L ? Math.hypot(g.x - b[0], g.z - b[1]) : Math.abs((g.x - ax) * -uz + (g.z - az) * ux);
+      const c = g.wp[1];
+      if (c && L - t < 30) { const cx = c[0] - b[0], cz = c[1] - b[1], cl = Math.hypot(cx, cz) || 1; corner = 1 - (cx * ux + cz * uz) / cl; }
+      const look = t + (off > 1.5 ? Math.max(5, g.v * 0.3) : Math.max(7, g.v * 0.55)); // off its lane: a sharper way back
+      if (look <= L || !g.wp[1]) tgt = [ax + ux * Math.min(look, L), az + uz * Math.min(look, L)];
+      else { const c = g.wp[1], r = look - L, cx = c[0] - b[0], cz = c[1] - b[1], cl = Math.hypot(cx, cz) || 1; tgt = [b[0] + cx / cl * Math.min(r, cl), b[1] + cz / cl * Math.min(r, cl)]; }
+    } else tgt = [g.x + g.fx * 20, g.z + g.fz * 20];
+    g.off = off; // metres off its path (checks)
+    if (off > 22 && (g.snapT -= dt) <= 0) { // knocked far off: back to the nearest lane
+      g.snapT = 1;
+      const rp = nearestRoad(g.x, g.z, 120);
+      if (rp?.L?.out?.length) { g.L = rp.L; g.px = rp.x; g.pz = rp.z; g.wp.length = 0; g.wp.push([rp.L.ax + rp.L.dx * rp.L.len, rp.L.az + rp.L.dz * rp.L.len]); extend(g); }
+    }
     const want = Math.atan2(tgt[1] - g.z, tgt[0] - g.x), cur = Math.atan2(g.fz, g.fx), diff = angW(want - cur);
-    const vT = Math.abs(diff) > 0.45 ? 11 : 25;
-    g.v += clamp(vT - g.v, -10 * dt, 6.5 * dt);
-    const rate = Math.min(1.6, 9.5 / Math.max(3, g.v));
+    const vT = Math.abs(diff) > 0.45 || off > 4 ? 12 : corner > 0.3 ? 14 : 25;
+    g.v += clamp(vT - g.v, -12 * dt, 6.5 * dt);
+    const rate = Math.min(2, 12 / Math.max(3, g.v));
     const a = cur + clamp(diff, -rate * dt, rate * dt) + g.spin * dt;
     g.spin *= Math.exp(-2.2 * dt);
     g.fx = Math.cos(a); g.fz = Math.sin(a);
-    g.x += g.fx * g.v * dt; g.z += g.fz * g.v * dt;
+    const sk = Math.exp(-2.6 * dt); g.sx *= sk; g.sz *= sk;
+    g.x += (g.fx * g.v + g.sx) * dt; g.z += (g.fz * g.v + g.sz) * dt;
+    // walls: pushed out of buildings, the speed into the wall lost
+    const cw = W.collision;
+    if (cw?.pushBox) {
+      Object.assign(_gb, { x: g.x, y: g.y, z: g.z, yaw: Math.atan2(g.fx, g.fz), hl: g.len / 2, hw: g.wid / 2, h: g.h });
+      const r = cw.pushBox(_gb, _go);
+      if (r?.hit) {
+        g.x = _gb.x; g.z = _gb.z;
+        const into = -(g.fx * r.nx + g.fz * r.nz); if (into > 0.3) g.v *= 1 - 0.6 * into;
+        const sn = g.sx * r.nx + g.sz * r.nz; if (sn < 0) { g.sx -= sn * r.nx * 1.4; g.sz -= sn * r.nz * 1.4; }
+      }
+    }
+    g.vy -= 18 * dt; g.hop = Math.max(0, g.hop + g.vy * dt); if (g.hop === 0) g.vy = 0;
     g.y += (W.groundHeight(g.x, g.z, g.y + 2) - g.y) * Math.min(1, dt * 12);
     g.roll += (-diff * 0.12 * Math.min(1, g.v / 15) - g.roll) * Math.min(1, dt * 5);
     g.vel.set(g.fx * g.v, 0, g.fz * g.v);
@@ -336,11 +376,13 @@ export function createMissions({ world, player, hud = null, scene, input = null 
     const v = player.velocity, closing = -((v.x - g.vel.x) * hit.nx + (v.z - g.vel.z) * hit.nz);
     g.x -= hit.nx * hit.depth * 0.7; g.z -= hit.nz * hit.depth * 0.7;
     if (closing < 2) return 0;
-    // it gets shoved sideways and spun, the player bounces a little
+    // it takes most of the blow: knocked sliding away, spun, a hard one lifts it; the player keeps most of the speed
     const side = -hit.nx * -g.fz + -hit.nz * g.fx;
-    g.spin += Math.sign(side || 1) * Math.min(3, closing * 0.12);
-    g.v *= 0.82;
-    v.x += hit.nx * closing * 0.35; v.z += hit.nz * closing * 0.35;
+    g.spin += Math.sign(side || 1) * Math.min(4.5, closing * 0.2);
+    g.sx -= hit.nx * closing * 0.6; g.sz -= hit.nz * closing * 0.6;
+    if (closing > 10) g.vy = Math.max(g.vy, Math.min(5, (closing - 8) * 0.35));
+    g.v *= 0.8;
+    v.x += hit.nx * closing * 0.15; v.z += hit.nz * closing * 0.15;
     return closing;
   };
 
