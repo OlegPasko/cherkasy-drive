@@ -20,6 +20,7 @@
 //   ONIX_RINGS (onix_data.js): the ЖК Onix sections, one ring each (most of them are not in OSM yet)
 //   NARB10_RING: the outline of the new block at Нарбутівська, 10 (narbutivska10.js)
 //   NADP249_RING: the stepped outline of the new club house at Надпільна, 249 (nadpilna249.js)
+//   BULL_RING: the base of the bull sculpture by the meat plant (bull.js)
 import { ONIX_RINGS } from './onix_data.js';
 
 //   OLIMPM_RINGS: the section outlines of ЖК «Олімп Модерн» (olimpmodern.js; a place's `ring` may be a list of flat rings)
@@ -47,6 +48,8 @@ export const SHEV184_RING = [-75.2, -592, -74.5, -591.9, -73.8, -591.6, -73.2, -
 export const SMIL52_RING = [-386.7, 294.1, -372.7, 294.1, -358.4, 280, -358.4, 266, -376.7, 266, -386.7, 276];
 // the new club house at Надпільна, 249 (nadpilna249.js NADP249_RING, not in OSM yet; tests/nadpilna249.test.mjs compares them)
 export const NADP249_RING = [-696.3, -518.8, -685.9, -518.8, -685.9, -519.4, -681.9, -519.4, -681.9, -516.3, -671.5, -516.3, -671.5, -516.9, -667.5, -516.9, -667.5, -513.8, -657.1, -513.8, -657.1, -503.6, -667.5, -503.6, -667.5, -502.8, -671.5, -502.8, -671.5, -506.1, -681.9, -506.1, -681.9, -505.3, -685.9, -505.3, -685.9, -508.6, -696.3, -508.6];
+// the bull sculpture's base by the meat plant, vul. Smilianska (bull.js builds it there; tests/bull.test.mjs keeps the two in step)
+export const BULL_RING = [-3079.7, 472.6, -3077.2, 472.6, -3077.2, 477, -3079.7, 477];
 
 export const PLACES = [
   // partners (paid placements; the other hand-built venues stay in the world but are not advertised)
@@ -149,6 +152,8 @@ export const PLACES = [
   { id: 'rafinad', kind: 'improved', name: 'Покращений об’єкт', note: 'Колишній цукрово-рафінадний завод (1854–1998) · вул. Сінна', bld: [399905038] },
   { id: 'brewery', kind: 'improved', name: 'Покращений об’єкт', note: 'Черкаський пивзавод (1910) і скульптура з його нагородами · вул. Кобзарська', bld: [399198124, 399198135, 1066701333, 1418387839] },
   { id: 'school15', kind: 'improved', name: 'Покращений об’єкт', note: 'Школа №15 на місці старообрядницького монастиря · вул. Кобзарська, 77', bld: [6775690, 401155172] },
+  { id: 'bull', kind: 'improved', name: 'Покращений об’єкт', note: 'Скульптура бика біля м’ясокомбінату · вул. Смілянська', ring: BULL_RING },
+  { id: 'silk', kind: 'improved', name: 'Покращений об’єкт', note: 'Черкаський шовковий комбінат, 1967 · вул. В’ячеслава Чорновола, 170', bld: [132429626] },
   // sights
   { id: 'mykhailo', kind: 'sight', name: 'Свято-Михайлівський собор', icon: '⛪', bld: [242469769] },
   { id: 'troitsky', kind: 'sight', name: 'Свято-Троїцький собор', icon: '⛪', bld: [157432721] },
@@ -179,6 +184,7 @@ export const PLACES = [
   { id: 'boyan', kind: 'sight', name: 'Пам’ятник Бояну', note: 'площа 700-річчя Черкас', icon: '🗿', ll: [49.4200118, 32.1024328] },
   { id: 'su7', kind: 'sight', name: 'Літак Су-7БКЛ', note: 'Пам’ятний знак льотчикам-визволителям · вхід до парку 30-річчя Перемоги', icon: '✈️', ll: [49.4155013, 32.028787] },
   { id: 'gerb', kind: 'sight', name: 'Стела з гербом України', note: 'Велике коло, площа Перемоги · 11 м, 2017', icon: '🔱', ll: [49.4152526, 32.0306315] },
+  { id: 'sobornyipark', kind: 'sight', name: 'Соборний парк', note: 'Колишній Першотравневий парк, 1954 · Смілянська / Надпільна', icon: '🌳', xz: [-781, 552] },
   { id: 'philharmonic', kind: 'sight', name: 'Обласна філармонія ім. О. Кошиця', note: 'вул. Хрещатик, 196 · скульптура «Висока нота»', icon: '🎻', bld: [157594207] },
   { id: 'bilyidim', kind: 'sight', name: 'Будинок рад («Білий дім»)', note: 'Обласна адміністрація й рада · бульвар Шевченка, 185', icon: '🏛️', bld: [1476966] },
   { id: 'lotus', kind: 'sight', name: 'Храм Білого лотосу', note: 'Зарубинецький узвіз, 4 · буддійський храм', icon: '🪷', bld: [402035058, 402035060] },
