@@ -63,3 +63,10 @@
 .qb-c.got i { background: rgba(110, 224, 138, .2); font-size: 15px; }
 .qb-tip { margin: 14px 0 0; font-size: 12.5px; color: #8f9bab; }
 @media (max-width: 720px) { .qb-body { flex-direction: column; } .qb-body nav { width: auto; border-right: 0; } .qb-q { flex-direction: column; } }
+.quest-hint { position: absolute; left: 50%; bottom: calc(3vh + 64px); transform: translate(-50%, 12px); opacity: 0; transition: opacity .3s, transform .3s;
+  display: flex; gap: 10px; align-items: center; max-width: min(560px, 86vw); padding: 8px 14px; border-radius: 10px; box-sizing: border-box;
+  background: rgba(20, 24, 34, .78); border: 1px solid rgba(201, 211, 228, .45); color: #eef0f6;
+  font: 500 13.5px/1.35 system-ui, -apple-system, "Segoe UI", sans-serif; }
+.quest-hint.on { opacity: 1; transform: translate(-50%, 0); }
+.quest-hint i { font-style: normal; font-size: 18px; }
+.quest-hint small { display: block; font-size: 11.5px; color: #9aa4b8; }

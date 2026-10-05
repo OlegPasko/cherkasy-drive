@@ -3,7 +3,8 @@
 // grey dashed search circle round it (its centre shifted off the spot, so the circle says "somewhere here"), the book
 // shows the card's hint, and in the world the spot is a quiet grey light that shows only from close by (under ~220 m).
 // Driving into it (on the road beside the place, low flight counts) opens the card on the right: the story and its
-// source, and it closes as the car drives off (like a partner's card); the book keeps every found card to read again. Entering a search circle for the first time shows the hint.
+// source, and it closes as the car drives off (like a partner's card); the book keeps every found card to read again. While the car is inside a search circle
+// its hint stays up in a pill (the nearest circle's), every time it comes back; entering one also shows a banner.
 // Progress lives in localStorage ('cherkasy.quests': { active, found: [card ids] }). The game pauses while the book is
 // open (main.js reads quests.isOpen, like the big map).
 //   createQuests({ world, player, scene, hud?, reward?(n), quests? (QUESTS), storage?, container? })
@@ -116,6 +117,17 @@ export function createQuests({ world, player, scene, hud = null, reward = null, 
     chip.classList.toggle('all', !!active && n === active.cards.length);
   };
 
+  // the hint pill: up while the car is inside a search circle (the nearest one's), gone outside
+  const hintEl = doc?.createElement('div');
+  if (hintEl) { hintEl.className = 'quest-hint'; (hud?.root || container).appendChild(hintEl); }
+  let hinted = null;
+  function setHint(c) {
+    if (c === hinted) return;
+    hinted = c;
+    if (!hintEl) return;
+    if (c) hintEl.innerHTML = `<i>🗝️</i><div><small>Десь поруч таємниця №${active.cards.indexOf(c) + 1} · шукай сіре світло</small>${esc(c.hint)}</div>`;
+    hintEl.classList.toggle('on', !!c);
+  }
   let shown = null, anchor = null; // anchor: where the card opened (the light, or the car when re-read from the book)
   function showCard(c, at = null) {
     shown = c; anchor = c ? (at || c.spot) : null;
@@ -187,6 +199,7 @@ export function createQuests({ world, player, scene, hud = null, reward = null, 
     list,
     get isOpen() { return isOpen; },
     get shown() { return shown; }, // the card on screen, or null
+    get hinted() { return hinted; }, // the card whose hint is up, or null
     get active() { return active?.quest || null; },
     open() { if (!book) return; isOpen = true; pick = active; renderBook(); book.classList.add('on'); showCard(null); },
     close() { if (!book) return; isOpen = false; book.classList.remove('on'); },
@@ -194,7 +207,7 @@ export function createQuests({ world, player, scene, hud = null, reward = null, 
     setActive(id) {
       const q = list.find((l) => l.quest.id === id) || null;
       if (q === active) return;
-      active = q; entered.clear(); save(); buildLights(); setChip();
+      active = q; entered.clear(); setHint(null); save(); buildLights(); setChip();
       if (q) { track('quest_start', { quest: q.quest.id }); hud?.mission?.banner(`${q.quest.icon} ${q.quest.title}`, 'Сірі кола на мапі (M) – там шукай', '#c9d3e4'); }
     },
     zones: () => (active?.cards || []).filter((c) => !c.found).map((c) => ({ x: c.zone.x, z: c.zone.z, r: c.zone.r, label: String(active.cards.indexOf(c) + 1) })),
@@ -214,19 +227,24 @@ export function createQuests({ world, player, scene, hud = null, reward = null, 
       if ((acc += dt) < EVERY || !active) return;
       acc = 0;
       const alt = P.y - gh(P.x, P.z);
+      let inZone = null, best = Infinity;
       for (const c of active.cards) {
         if (c.found) continue;
-        if (Math.hypot(P.x - c.spot.x, P.z - c.spot.z) < REACH && alt < MAX_ALT) { find(c, active); break; }
-        if (!entered.has(c.id) && Math.hypot(P.x - c.zone.x, P.z - c.zone.z) < c.zone.r) {
-          entered.add(c.id);
-          hud?.mission?.banner('🗝️ Десь поруч таємниця', c.hint, '#c9d3e4');
-        }
+        if (Math.hypot(P.x - c.spot.x, P.z - c.spot.z) < REACH && alt < MAX_ALT) { find(c, active); inZone = null; break; }
+        const d = Math.hypot(P.x - c.zone.x, P.z - c.zone.z);
+        // inside the circle: the hint stays up; a little past its edge (hysteresis) the circle counts as left, and
+        // coming back shows the banner again
+        if (d < c.zone.r * (entered.has(c.id) ? 1.1 : 1)) {
+          if (!entered.has(c.id)) { entered.add(c.id); hud?.mission?.banner('🗝️ Десь поруч таємниця', c.hint, '#c9d3e4'); }
+          if (d / c.zone.r < best) { best = d / c.zone.r; inZone = c; }
+        } else entered.delete(c.id);
       }
+      setHint(inZone);
     },
     dispose() {
       globalThis.removeEventListener?.('keydown', onKey, true);
       clearLights(); ringGeo.dispose(); wallGeo.dispose(); alpha?.dispose();
-      chip?.remove(); card?.remove(); book?.remove();
+      chip?.remove(); card?.remove(); book?.remove(); hintEl?.remove();
     },
   };
   buildLights(); setChip();
