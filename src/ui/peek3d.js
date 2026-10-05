@@ -36,6 +36,7 @@ const SITES = {
   delikat399: ['delikat399', 'buildDelikat399'], rotunda397: ['glassrotunda', 'buildGlassRotunda'],
   ekvator: ['ekvator', 'buildEkvator', 'levelEkvator'], sportlife: ['sportlife', 'buildSportLife'],
   gerb: ['gerb', 'buildGerb'],
+  bull: ['bull', 'buildBull'], silk: ['silk', 'buildSilk'], sobornyipark: ['sobornyi', 'buildSobornyi'],
   zamkpark: ['zamkovapark', 'buildZamkovaPark', 'peekZamkovaPark'], kupershtein: ['zamkovapark', 'buildZamkovaPark', 'peekZamkovaPark'],
   perlyna: ['perlyna', 'buildPerlyna', 'levelPerlyna'],
   avrora: ['avrora', 'buildAvrora'],

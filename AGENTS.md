@@ -243,6 +243,16 @@ See `ARCHITECTURE.md` for the module map. Where things live:
     balcony stacks with the blue-diamond fronts, some glazed; the yard's entrances under canopies are the series' layout,
     a guess. One section per stair, each on its own level, so No.119 steps up its slope; No.119's shop porch with the red
     fascia, No.117's pink-rendered shop strip; `tests/smil117.test.mjs`.
+    Three places of the quest «Таємниці Черкас» (`src/game/quests/secrets.js`): `bull` (the bull sculpture by the meat plant
+    at Смілянська / Сковороди, OSM node «Скульптура Бика»: the charcoal bull on its white pedestal that widens upward, a
+    pink wall and the plant's white ribbed fence behind it, a guessed gate with a checkpoint; `improved`, outline
+    `BULL_RING` in places.js; `tests/bull.test.mjs`), `silk` (Черкаський шовковий комбінат, Чорновола 170: the three-storey
+    front block, OSM 132429626, with ribbon windows, the glazed entrance hall and canopy, and the open gate on the yard road –
+    the facade is a guess, no street photo; `improved`; `tests/silk.test.mjs`) and `sobornyi` (Соборний парк, a `sight`: the
+    entrance rotundas with their wings, the Chornobyl memorial, the «Зруйнованим храмам» chapel with the monk (OSM 969866184),
+    the police memorial, the «Жертвам фашизму» stele, the Holodomor cross on its boulder and the church «Чорнобильський Спас»
+    (OSM 415330174) on one paved plaza, and instanced lamps and benches along the OSM footways; the generated trees stay;
+    `tests/sobornyi.test.mjs`).
   - `places.js` – the sights, the paying partners (kind `ad`) and the non-landmark objects rebuilt on request (kind
     `improved`: a grey footprint only, "Покращений об’єкт" in the big map's legend) for both maps: icon, name, note, the OSM buildings
     whose footprints get highlighted, and for partners the site `url` (with `utm_source=driver.ck.ua`) and the pitch
