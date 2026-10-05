@@ -303,6 +303,14 @@ See `ARCHITECTURE.md` for the module map. Where things live:
     reach; visited ids (and the ids already known, so a returning player hears about new ones) live in localStorage
     under `cherkasy.explore`; +50 ₴ per sight. Sights get `visited` true/false, which the map badges show (dim until
     visited, then a green check) and the HUD counter under the money. A new sight in `places.js` joins it by itself;
+  - `quests.js` – the quest book (K, or the "🗝️" chip under the sights counter; the game pauses while it is open): the player
+    picks one quest at a time and collects its cards by driving to them. A card is a hidden place with a story: the big map
+    shows only a grey dashed search circle (its centre shifted off the spot), the book shows its hint, the world a quiet
+    grey light on the road edge beside the place that fades in under ~220 m; driving into it opens the story card with its
+    source and pays. The quests are data in `src/game/quests/` (`index.js` lists them; the first is `secrets.js`, «Таємниці
+    Черкас»: 20 lesser-known places with their stories). Progress lives in localStorage under `cherkasy.quests`;
+    `tests/quests.test.mjs` checks the data (inside the map, near a road, a source, no em-dashes) and the logic.
+    `tools/cherkasy/inregion.mjs lat lon` tells whether a point is inside the map and its nearest named road;
   - `missions.js` – the dispatcher and the five mission types; fines; money is stored in localStorage under
     `cherkasy.money`;
   - `testworld.js` – a small flat world for car tests.
@@ -407,7 +415,7 @@ See `ARCHITECTURE.md` for the module map. Where things live:
 - In the game: M opens the city map (Esc or M closes it), H (or the always-visible H chip) shows the controls card –
   every key, grouped; add new keys to `HELP` in `hud.js` –, F2 hides the HUD, T jumps to a time of day (morning, midday, evening – the clock runs on from there, a day per hour, and skips the night; the evening has the lights on: windows, lamps, signs, car lights, from `daylight.state.lamps`),
   Q turns the radio on / off and E skips a track, F honks the horn (people in a cone ahead dash off to the sides), G lowers the graphics quality one step (from the lowest back to the highest; besides the post chain a lower level draws
-  less: shorter tree / building / site / people / traffic draw and shadow distances, no river mirror at low), F9 cycles quality, B (or Home, or the "На старт" chip) takes a stuck car back to the start, N skips a mission call, J (or the «Місії» chip over the minimap) turns the missions off and on – just driving, no calls; kept as `cherkasy.missions` –, O opens a partner's site inside its ring, Enter retries after a failure, and Backspace abandons a mission.
+  less: shorter tree / building / site / people / traffic draw and shadow distances, no river mirror at low), F9 cycles quality, B (or Home, or the "На старт" chip) takes a stuck car back to the start, N skips a mission call, J (or the «Місії» chip over the minimap) turns the missions off and on – just driving, no calls; kept as `cherkasy.missions` –, K opens the quest book, O opens a partner's site inside its ring, Enter retries after a failure, and Backspace abandons a mission.
 - Chrome gives hidden tabs no animation frames, so a background tab looks frozen. Keep the tab in front, or use
   `tick()`.
 - Reversed depth buffer: use `decalBias()` from `render/renderer.js` for decals and road markings, never

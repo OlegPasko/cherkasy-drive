@@ -35,6 +35,7 @@
 //   hud.map = { open(), close(), toggle(), isOpen }   the full-screen map (M in main.js; Esc closes it too)
 //   hud.onHome = fn                      set by main: the "На старт" chip calls it
 //   hud.onGo = fn(place)                 set by main: the big map's "Переміститись сюди?" – move the car beside that place
+//   hud.getZones = fn -> [{ x, z, r, label }]   set by main: the active quest's search circles on the big map (game/quests.js)
 //   hud.onMissions = fn, hud.setMissionsOn(on)   the missions on / off chip over the minimap
 //   hud.onRadio = fn, hud.onRadioNext = fn, hud.setRadio({ on, loading, title, artist, empty })   the radio chips
 //                                        (src/audio/radio.js state)
@@ -46,6 +47,7 @@ import { createMapPainter, COL, LEVELS, layAlong } from './mapdraw.js';
 import { createBigMap } from './bigmap.js';
 import { botLink, BOT_NAME } from './botlink.js';
 import './hud.css';
+import './quests.css'; // the quest chip, card and book (game/quests.js builds them; node tests import it without css)
 
 const VIEW_M = 300;                         // metres across the minimap's width
 const MAP_HZ = 25, DPR_MAX = 1.75;
@@ -63,6 +65,7 @@ const HELP = [
   ['Місії', [['', 'заїдь у стовп світла, щоб узяти виклик'], ['J', 'приймати виклики / вимкнути місії (просто кататись)'], ['N', 'інший виклик'], ['Backspace', 'скасувати місію'], ['Enter', 'ще раз після невдачі']]],
   ['Мапа', [['M', 'карта міста (гра на паузі)'], ['M / Esc', 'закрити карту'], ['Колесо / + −', 'масштаб'], ['Тягни / ←↑→↓ / WASD', 'рух карти'],
     ['Space', 'до авто'], ['Клік', 'по мапі – поставити мітку (жовта стрілка на мінікарті), ще клік по ній – прибрати'], ['', 'наведи на значок – опис місця і відстань'], ['', 'під’їдь до кожної пам’ятки: відвідані на мапі з ✓, решта бліді'], ['Клік', 'по рожевому значку – сайт партнера']]],
+  ['Квести', [['K', 'книга квестів: обрати квест, підказки, знайдені картки (гра на паузі)'], ['', 'сірі кола на мапі – десь там таємниця; зблизька вона ледь світиться сірим – заїдь у світло']]],
   ['Партнери', [['', 'рожеве коло біля будівлі – заїдь, щоб побачити пропозицію'], ['O', 'відкрити сайт партнера']]],
   ['Радіо', [['Q', 'увімкнути / вимкнути (за замовчуванням вимкнене)'], ['E', 'наступний трек']]],
   ['Інше', [['H', 'ця довідка'], ['F2', 'сховати / показати інтерфейс'], ['T', 'час доби: ранок / день / вечір'], ['G', 'графіка простіша (з низької – знову висока)'], ['F9', 'якість графіки (по колу)']]],
@@ -157,7 +160,7 @@ export function createHud({ player, world, camera, container = globalThis.docume
   const painter = createMapPainter({ world, features, doc });
   const bigmap = createBigMap({ painter, player, container, map: world?.cherkasy?.map, getObjective: () => objective, getMarkers: () => markers,
     getWaypoint: player ? () => waypoint : null, setWaypoint: player ? setWaypoint : null,
-    onGo: player ? (p) => hud.onGo?.(p) : null });
+    onGo: player ? (p) => hud.onGo?.(p) : null, getZones: () => hud.getZones?.() || [] });
   let lastMapMs = 0;
 
   // ---------------------------------------------------------------- per-frame helpers
@@ -449,7 +452,7 @@ export function createHud({ player, world, camera, container = globalThis.docume
   applyHelp();
 
   const hud = {
-    mission, setTelemetry, onHome: null, onGo: null, onRadio: null, onRadioNext: null, onMissions: null,
+    mission, setTelemetry, onHome: null, onGo: null, getZones: null, onRadio: null, onRadioNext: null, onMissions: null,
     setMissionsOn(on) { setClass(el.missKey, 'act', !!on); setText(el.missT, on ? 'Місії: увімк.' : 'Місії: вимк.'); },
     setRadio({ on, loading, title, artist, empty }) {
       setClass(el.radioKey, 'act', on);

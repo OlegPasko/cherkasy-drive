@@ -12,7 +12,8 @@
 //
 //   createBigMap({ painter, player, container, map? (map.json: region -> zoom-out limit), getObjective() -> Vector3 | null, getMarkers() -> [{ x, z, color, label }],
 //                  home? { x, z }, onGo?(place) (move the car there; main.js), getWaypoint?() -> { x, z } | null, setWaypoint?(w | null),
-//                  peek? { has(place), open(place) } (the 3D view of a place) })
+//                  peek? { has(place), open(place) } (the 3D view of a place), getZones?() -> [{ x, z, r, label }] (the active quest's
+//                  search circles, game/quests.js: grey, dashed, a number in the middle) })
 //     with setWaypoint (hud.js, a car only), a left click that is not a teleport or a partner's site sets the player's mark
 //     there; a click on the mark clears it. The mark draws as a yellow flag (an arrow on the rim with the distance when off view).
 //     player null: the map on its own (mapview.js on phones) – no car, no "to the car", no distances; it opens at home
@@ -39,7 +40,7 @@ const NORTH = enuToWorld(0, 1, 0);
 const ROT = -Math.PI / 2 - Math.atan2(NORTH.z, NORTH.x); // canvas rotation that puts north up
 const fmtDist = (m) => (m >= 1000 ? `${(m / 1000).toFixed(1).replace('.', ',')} км` : `${Math.round(m / 10) * 10} м`);
 
-export function createBigMap({ painter, player, container, map = null, getObjective, getMarkers, home = { x: 0, z: 0 }, onGo = null, getWaypoint = null, setWaypoint = null, peek = null }) {
+export function createBigMap({ painter, player, container, map = null, getObjective, getMarkers, home = { x: 0, z: 0 }, onGo = null, getWaypoint = null, setWaypoint = null, peek = null, getZones = null }) {
   const doc = container.ownerDocument;
   const canGo = (p) => !!(player && onGo && p && p.kind === 'ad' && p.rings?.length); // paid partners only
   const touch = !!globalThis.matchMedia?.('(pointer: coarse)').matches;
@@ -455,6 +456,15 @@ export function createBigMap({ painter, player, container, map = null, getObject
       if (b.it.label) adLabel(g, b.it);
     }
     g.font = `700 12px ${LABEL_FONT}`; g.textAlign = 'center'; g.textBaseline = 'middle';
+    for (const zn of getZones?.() || []) { // a quest's search circle: "somewhere in here"
+      const a = toScreen(zn.x, zn.z), r = Math.max(10, zn.r * s);
+      g.save(); g.beginPath(); g.arc(a.x, a.y, r, 0, Math.PI * 2);
+      g.fillStyle = 'rgba(201,211,228,.16)'; g.fill();
+      g.setLineDash([7, 5]); g.lineDashOffset = -t * 6; g.lineWidth = 2.5; g.strokeStyle = 'rgba(226,232,244,.95)'; g.stroke(); g.setLineDash([]);
+      const ly = a.y - r; // the number sits on the rim, clear of the badges inside
+      g.beginPath(); g.arc(a.x, ly, 11, 0, Math.PI * 2); g.fillStyle = 'rgba(40,46,60,.95)'; g.fill(); g.lineWidth = 2; g.strokeStyle = 'rgba(226,232,244,.95)'; g.stroke();
+      g.fillStyle = '#eef2fa'; g.fillText(`${zn.label}`, a.x, ly + 0.5); g.restore();
+    }
     for (const m of getMarkers?.() || []) {
       const a = toScreen(m.x, m.z), c = clampToView(a.x, a.y, 16);
       g.beginPath(); g.arc(c.x, c.y, 11, 0, Math.PI * 2); g.fillStyle = m.color || '#f5c52e'; g.fill();

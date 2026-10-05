@@ -8,8 +8,8 @@
 //             setQuality('low' | 'medium' | 'high'), step(dt), start(), stop(), resize() }
 //   startGame({ container, overlay? }) -> Promise<ctx>   the game page: world (Cherkasy, or the test world with ?testworld
 //     or when src/world/cherkasy/city.js is absent), the car, HUD and missions as systems (car -> traffic player sync ->
-//     world.update(dt, camera) -> missions -> partners -> explore -> audio -> perf -> hud). ctx gains { world, car, hud, missions, partners, explore, audio, perf }. M opens the city map
-//     (hud.map), which pauses the game until it closes. The loading screen carries the consent card (ui/consent.js): the
+//     world.update(dt, camera) -> missions -> partners -> explore -> quests -> audio -> perf -> hud). ctx gains { world, car, hud, missions, partners, explore, quests, audio, perf }. M opens the city map
+//     (hud.map) and K the quest book (game/quests.js); either pauses the game until it closes. The loading screen carries the consent card (ui/consent.js): the
 //     loop starts once it is accepted, at once for a returning player. window.__game = ctx;
 //     window.tick(n, dt = 1/60) steps n fixed frames with the real-time loop paused (ctx.start() resumes). ?paused
 //     starts without the loop. In the city the car's last safe spot (on a street) is saved to localStorage every 10 s
@@ -38,6 +38,7 @@ import { createCar } from './game/car/car.js';
 import { createMissions } from './game/missions.js';
 import { createPartners } from './game/partners.js';
 import { createExplore } from './game/explore.js';
+import { createQuests } from './game/quests.js';
 import { roadSpotNear } from './game/placeat.js';
 import { worldXZ } from './ui/botlink.js';
 import { createTestWorld } from './game/testworld.js';
@@ -220,8 +221,10 @@ export async function startGame({ container = document.getElementById('app') || 
   const missions = createMissions({ world, player: car, hud, scene, input });
   const partners = createPartners({ world, player: car, scene, isBlocked: () => hud.map.isOpen });
   const explore = createExplore({ world, player: car, hud, reward: (n) => missions.addMoney(n) });
+  const quests = createQuests({ world, player: car, scene, hud, reward: (n) => missions.addMoney(n) });
+  hud.getZones = () => quests.zones();
   const audio = createGameAudio({ car, camera, world, daylight: ctx.daylight, silent: params.has('nosound') });
-  Object.assign(ctx, { car, player: car, hud, missions, partners, explore, audio }); // player: the name the city polls for the traffic
+  Object.assign(ctx, { car, player: car, hud, missions, partners, explore, quests, audio }); // player: the name the city polls for the traffic
 
   // resume where the last session ended. The saved spot is the car's last safe point (on a street, slow, dry), not the
   // raw position, so a save taken mid-flight or in the river still restarts on a road.
@@ -254,6 +257,7 @@ export async function startGame({ container = document.getElementById('app') || 
 
   input.bind('hudToggle', ['F2']);
   input.bind('map', ['KeyM']);
+  input.bind('quests', ['KeyK']);
   input.bind('simpler', ['KeyG']);
   input.bind('home', ['KeyB', 'Home']);
   // a stuck car: back to the city's start spot (the saved position moves with it, so a reload does not undo it)
@@ -293,11 +297,13 @@ export async function startGame({ container = document.getElementById('app') || 
   ctx.addSystem((dt) => missions.update(dt), 'missions');
   ctx.addSystem((dt) => partners.update(dt), 'partners');
   ctx.addSystem((dt) => explore.update(dt), 'explore');
+  ctx.addSystem((dt) => quests.update(dt), 'quests');
   ctx.addSystem((dt) => audio.update(dt), 'audio');
   ctx.addSystem(() => { if (input.pressed('simpler')) perf.cycle(); perf.update(); }, 'perf');
   ctx.addSystem((dt) => {
-    if (input.pressed('map')) { hud.map.toggle(); if (hud.map.isOpen) input.unlock(); } // the map wants the mouse
-    if (!hud.map.isOpen) {
+    if (input.pressed('quests') && !hud.map.isOpen) { quests.toggle(); if (quests.isOpen) input.unlock(); } // the quest book wants the mouse
+    if (input.pressed('map') && !quests.isOpen) { hud.map.toggle(); if (hud.map.isOpen) input.unlock(); } // the map wants the mouse
+    if (!hud.map.isOpen && !quests.isOpen) {
       if (input.pressed('help')) hud.toggleHelp();
       if (input.pressed('hudToggle')) hud.setVisible(!hud.visible);
       if (input.pressed('home')) goHome();
@@ -305,8 +311,9 @@ export async function startGame({ container = document.getElementById('app') || 
       if (input.pressed('radioNext')) audio.radio.next();
     }
     hud.update(dt);
-    if (ctx.paused !== hud.map.isOpen) audio.setPaused(hud.map.isOpen); // the world falls silent under the map
-    ctx.paused = hud.map.isOpen; // Esc inside the map closes it too; the game resumes on the next frame
+    const hold = hud.map.isOpen || quests.isOpen;
+    if (ctx.paused !== hold) audio.setPaused(hold); // the world falls silent under the map or the quest book
+    ctx.paused = hold; // Esc inside the map (or the book) closes it too; the game resumes on the next frame
   }, 'hud', { always: true });
 
   setOverlay(overlay, 'Компілюємо шейдери…');
