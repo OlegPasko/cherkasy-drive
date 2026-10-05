@@ -274,6 +274,14 @@ See `ARCHITECTURE.md` for the module map. Where things live:
     `maiboroda` (Будинок Майбороди, бульвар Шевченка 287: one tall storey over a rusticated plinth, the arched risalits
     with pediments, the portal and attic, the balustrade, a hip roof), `simonenko` (бульвар Шевченка 345, the П-shaped
     five-storey red-brick block with Василь Симоненко's memorial plaque on its west wall; the rest of the block a guess).
+    Quest places of «Таємниці Черкас» in the south, each `improved`: `rafinad` (the old sugar refinery on Сінна, OSM's one
+    outline split into the brick wings, the pale mill block with its roof lantern, the red tower and the banded chimney),
+    `brewery` (the brewery's front on Кобзарська: tiled office and brewhouse tower, the gate, the gatehouse, the brick
+    block, the fence, and a guessed sculpture with the plant's medals at OSM node 13034435620) and `kobzarska` (school №15
+    on the old convent's site, Кобзарська 77, with the swallows mural over its columned porch, and a «вул. Монастирська»
+    heritage sign at the card's spot, its own root `monastyrska-sign`). Their walls are bay-atlas quads (`bayatlas.js`:
+    one quad per face carries a canvas of bays x storeys, an emissive mask lights some windows; plus gable / hip / flat
+    roofs); `tests/questsouth.test.mjs`.
   - `places.js` – the sights, the paying partners (kind `ad`) and the non-landmark objects rebuilt on request (kind
     `improved`: a grey footprint only, "Покращений об’єкт" in the big map's legend) for both maps: icon, name, note, the OSM buildings
     whose footprints get highlighted, and for partners the site `url` (with `utm_source=driver.ck.ua`) and the pitch

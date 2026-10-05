@@ -72,6 +72,7 @@ const SITES = {
   drama: ['drama', 'buildDrama', 'levelDrama'], shevchenko: ['drama', 'buildDrama', 'levelDrama'],
   rosava: ['rosava', 'buildRosava'], varenyk: ['rosava', 'buildRosava'], pronya: ['pronya', 'buildPronya'],
   maiboroda: ['maiboroda', 'buildMaiboroda'], simonenko: ['simonenko', 'buildSimonenko'],
+  rafinad: ['rafinad', 'buildRafinad'], brewery: ['brewery', 'buildBrewery'], school15: ['kobzarska', 'buildKobzarska'],
 };
 const MODULES = import.meta.glob('../world/cherkasy/*.js'); // lazy: a module's chunk loads on its first peek
 const MIN_R = 45, MAX_R = 170, POINT_R = 90; // crop radius round the place, m (POINT_R: a place on a point, no footprint)
