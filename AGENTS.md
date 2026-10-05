@@ -243,6 +243,14 @@ See `ARCHITECTURE.md` for the module map. Where things live:
     balcony stacks with the blue-diamond fronts, some glazed; the yard's entrances under canopies are the series' layout,
     a guess. One section per stair, each on its own level, so No.119 steps up its slope; No.119's shop porch with the red
     fascia, No.117's pink-rendered shop strip; `tests/smil117.test.mjs`.
+    Quest «Таємниці Черкас» places (each `improved`; `tests/questrosava.test.mjs`): `rosava` (the former hotel «Росава»,
+    Верхня Горова 29, the appeal court since 2013: the two-storey podium with brick-red fins, the nine-storey tower with
+    its sawtooth balcony sides and the stair block with the emblem panel, and in front the Пам’ятник варенику as it stood
+    in 2006–2013 – the ceramic Mamai with his pot and the crescent varenyk, a smooth SG skin; its own place `varenyk`),
+    `pronya` (Проня Прокопівна і Голохвастов on вул. Небесної Сотні, the two painted-bronze figures and the kerb fence),
+    `maiboroda` (Будинок Майбороди, бульвар Шевченка 287: one tall storey over a rusticated plinth, the arched risalits
+    with pediments, the portal and attic, the balustrade, a hip roof), `simonenko` (бульвар Шевченка 345, the П-shaped
+    five-storey red-brick block with Василь Симоненко's memorial plaque on its west wall; the rest of the block a guess).
   - `places.js` – the sights, the paying partners (kind `ad`) and the non-landmark objects rebuilt on request (kind
     `improved`: a grey footprint only, "Покращений об’єкт" in the big map's legend) for both maps: icon, name, note, the OSM buildings
     whose footprints get highlighted, and for partners the site `url` (with `utm_source=driver.ck.ua`) and the pitch

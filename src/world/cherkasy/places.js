@@ -135,6 +135,12 @@ export const PLACES = [
   { id: 'lunashops', kind: 'improved', name: 'Покращений об’єкт', note: 'АТБ і магазини · вул. Генерала Момота, 1', issue: 34, bld: [1041448576] },
   { id: 'smil117', kind: 'improved', name: 'Покращений об’єкт', note: 'вул. Смілянська, 117', issue: 40, bld: [105315513] },
   { id: 'smil119', kind: 'improved', name: 'Покращений об’єкт', note: 'вул. Смілянська, 119', issue: 40, bld: [105315529] },
+  // quest «Таємниці Черкас» places (rosava.js, pronya.js, maiboroda.js, simonenko.js); the sculptures get a small ring
+  { id: 'rosava', kind: 'improved', name: 'Покращений об’єкт', note: 'Колишній готель «Росава», з 2013 року – апеляційний суд · вул. Верхня Горова, 29', bld: [258815219] },
+  { id: 'varenyk', kind: 'improved', name: 'Покращений об’єкт', note: 'Пам’ятник варенику (2006–2013) перед готелем «Росава»', ring: [422.4, 551.6, 426.2, 551.6, 426.2, 555.4, 422.4, 555.4] },
+  { id: 'pronya', kind: 'improved', name: 'Покращений об’єкт', note: 'Проня Прокопівна і Голохвастов · вул. Небесної Сотні', ring: [-340.8, 759.5, -336.6, 759.5, -336.6, 761.7, -340.8, 761.7] },
+  { id: 'maiboroda', kind: 'improved', name: 'Покращений об’єкт', note: 'Будинок Майбороди · бульвар Шевченка, 287', bld: [118327865] },
+  { id: 'simonenko', kind: 'improved', name: 'Покращений об’єкт', note: 'Тут жив Василь Симоненко (1959–1963) · бульвар Шевченка, 345', bld: [129728561] },
   // sights
   { id: 'mykhailo', kind: 'sight', name: 'Свято-Михайлівський собор', icon: '⛪', bld: [242469769] },
   { id: 'troitsky', kind: 'sight', name: 'Свято-Троїцький собор', icon: '⛪', bld: [157432721] },
