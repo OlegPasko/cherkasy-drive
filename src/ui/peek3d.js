@@ -65,6 +65,7 @@ const SITES = {
   taraskova5: ['taraskova5', 'buildTaraskova5'],
   chnudorms: ['chnudorms', 'buildChnuDorms'],
   lunashops: ['lunashops', 'buildLunaShops'],
+  smil117: ['smil117', 'buildSmil117'], smil119: ['smil117', 'buildSmil117'],
   drama: ['drama', 'buildDrama', 'levelDrama'], shevchenko: ['drama', 'buildDrama', 'levelDrama'],
 };
 const MODULES = import.meta.glob('../world/cherkasy/*.js'); // lazy: a module's chunk loads on its first peek
