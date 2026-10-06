@@ -9,7 +9,7 @@
 //   frame, region, buildings[{id,p,holes?,k,lv,h,mh,rs,rc,bc,f,name,parts?}], roads[{p,w,k,n,br,ow}], asphalt[rings],
 //   walks[rings], paving[rings], land[rings], cover[{k,rings}], rails[{p}], trees[[x,z]], pois[...]
 // Run: node tools/cherkasy/build_map.mjs
-import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, readdirSync } from 'node:fs';
 import ClipperLib from 'clipper-lib';
 import { PNG } from 'pngjs';
 import { existsSync } from 'node:fs';
@@ -290,6 +290,40 @@ const colour = (v) => {
   const m = /^#?([0-9a-f]{6})$/.exec(v); return m ? '#' + m[1] : null;
 };
 
+// OSM sometimes holds one house twice: an old outline and a newer one traced over it (Смілянська 2, Козацька 1/1,
+// Вергая 7/1). Both extrude, and their coplanar walls flicker. Where two outlines share more than half of the smaller
+// one, the less informative one goes (fewer of levels / height / name / address tags; then the smaller). An outline a
+// hand-built site names by id (src/world/cherkasy/*.js) is never dropped in favour of an unnamed one.
+const SITE_IDS = (() => {
+  const dir = new URL('../../src/world/cherkasy/', import.meta.url), ids = new Set();
+  for (const f of readdirSync(dir)) if (f.endsWith('.js')) for (const m of readFileSync(new URL(f, dir), 'utf8').matchAll(/\b\d{7,11}\b/g)) ids.add(+m[0]);
+  return ids;
+})();
+function dedupeBuildings(list) {
+  const info = (b) => (b.t['building:levels'] ? 2 : 0) + (b.t.height ? 2 : 0) + (b.t.name ? 1 : 0) + (b.t['addr:housenumber'] ? 1 : 0) + (SITE_IDS.has(b.id) ? 10 : 0);
+  const boxes = list.map((b) => bboxOf(b.outer)), idx = new Hash(60), gone = new Set();
+  list.forEach((b, i) => idx.add(boxes[i].x0, boxes[i].z0, boxes[i].x1, boxes[i].z1, i));
+  list.forEach((a, i) => {
+    if (gone.has(i)) return;
+    const A = boxes[i];
+    idx.near(a.cx, a.cz, Math.max(A.x1 - A.x0, A.z1 - A.z0), (j) => {
+      if (j <= i || gone.has(j) || gone.has(i)) return;
+      const b = list[j], B = boxes[j];
+      const x0 = Math.max(A.x0, B.x0), x1 = Math.min(A.x1, B.x1), z0 = Math.max(A.z0, B.z0), z1 = Math.min(A.z1, B.z1);
+      if (x1 - x0 < 2 || z1 - z0 < 2) return;
+      let both = 0;
+      for (let x = x0 + 0.5; x < x1; x += 1) for (let z = z0 + 0.5; z < z1; z += 1) if (inPoly(a.outer, x, z) && inPoly(b.outer, x, z)) both++;
+      if (both < 0.5 * Math.min(a.A, b.A)) return;
+      const sa = info(a), sb = info(b), lose = sa !== sb ? (sa < sb ? i : j) : (a.A < b.A ? i : j);
+      if (SITE_IDS.has(list[lose].id) && SITE_IDS.has(list[lose === i ? j : i].id)) return; // both named by sites: theirs to handle
+      gone.add(lose);
+      console.log('  duplicate outline', list[lose].id, 'under', list[lose === i ? j : i].id);
+    });
+  });
+  const keep = list.filter((_, i) => !gone.has(i));
+  list.length = 0; list.push(...keep);
+}
+
 const blds = [];
 const partsRaw = [];
 for (const e of bldEls) {
@@ -303,10 +337,11 @@ for (const e of bldEls) {
     const A = areaOf(outer) - p.holes.reduce((s, h) => s + areaOf(h), 0);
     const rec = { id: e.id, outer, holes: p.holes.map(h => cw(dp(h, 0.2, true))).filter(h => h.length >= 3), t, A, cx, cz };
     if (t['building:part'] && !t.building) { partsRaw.push(rec); continue; }
-    if (A < 9) continue;
+    if (A < 9 || t.building === 'no') continue; // building=no: a mapped lot or a demolished house, nothing stands
     blds.push(rec);
   }
 }
+dedupeBuildings(blds);
 console.log('buildings in region', blds.length, 'parts', partsRaw.length);
 
 // context: count of small buildings around (private-sector detector) + levels of tagged neighbours
