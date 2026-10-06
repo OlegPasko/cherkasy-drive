@@ -13,7 +13,7 @@
 //   createBigMap({ painter, player, container, map? (map.json: region -> zoom-out limit), getObjective() -> Vector3 | null, getMarkers() -> [{ x, z, color, label }],
 //                  home? { x, z }, onGo?(place) (move the car there; main.js), getWaypoint?() -> { x, z } | null, setWaypoint?(w | null),
 //                  peek? { has(place), open(place) } (the 3D view of a place), getZones?() -> [{ x, z, r, label }] (the active quest's
-//                  search circles, game/quests.js: grey, dashed, a number in the middle) })
+//                  search circles, game/quests.js: grey, dashed, a number on the rim; found: true -> a small icon mark on the spot) })
 //     with setWaypoint (hud.js, a car only), a left click that is not a teleport or a partner's site sets the player's mark
 //     there; a click on the mark clears it. The mark draws as a yellow flag (an arrow on the rim with the distance when off view).
 //     player null: the map on its own (mapview.js on phones) – no car, no "to the car", no distances; it opens at home
@@ -456,8 +456,15 @@ export function createBigMap({ painter, player, container, map = null, getObject
       if (b.it.label) adLabel(g, b.it);
     }
     g.font = `700 12px ${LABEL_FONT}`; g.textAlign = 'center'; g.textBaseline = 'middle';
-    for (const zn of getZones?.() || []) { // a quest's search circle: "somewhere in here"
-      const a = toScreen(zn.x, zn.z), r = Math.max(10, zn.r * s);
+    for (const zn of getZones?.() || []) { // a quest's search circle: "somewhere in here"; a found card: a small mark on its spot
+      const a = toScreen(zn.x, zn.z);
+      if (zn.found) {
+        g.save(); g.beginPath(); g.arc(a.x, a.y, 9, 0, Math.PI * 2); g.fillStyle = 'rgba(40,46,60,.85)'; g.fill();
+        g.lineWidth = 1.5; g.strokeStyle = 'rgba(201,211,228,.7)'; g.stroke();
+        g.font = `11px ${LABEL_FONT}`; g.fillText(zn.label, a.x, a.y + 0.5); g.restore();
+        continue;
+      }
+      const r = Math.max(10, zn.r * s);
       g.save(); g.beginPath(); g.arc(a.x, a.y, r, 0, Math.PI * 2);
       g.fillStyle = 'rgba(201,211,228,.16)'; g.fill();
       g.setLineDash([7, 5]); g.lineDashOffset = -t * 6; g.lineWidth = 2.5; g.strokeStyle = 'rgba(226,232,244,.95)'; g.stroke(); g.setLineDash([]);

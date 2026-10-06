@@ -1,15 +1,16 @@
 // Quests: sets of hidden cards round the city that the player picks from the quest book (K or the "🗝️" chip) and
 // collects by driving there. One quest is active at a time. A card is a place with a story: the big map shows only a
 // grey dashed search circle round it (its centre shifted off the spot, so the circle says "somewhere here"), the book
-// shows the card's hint, and in the world the spot is a quiet grey light that shows only from close by (under ~220 m).
+// shows the card's hint, and in the world the spot is a grey light (fainter than a mission's) seen from ~650 m.
 // Driving into it (on the road beside the place, low flight counts) opens the card on the right: the story and its
-// source, and it closes as the car drives off (like a partner's card); the book keeps every found card to read again. While the car is inside a search circle
-// its hint stays up in a pill (the nearest circle's), every time it comes back; entering one also shows a banner.
+// source, and it closes as the car drives off (like a partner's card). A found card's light stays, quieter, and driving
+// into it again shows the story again; the big map marks it on its spot, and the book keeps it too. While the car is inside
+// a search circle its hint stays up in a pill (the nearest circle's), every time it comes back; entering one also shows a banner.
 // Progress lives in localStorage ('cherkasy.quests': { active, found: [card ids] }). The game pauses while the book is
 // open (main.js reads quests.isOpen, like the big map).
 //   createQuests({ world, player, scene, hud?, reward?(n), quests? (QUESTS), storage?, container? })
 //     -> { update(dt), open(), close(), toggle(), isOpen, shown (the story card's card | null), active: quest | null, setActive(id | null),
-//          zones() -> [{ x, z, r, label }] (the active quest's open cards, for the big map), find(cardId) (debug),
+//          zones() -> [{ x, z, r, label, found? }] (the active quest for the big map: open cards' circles, found cards' spots with r 0), find(cardId) (debug),
 //          reset() (debug), list: [{ quest, cards: [{ ..., x, z, spot: { x, y, z }, zone: { x, z, r }, found }] }], dispose() }
 //   curbSpot(map, x, z, maxR?) -> { x, z, d } | null: the point on the nearest motor road's edge toward (x, z)
 // A quest: { id, title, icon, blurb, reward, rewardAll, cards: [{ id, title, icon, ll: [lat, lon], hint, story,
@@ -22,7 +23,10 @@ import { QUESTS } from './quests/index.js';
 
 const KEY = 'cherkasy.quests';
 const REACH = 14, MAX_ALT = 40;          // metres from the light, over the ground
-const SHOW_FAR = 220, SHOW_NEAR = 70;    // the light fades in between these
+const SHOW_FAR = 650, SHOW_NEAR = 200;   // the light fades in between these: seen from a few blocks off, over the roofs
+// a light's strength [ring, wall]: an open card's is plain grey, still under a mission beacon's; a found one stays, quieter,
+// so its story can be read again by driving in
+const OPEN_LIGHT = [0.6, 0.34], FOUND_LIGHT = [0.3, 0.12];
 const ZONE_R = 170;                       // the big map's search circle
 const CARD_AWAY = 24;                     // the story card closes once the car drives this far from where it opened (like a partner's card)
 const EVERY = 0.2;
@@ -85,12 +89,11 @@ export function createQuests({ world, player, scene, hud = null, reward = null, 
   const buildLights = () => {
     clearLights();
     for (const c of active?.cards || []) {
-      if (c.found) continue;
       const mR = new THREE.MeshBasicMaterial({ color: GREY, transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide, fog: false });
       const mW = new THREE.MeshBasicMaterial({ color: GREY, alphaMap: alpha, transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide, fog: false });
       const g = new THREE.Group(); g.name = `quest-${c.id}`;
       const ring = new THREE.Mesh(ringGeo, mR); ring.scale.setScalar(4); ring.position.y = 0.14;
-      const wall = new THREE.Mesh(wallGeo, mW); wall.scale.set(2.6, 24, 2.6);
+      const wall = new THREE.Mesh(wallGeo, mW); wall.scale.set(2.6, 45, 2.6);
       g.add(ring, wall); g.renderOrder = 3; g.position.set(c.spot.x, c.spot.y, c.spot.z); g.visible = false;
       scene.add(g);
       lights.push({ c, g, ring, mR, mW });
@@ -188,13 +191,11 @@ export function createQuests({ world, player, scene, hud = null, reward = null, 
     cue('partner');
     hud?.mission?.banner(all ? `${q.quest.title}: усе знайдено!` : `${c.icon} ${c.title}`,
       all ? `${n} з ${n} · +${q.quest.reward + q.quest.rewardAll} ₴` : `Таємниця ${n} з ${q.cards.length} · +${q.quest.reward} ₴`, '#c9d3e4');
-    const l = lights.find((k) => k.c === c);
-    if (l) { scene.remove(l.g); l.mR.dispose(); l.mW.dispose(); lights = lights.filter((k) => k !== l); }
-    showCard(c); setChip();
+    showCard(c); setChip(); inside = c; // its light stays, quieter (FOUND_LIGHT)
     return true;
   }
 
-  let t = 0, acc = 0;
+  let t = 0, acc = 0, inside = null; // inside: the card whose light the car is in
   const api = {
     list,
     get isOpen() { return isOpen; },
@@ -207,10 +208,12 @@ export function createQuests({ world, player, scene, hud = null, reward = null, 
     setActive(id) {
       const q = list.find((l) => l.quest.id === id) || null;
       if (q === active) return;
-      active = q; entered.clear(); setHint(null); save(); buildLights(); setChip();
+      active = q; entered.clear(); inside = null; setHint(null); save(); buildLights(); setChip();
       if (q) { track('quest_start', { quest: q.quest.id }); hud?.mission?.banner(`${q.quest.icon} ${q.quest.title}`, 'Сірі кола на мапі (M) – там шукай', '#c9d3e4'); }
     },
-    zones: () => (active?.cards || []).filter((c) => !c.found).map((c) => ({ x: c.zone.x, z: c.zone.z, r: c.zone.r, label: String(active.cards.indexOf(c) + 1) })),
+    // open cards: the search circle; found ones: a small mark on the spot itself, to come back and read again
+    zones: () => (active?.cards || []).map((c) => (c.found ? { x: c.spot.x, z: c.spot.z, r: 0, found: true, label: c.icon }
+      : { x: c.zone.x, z: c.zone.z, r: c.zone.r, label: String(active.cards.indexOf(c) + 1) })),
     find(id) { for (const q of list) { const c = q.cards.find((k) => k.id === id); if (c) return find(c, q); } return false; },
     reset() { found.clear(); for (const q of list) for (const c of q.cards) c.found = false; save(); buildLights(); setChip(); showCard(null); },
     update(dt) {
@@ -220,17 +223,22 @@ export function createQuests({ world, player, scene, hud = null, reward = null, 
       for (const l of lights) { // fade in from SHOW_FAR, breathe slowly
         const d = Math.hypot(P.x - l.c.spot.x, P.z - l.c.spot.z), f = Math.min(1, Math.max(0, (SHOW_FAR - d) / (SHOW_FAR - SHOW_NEAR)));
         l.g.visible = f > 0;
-        l.mR.opacity = f * (0.55 + 0.2 * k); l.mW.opacity = f * (0.3 + 0.12 * k);
-        l.ring.scale.setScalar(4 * (1 + 0.04 * k));
+        const [r, w] = l.c.found ? FOUND_LIGHT : OPEN_LIGHT, kk = l.c.found ? 0.5 : k; // found ones do not breathe
+        l.mR.opacity = f * r * (0.8 + 0.3 * kk); l.mW.opacity = f * w * (0.8 + 0.3 * kk);
+        l.ring.scale.setScalar(4 * (1 + 0.04 * kk));
       }
       if (shown && Math.hypot(P.x - anchor.x, P.z - anchor.z) > CARD_AWAY) showCard(null);
       if ((acc += dt) < EVERY || !active) return;
       acc = 0;
       const alt = P.y - gh(P.x, P.z);
       let inZone = null, best = Infinity;
+      // in the light: an open card is found; a found one shows its story again on the way in (like a partner's ring)
+      let at = null;
+      for (const c of active.cards) if (Math.hypot(P.x - c.spot.x, P.z - c.spot.z) < (c === inside ? REACH + 6 : REACH) && alt < MAX_ALT) { at = c; break; }
+      if (at && at !== inside) { if (!at.found) find(at, active); else showCard(at); }
+      inside = at;
       for (const c of active.cards) {
         if (c.found) continue;
-        if (Math.hypot(P.x - c.spot.x, P.z - c.spot.z) < REACH && alt < MAX_ALT) { find(c, active); inZone = null; break; }
         const d = Math.hypot(P.x - c.zone.x, P.z - c.zone.z);
         // inside the circle: the hint stays up; a little past its edge (hysteresis) the circle counts as left, and
         // coming back shows the banner again

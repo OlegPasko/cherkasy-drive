@@ -354,9 +354,10 @@ See `ARCHITECTURE.md` for the module map. Where things live:
     visited, then a green check) and the HUD counter under the money. A new sight in `places.js` joins it by itself;
   - `quests.js` – the quest book (K, or the "🗝️" chip under the sights counter; the game pauses while it is open): the player
     picks one quest at a time and collects its cards by driving to them. A card is a hidden place with a story: the big map
-    shows only a grey dashed search circle (its centre shifted off the spot), the book shows its hint, the world a quiet
-    grey light on the road edge beside the place that fades in under ~220 m; driving into it opens the story card with its
-    source and pays. The quests are data in `src/game/quests/` (`index.js` lists them; the first is `secrets.js`, «Таємниці
+    shows only a grey dashed search circle (its centre shifted off the spot), the book shows its hint (and a pill keeps it
+    up while the car is inside the circle), the world a grey light on the road edge beside the place, fainter than a
+    mission's, seen from ~650 m; driving into it opens the story card with its source and pays. A found card keeps a
+    quieter light and a small mark on the big map; driving into it shows the story again. The quests are data in `src/game/quests/` (`index.js` lists them; the first is `secrets.js`, «Таємниці
     Черкас»: 20 lesser-known places with their stories). Progress lives in localStorage under `cherkasy.quests`;
     `tests/quests.test.mjs` checks the data (inside the map, near a road, a source, no em-dashes) and the logic.
     `tools/cherkasy/inregion.mjs lat lon` tells whether a point is inside the map and its nearest named road;
