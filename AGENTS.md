@@ -324,6 +324,15 @@ See `ARCHITECTURE.md` for the module map. Where things live:
     plain panels elsewhere, open gates at the drive and the footway), the sign wall with the blue plates, the forecourt,
     the 200 m track round a grass infield with goals (OSM's pitch), jump pits, bars, spruces and birches;
     `tests/school23.test.mjs`.
+  - `chdbkbakery` (issue #49, two `improved` entries `chdbkbakery` / `chdbkwash`): the bakery-café and the self-service
+    car wash behind it at Чорновола 164 / 164-б, across the street from ЧДБК, both new since 2023 (OSM has only the car
+    park; outlines `CHDBK_BAKERY_RING` / `CHDBK_WASH_RING` in places.js). No business name anywhere, on the owner's
+    rule: a blank fascia, a plain canopy, generic notes. The bakery from its street photos: one glazed storey (seven
+    black-framed bays, the double door in the middle) under a deep flat slab with a greige panel fascia and a soffit
+    with downlights, the terrace with bistro tables, the bed of grasses and lavender with stepping slabs to the pavement.
+    The wash: six bays round a cream technical container under a polycarbonate barrel on bent steel posts, tinted glass
+    partitions, a pedestal and a hose boom per bay, green post LEDs at night, vacuum stands, the apron and car parks
+    (`parked`). `levelChdbkBakery` levels the lot without touching Чорновола's grade; `tests/chdbkbakery.test.mjs`.
   - `places.js` – the sights, the paying partners (kind `ad`) and the non-landmark objects rebuilt on request (kind
     `improved`: a grey footprint only, "Покращений об’єкт" in the big map's legend) for both maps: icon, name, note, the OSM buildings
     whose footprints get highlighted, and for partners the site `url` (with `utm_source=driver.ck.ua`) and the pitch

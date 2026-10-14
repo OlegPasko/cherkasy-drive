@@ -69,7 +69,7 @@ const SITE_MODULES = import.meta.glob(['./landmarks.js', './frame.js', './restin
   './delikat.js', './atb.js', './atb26.js', './school7.js', './railcut.js', './mcdonalds.js', './tors.js', './urban.js', './su7.js', './overpass.js', './catcafe.js', './praska.js', './delikat399.js', './glassrotunda.js', './ekvator.js', './sportlife.js',
   './khimbridge.js', './railbridge.js', './gerb.js', './avrora.js',
   './sviatotroitskyi.js', './hd34.js', './hrafskyi.js', './perlyna.js', './premierbay.js', './onix.js', './pasterivskyi.js', './voldim.js', './ridnyidim.js', './olimp.js', './harmony.js', './olimpmodern.js', './hoholia204.js', './pryportova.js', './ekohouse.js', './narbutivska10.js', './parkovyi.js', './shev22.js', './shev184.js', './comfortpark.js', './zhktemp.js', './smilianska.js', './ambrosa35.js', './nadpilna249.js', './taraskova5.js', './chnudorms.js', './lunashops.js', './drama.js', './odeskabridge.js', './smil117.js',
-  './queststreets.js', './pryrody.js', './questcentre.js', './rosava.js', './pronya.js', './maiboroda.js', './simonenko.js', './rafinad.js', './brewery.js', './kobzarska.js', './bull.js', './silk.js', './sobornyi.js', './chdbk.js', './school8.js', './school23.js']);
+  './queststreets.js', './pryrody.js', './questcentre.js', './rosava.js', './pronya.js', './maiboroda.js', './simonenko.js', './rafinad.js', './brewery.js', './kobzarska.js', './bull.js', './silk.js', './sobornyi.js', './chdbk.js', './school8.js', './school23.js', './chdbkbakery.js']);
 async function loadSites() {
   const out = {};
   await Promise.all(Object.entries(SITE_MODULES).map(async ([path, load]) => {
@@ -149,6 +149,7 @@ export async function buildCherkasy({ scene, renderer, onProgress = null, params
   if (S.dniproplaza?.shapeDniproPlaza) guard('Dnipro Plaza terrain', () => S.dniproplaza.shapeDniproPlaza(hf, map)); // the mall's lot and forecourt, level
   if (S.boyan?.levelBoyan && geo) guard('Boyan square terrain', () => S.boyan.levelBoyan(hf, map, geo)); // the square round the pool, level
   if (S.urban?.levelUrban) guard('URBAN terrain', () => S.urban.levelUrban(hf)); // the shop row's lot, level
+  if (S.chdbkbakery?.levelChdbkBakery) guard('bakery and car wash terrain', () => S.chdbkbakery.levelChdbkBakery(hf)); // the lot by Chornovola 164, level
   if (S.perlyna?.levelPerlyna) guard('Perlyna Dnipra terrain', () => S.perlyna.levelPerlyna(hf)); // the new block's lot, level
   if (S.harmony?.levelHarmony) guard('Harmony terrain', () => S.harmony.levelHarmony(hf)); // house 1's lot, level
   if (S.comfortpark?.levelComfortPark) guard('Comfort Park terrain', () => S.comfortpark.levelComfortPark(hf)); // the slab's lot on the slope, level
@@ -183,7 +184,7 @@ export async function buildCherkasy({ scene, renderer, onProgress = null, params
     ['delikat', 'DELIKAT_SKIP'], ['atb', 'ATB_SKIP'], ['atb26', 'ATB26_SKIP'], ['school7', 'SCHOOL7_SKIP'], ['mcdonalds', 'MCDONALDS_SKIP'], ['urban', 'URBAN_SKIP'], ['su7', 'SU7_SKIP'], ['catcafe', 'CATCAFE_SKIP'], ['praska', 'PRASKA_SKIP'], ['delikat399', 'DELIKAT399_SKIP'], ['glassrotunda', 'ROTUNDA_SKIP'],
     ['ekvator', 'EKVATOR_SKIP'], ['sportlife', 'SPORTLIFE_SKIP'], ['zamkovapark', 'ZAMKPARK_SKIP'], ['avrora', 'AVRORA_SKIP'],
     ['sviatotroitskyi', 'SVIATO_SKIP'], ['hd34', 'HD34_SKIP'], ['hrafskyi', 'HRAFSKYI_SKIP'], ['perlyna', 'PERLYNA_SKIP'], ['premierbay', 'PREMIERBAY_SKIP'], ['onix', 'ONIX_SKIP'], ['pasterivskyi', 'PASTER_SKIP'], ['voldim', 'VOLDIM_SKIP'], ['ridnyidim', 'RIDNYI_SKIP'], ['olimp', 'OLIMP_SKIP'], ['harmony', 'HARMONY_SKIP'], ['olimpmodern', 'OLIMPM_SKIP'], ['hoholia204', 'HOHOLIA204_SKIP'], ['pryportova', 'PRYPORTOVA_SKIP'], ['ekohouse', 'EKOHOUSE_SKIP'], ['narbutivska10', 'NARB10_SKIP'], ['parkovyi', 'PARKOVYI_SKIP'], ['shev22', 'SHEV22_SKIP'], ['shev184', 'SHEV184_SKIP'], ['comfortpark', 'COMFORTPARK_SKIP'], ['zhktemp', 'ZHKTEMP_SKIP'], ['smilianska', 'SMILIANSKA_SKIP'], ['ambrosa35', 'AMBROSA35_SKIP'], ['nadpilna249', 'NADP249_SKIP'], ['taraskova5', 'TARASKOVA5_SKIP'], ['chnudorms', 'CHNUDORMS_SKIP'], ['lunashops', 'LUNASHOPS_SKIP'], ['drama', 'DRAMA_SKIP'], ['smil117', 'SMIL117_SKIP'],
-    ['queststreets', 'QUESTSTREETS_SKIP'], ['pryrody', 'PRYRODY_SKIP'], ['questcentre', 'QUEST_SKIP'], ['rosava', 'ROSAVA_SKIP'], ['pronya', 'PRONYA_SKIP'], ['maiboroda', 'MAIBORODA_SKIP'], ['simonenko', 'SIMONENKO_SKIP'], ['rafinad', 'RAFINAD_SKIP'], ['brewery', 'BREWERY_SKIP'], ['kobzarska', 'KOBZARSKA_SKIP'], ['bull', 'BULL_SKIP'], ['silk', 'SILK_SKIP'], ['sobornyi', 'SOBORNYI_SKIP'], ['chdbk', 'CHDBK_SKIP'], ['school8', 'SCHOOL8_SKIP'], ['school23', 'SCHOOL23_SKIP']]) for (const id of S[mod]?.[key] ?? []) skip.add(id);
+    ['queststreets', 'QUESTSTREETS_SKIP'], ['pryrody', 'PRYRODY_SKIP'], ['questcentre', 'QUEST_SKIP'], ['rosava', 'ROSAVA_SKIP'], ['pronya', 'PRONYA_SKIP'], ['maiboroda', 'MAIBORODA_SKIP'], ['simonenko', 'SIMONENKO_SKIP'], ['rafinad', 'RAFINAD_SKIP'], ['brewery', 'BREWERY_SKIP'], ['kobzarska', 'KOBZARSKA_SKIP'], ['bull', 'BULL_SKIP'], ['silk', 'SILK_SKIP'], ['sobornyi', 'SOBORNYI_SKIP'], ['chdbk', 'CHDBK_SKIP'], ['school8', 'SCHOOL8_SKIP'], ['school23', 'SCHOOL23_SKIP'], ['chdbkbakery', 'CHDBKBAKERY_SKIP']]) for (const id of S[mod]?.[key] ?? []) skip.add(id);
   let groundDone = false, bldF = 0;
   const report = () => onProgress?.(0.15 + 0.55 * (0.3 * (groundDone ? 1 : 0) + 0.7 * bldF), `Рельєф, вулиці, будинки… ${Math.round(100 * (0.3 * (groundDone ? 1 : 0) + 0.7 * bldF))}%`);
   const groundP = buildGroundAsync({ scene: root, T, map, hf, strip, renderer, mapUrl: url('map.json') }).then((g) => { groundDone = true; report(); return g; });
@@ -219,6 +220,7 @@ export async function buildCherkasy({ scene, renderer, onProgress = null, params
     ['Bull sculpture by the meat plant', 'bull', 'buildBull'], ['Silk combine', 'silk', 'buildSilk'], ['Sobornyi park', 'sobornyi', 'buildSobornyi'],
     ['School 8 on Smilianska', 'school8', 'buildSchool8'],
     ['ChDBK business college', 'chdbk', 'buildChdbk'],
+    ['Bakery and car wash by ChDBK', 'chdbkbakery', 'buildChdbkBakery'],
     ['Collegium Berehynia (school 23)', 'school23', 'buildSchool23'],
     ['CatCafe block', 'catcafe', 'buildCatCafe'], ['Flatiron on Dashkovycha 4', 'praska', 'buildPraska'],
     ['Delikat on Shevchenka 399/2', 'delikat399', 'buildDelikat399'], ['Glass rotunda on Shevchenka', 'glassrotunda', 'buildGlassRotunda'],
