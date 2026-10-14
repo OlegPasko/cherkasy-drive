@@ -315,6 +315,15 @@ See `ARCHITECTURE.md` for the module map. Where things live:
     fence (brick piers with blue caps, grey ornamental iron, open gates), inner and back fences, the paved forecourt,
     bollards, spruces, the OSM football field marked out with goals, the small pitch, the basketball hoops and bars;
     `tests/chdbk.test.mjs`.
+  - `school23` (issue #49, `improved`): Черкаський колегіум «Берегиня» (until 1994 school №23, opened 1974), вул. Хоменка
+    14/1, the ring of OSM relation 1516158 split into six volumes – the three-storey classroom wings (beige tile, white
+    ribbon windows between brown piers, a grey rendered ground floor, the open undercroft entrance under the street front),
+    the one-storey glazed link to the forecourt with the porch (pink piers, the greeting banner, red doors), the gym and
+    assembly hall block, the two-storey east link; skins start above a neighbour's roof (`cover`). The grounds from the
+    aerial and the photos: the lot's fence (OSM 203521511: whitewashed brick plinth with blue chain-link on Лук'янова,
+    plain panels elsewhere, open gates at the drive and the footway), the sign wall with the blue plates, the forecourt,
+    the 200 m track round a grass infield with goals (OSM's pitch), jump pits, bars, spruces and birches;
+    `tests/school23.test.mjs`.
   - `places.js` – the sights, the paying partners (kind `ad`) and the non-landmark objects rebuilt on request (kind
     `improved`: a grey footprint only, "Покращений об’єкт" in the big map's legend) for both maps: icon, name, note, the OSM buildings
     whose footprints get highlighted, and for partners the site `url` (with `utm_source=driver.ck.ua`) and the pitch
