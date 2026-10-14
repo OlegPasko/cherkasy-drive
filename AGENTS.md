@@ -62,7 +62,10 @@ See `ARCHITECTURE.md` for the module map. Where things live:
   - `ground.js` – terrain, roads, markings, kerbs and shore, built in workers;
   - `geo.js` – shared 2D helpers;
   - the hand-made landmarks: `landmarks`, `pagorb`, `rosevalley`, `restinn`, `embankment`, `dam`, `yachtclub`,
-    `beaches`, `zhuzhoma`, `prystan`, `restaurants`, `yalynka`, `facadekit`, `khimikiv`, `druzhba` (Palace of Culture);
+    `beaches`, `zhuzhoma`, `prystan`, `restaurants`, `yalynka`, `facadekit`, `khimikiv`, `druzhba` (Palace of Culture
+    and its square; its fountain is `druzhbafountain`: the 2012 pointed-arch granite bowl on the OSM outline with the
+    raised shield pool, the jets animated on the wall clock in a wave program, coloured lights at night, colliders for
+    the rim, the pools and the shield wall; `tests/druzhba.test.mjs`);
   - `zamkova.js` – Zamkova hora: the hilltop lift (`shapeZamkova`, the terrain hook in `city.js`), platform, wall, monuments;
   - `zamkovapark.js` – the planned park at the foot of Zamkova hora, between the hill, Князя Ольгерда and Замковий узвіз
     (a project, not built yet): the round fountain with animated jets on its levelled plaza (`shapeZamkovaPark`, the only
