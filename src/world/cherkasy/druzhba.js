@@ -7,9 +7,12 @@
 // leaf-wreath emblem facing the square and masts on the roof, two dark granite pylons (the wide one with glass doors
 // over a flight of steps), a granite plinth, the one-storey annex at the north corner. Around it: the granite-paved
 // square down to the boulevard, raised granite planters along the wing with blue spruces, thujas and a clipped hedge,
-// white benches and park lamps. Lit windows, foyer, sign and lamps at night.
+// white benches and park lamps. Lit windows, foyer, sign and lamps at night. At the square's north-west end the fountain
+// (druzhbafountain.js: the pointed-arch granite bowl of 2012 with its raised shield pool, animated jets, coloured lights
+// at night) on its own paving round it; the square's paving and the generated trees keep off its bowl and apron.
 //   DRUZHBA_SKIP: the OSM id replaced here (buildings.js skips it)
-//   buildDruzhba({ root, map, solids, zips, heightAt }) -> { update(dt), clear(x, z), spots, footprints } | null
+//   buildDruzhba({ root, map, solids, zips, heightAt }) -> { update(dt), clear(x, z), spots, footprints, fountain } | null
+//     fountain: the fountain's handle (druzhbafountain.js: ring, apron, covers(x, z), levels, stats)
 // The OSM footprint sits square to the map grid: the square side looks to -x, the long axis runs along z (north-west
 // end at small z). Wing façades are laid out in a face frame per footprint edge (s to the viewer's right, o outward);
 // the entrance block and the fly tower are placed in map x / z.
@@ -19,6 +22,7 @@ import { nightK } from '../../render/daylight.js';
 import { PARK_PINE, hedgeSpots } from '../trees.js';
 import { canvasTex, decal } from './sculpt.js';
 import { ringPts, rng, area2, inPoly } from './geo.js';
+import { buildDruzhbaFountain } from './druzhbafountain.js';
 
 const OSM_ID = 104299448;
 export const DRUZHBA_SKIP = new Set([OSM_ID]);
@@ -389,7 +393,12 @@ export function buildDruzhba({ root, map, solids: S, zips: Z, heightAt }) {
     prismOf(S, annexRing, gBase, yA);
   }
 
-  // ---- the square: granite paving from the boulevard to the palace and round its south-east end
+  // ---- the fountain at the square's north-west end (its own group, added with the meshes below)
+  const fgroup = Object.assign(new THREE.Group(), { name: 'druzhba-fountain' });
+  const fountain = buildDruzhbaFountain({ group: fgroup, solids: S, heightAt, paveY: PAVE_Y });
+
+  // ---- the square: granite paving from the boulevard to the palace and round its south-east end, and round the
+  // fountain north of it (the satellite view: paved up to the lawns); cells the fountain's bowl and apron cover are left out
   const pave = { pos: [], uv: [], idx: [] };
   const paveRect = (x0, z0, x1, z1, cell = 2.5) => {
     const nx = Math.ceil((x1 - x0) / cell), nz = Math.ceil((z1 - z0) / cell), base = pave.pos.length / 3;
@@ -397,13 +406,15 @@ export function buildDruzhba({ root, map, solids: S, zips: Z, heightAt }) {
       const x = x0 + (x1 - x0) * i / nx, z = z0 + (z1 - z0) * j / nz;
       pave.pos.push(x, g(x, z) + PAVE_Y, z); pave.uv.push(x / 8, z / 8);
     }
+    const at = (k) => [pave.pos[k * 3], pave.pos[k * 3 + 2]];
     for (let j = 0; j < nz; j++) for (let i = 0; i < nx; i++) {
       const a = base + j * (nx + 1) + i, c = a + nx + 1;
+      if ([a, a + 1, c, c + 1].every((k) => fountain.covers(...at(k)))) continue;
       pave.idx.push(a, c, a + 1, a + 1, c, c + 1);
     }
   };
-  const SQ = [-37, 1096, 6, 1262], SE = [6, 1227, 50, 1246];
-  paveRect(...SQ); paveRect(...SE);
+  const SQ = [-37, 1096, 6, 1262], SE = [6, 1227, 50, 1246], FN = [-37, 1070, 9, 1096];
+  paveRect(...SQ); paveRect(...SE); paveRect(...FN);
 
   // ---- plantings: blue spruces and thujas on the beds, a clipped hedge along their front
   const spots = [], blue = [PARK_PINE[0].map(([rr, gg, bb]) => [0.8 * rr, 0.95 * gg, 1.25 * bb])];
@@ -419,7 +430,7 @@ export function buildDruzhba({ root, map, solids: S, zips: Z, heightAt }) {
 
   // ---- meshes
   const group = Object.assign(new THREE.Group(), { name: 'druzhba' });
-  root.add(group);
+  root.add(group); group.add(fgroup);
   const stucco = stuccoTex(r), groove = grooveTex(r);
   stucco.repeat.set(0.25, 0.25); groove.repeat.set(1 / 2.2, 0.25);
   const M = {
@@ -447,7 +458,7 @@ export function buildDruzhba({ root, map, solids: S, zips: Z, heightAt }) {
   pg.setIndex(pave.idx); pg.computeVertexNormals();
   group.add(Object.assign(new THREE.Mesh(pg, M.pave), { name: 'druzhba-square', receiveShadow: true }));
   nV += pave.pos.length / 3;
-  console.log(`[cherkasy] Druzhba: ${faces.length} façades, ${nWin} windows, ${spots.length} plantings, ${(nV / 1000).toFixed(1)}k verts, ${S.count - s0} solids in ${(performance.now() - t0).toFixed(0)} ms`);
+  console.log(`[cherkasy] Druzhba: ${faces.length} façades, ${nWin} windows, ${spots.length} plantings, ${(nV / 1000).toFixed(1)}k verts + fountain ${fountain.stats.jets} jets ${(fountain.stats.verts / 1000).toFixed(1)}k verts, ${S.count - s0} solids in ${(performance.now() - t0).toFixed(0)} ms`);
 
   const inRect = (x, z, [x0, z0, x1, z1]) => x > x0 && x < x1 && z > z0 && z < z1;
   const fp = [{ poly: ring, h: yF - yG, kind: 'public', name: 'Палац культури «Дружба народів»' }];
@@ -456,7 +467,11 @@ export function buildDruzhba({ root, map, solids: S, zips: Z, heightAt }) {
     footprints: fp,
     spots,
     // generated trees keep off the paved square, the building and its beds
-    clear: (x, z) => inRect(x, z, SQ) || inRect(x, z, SE) || inRect(x, z, [-6, 1115, 60, 1230]),
-    update() { const k = nightK.value; M.lit.emissiveIntensity = 1.3 * k; M.emblem.emissiveIntensity = 0.35 * k; M.sign.emissiveIntensity = 0.5 * k; },
+    fountain,
+    clear: (x, z) => inRect(x, z, SQ) || inRect(x, z, SE) || inRect(x, z, FN) || inRect(x, z, [-6, 1115, 60, 1230]) || fountain.covers(x, z),
+    update(dt) {
+      const k = nightK.value; M.lit.emissiveIntensity = 1.3 * k; M.emblem.emissiveIntensity = 0.35 * k; M.sign.emissiveIntensity = 0.5 * k;
+      fountain.update(dt);
+    },
   };
 }
