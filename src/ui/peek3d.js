@@ -38,6 +38,7 @@ const SITES = {
   gerb: ['gerb', 'buildGerb'],
   bull: ['bull', 'buildBull'], silk: ['silk', 'buildSilk'], sobornyipark: ['sobornyi', 'buildSobornyi'],
   school8: ['school8', 'buildSchool8'],
+  chdbk: ['chdbk', 'buildChdbk'],
   zamkpark: ['zamkovapark', 'buildZamkovaPark', 'peekZamkovaPark'], kupershtein: ['zamkovapark', 'buildZamkovaPark', 'peekZamkovaPark'],
   perlyna: ['perlyna', 'buildPerlyna', 'levelPerlyna'],
   avrora: ['avrora', 'buildAvrora'],
