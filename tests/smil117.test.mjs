@@ -25,11 +25,17 @@ for (const id of SMIL117_SKIP) ok(map.buildings.some((b) => b.id === id), `OSM w
 const cw = createCollisionWorld({ terrain: (x, z) => hf.heightAt(x, z) });
 const root = new THREE.Group();
 const site = buildSmil117({ root, map, solids: cw, zips: { edge() {} }, heightAt: hf.heightAt });
-ok(site && site.footprints?.length === 2, 'the site builds both blocks');
+ok(site && site.footprints?.filter((f) => f.kind === 'apt').length === 2, 'the site builds both blocks');
+{
+  // the sheds' walls stand a storey over the ground at their middle (the colliders' top)
+  const sh = site.footprints.filter((f) => f.kind === 'shed');
+  const hs = sh.map((f) => { const c = f.poly.reduce((a, p) => [a[0] + p[0] / f.poly.length, a[1] + p[1] / f.poly.length], [0, 0]); return cw.groundHeight(c[0], c[1], 500) - hf.heightAt(c[0], c[1]); });
+  ok(sh.length === 6 && hs.every((h) => h > 2.5 && h < 5), `the six sheds beyond the fence stand one storey (${hs.map((h) => h.toFixed(1)).join(', ')} m)`);
+}
 let verts = 0, meshes = 0, nan = false;
 root.traverse((o) => { if (o.isMesh) { meshes++; verts += o.geometry.attributes.position.count; for (const v of o.geometry.attributes.position.array) if (Number.isNaN(v)) nan = true; } });
 ok(!nan, 'no NaN vertices');
-ok(verts < 24000 && meshes <= 7, `budget: ${verts} verts in ${meshes} meshes (blocks and yard)`);
+ok(verts < 27000 && meshes <= 10, `budget: ${verts} verts in ${meshes} meshes (blocks, yard and sheds)`);
 
 // the blocks' centres and their street (north-west, -z) / yard (+z) sides along a map-z ray through the middle
 for (const [id, x] of [[105315513, -2696], [105315529, -2832]]) {

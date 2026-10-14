@@ -246,7 +246,9 @@ See `ARCHITECTURE.md` for the module map. Where things live:
     balcony photos): nose-in pull-ins of trodden earth off the drive (`parked`), a dense belt of old poplars, elms and
     overgrown shrubs (its own `spots`; `clear` takes the generated trees out of the yard), the open lawn with a trodden
     path to the bins, the light-blue climbing arch and П-frame, washing-line posts, and a patchy fence of grey FBS blocks
-    (colliders kept bumper-high) on the OSM landuse edge, moved 5 m in as the photos show it.
+    (colliders kept bumper-high) on the OSM landuse edge, moved 5 m in as the photos show it. Beyond it six depot outlines (132613632 / 625 / 636 / 647 / 674 / 685,
+    no levels in OSM, so they extruded two to nine storeys) are rebuilt as one-storey brick sheds with grey or dark gabled
+    roofs, two partly roofless, as the aerial imagery and the photos show them (`SHEDS`, in `SMIL117_SKIP`).
   - `queststreets.js` – the street cards of «Таємниці Черкас» made visible (`kavkazka`, `gogol`, `gurzhiivska`, `rozkopna`,
     `cherkasy2`; it reads their `ll` from `game/quests/secrets.js`): beside the road at each card's spot (`findSpot`: the
     first place along the street clear of the carriageways and buildings) a post with the old enamel name plate under

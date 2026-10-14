@@ -16,7 +16,9 @@
 // it to the bins; the old light-blue climbing arch with its round seat, a blue П-frame and two green washing-line posts;
 // closed at the back by a patchy fence of grey FBS blocks laid dry, two or three high; the weedy wasteland behind it.
 // No.117's yard is the same yard further on and gets the same treatment.
-//   SMIL117_SKIP: the OSM ids replaced here (buildings.js skips their extrusion)
+// Beyond the wasteland six OSM outlines of an old depot (no levels in OSM: the generic extrusion stood them two to
+// nine storeys) are rebuilt as the one-storey brick sheds the aerial imagery and photo 3 show, one half roofless.
+//   SMIL117_SKIP: the OSM ids replaced here, the blocks and the sheds (buildings.js skips their extrusion)
 //   buildSmil117({ root, map, solids, zips, heightAt }) -> { update(dt), clear(x, z), footprints, roofs, spots, parked, yard } | null
 //     roofs: { [osm id]: [the roof deck of each section, in the order the street face runs] } (tests)
 //     spots: the yard's trees and shrubs (trees.js spots); parked: its parking spots for the traffic sim
@@ -28,12 +30,26 @@ import * as THREE from 'three';
 import { MB } from '../../kit/mesh.js';
 import { nightK } from '../../render/daylight.js';
 import { canvasTex } from './sculpt.js';
-import { rng } from './geo.js';
+import { rng, area2 } from './geo.js';
+import { brickTex, sheetTex } from './bayatlas.js';
 import { ringFaces, face, at, quad, box, rect, solid, finish } from './slabkit.js';
 import { PARK_GREENS, PAL } from '../trees.js';
 
 const ID117 = 105315513, ID119 = 105315529;
-export const SMIL117_SKIP = new Set([ID117, ID119]);
+// ---- the low brick sheds beyond the fence (issue #44): six OSM outlines with no levels, inferred two to nine storeys,
+// that the aerial imagery shows as one-storey barracks of an old depot – gabled slate or sheet roofs with hardly a shadow,
+// one roof dark, one long block's west half roofless – and photo 3 as red-brown brick with empty window holes. Built as
+// gabled brick boxes: walls one quad per face (1 m brick repeats), dark window and door holes, a two-slope roof; the
+// ruined half has ragged walls and no roof.
+const SHEDS = {
+  132613632: { roof: '#9a9c98', ruin: 0.45, wall: '#9c5a46' },   // the long block: its west 45 % stands roofless
+  132613625: { roof: '#4a3c35', wall: '#8f5040', pitch: 0.18 },   // the dark rusty sheet roof
+  132613636: { roof: '#8f918d', wall: '#a0604b' },
+  132613647: { roof: '#9fa19c', wall: '#965a47' },
+  132613674: { roof: '#878985', wall: '#8c5444' },
+  132613685: { roof: '#959793', wall: '#a46450', ruin: 0.2 },
+};
+export const SMIL117_SKIP = new Set([ID117, ID119, ...Object.keys(SHEDS).map(Number)]);
 
 const PL = 0.9, FH = 2.7, NF = 5, PAR = 0.45, MOD = 3.2;   // plinth, storey, storeys, parapet, the panel module (target)
 const PANEL = '#d9d8d2', PLINTH = '#9b9893', SLAB = '#c9c7c0', ROOF_C = '#55524f';
@@ -296,7 +312,15 @@ export function buildSmil117({ root, map, solids: S, zips: Z, heightAt }) {
   };
   M.lit = new THREE.MeshStandardMaterial({ map: M.tile.map, vertexColors: true, roughness: 0.45, metalness: 0.05, emissive: 0xffc890, emissiveMap: atlas(true), emissiveIntensity: 0 });
   const out = finish(root, 'smil117', B, M, { shade: ['wall', 'det', 'tile', 'lit', 'fbs'] });
-  console.log(`[cherkasy] Smilianska 117/119: ${nWin} windows (${nLit} lit), ${nBal} balconies, ${(out.verts / 1000).toFixed(1)}k verts, ${out.meshes} meshes, ${S.count - n0} solids, yard: ${Y ? `${Y.spots.length} plants, ${Y.parked.length} parked, ${Y.nBlocks} fence blocks` : 'none'} in ${(performance.now() - t0).toFixed(0)} ms`);
+  // the sheds beyond the fence: their own root, so the far stand-ins of the blocks (proxies.js) leave them be
+  const SH = buildSheds({ root, map, S, heightAt, r: rng(ID119 % 65521 + 91) });
+  const shOut = finish(root, 'smil117-sheds', { brick: SH.W, roof: SH.R, det: SH.D }, {
+    brick: new THREE.MeshStandardMaterial({ map: brickTex(rng(91)), vertexColors: true, roughness: 0.92 }),
+    roof: new THREE.MeshStandardMaterial({ map: sheetTex(), vertexColors: true, roughness: 0.8, metalness: 0.1, side: THREE.DoubleSide }),
+    det: M.det,
+  }, { shade: ['brick', 'roof'] });
+  footprints.push(...SH.footprints);
+  console.log(`[cherkasy] Smilianska 117/119: ${nWin} windows (${nLit} lit), ${nBal} balconies, ${(out.verts / 1000).toFixed(1)}k verts, ${out.meshes} meshes (+ ${SH.footprints.length} sheds: ${(shOut.verts / 1000).toFixed(1)}k verts, ${shOut.meshes} meshes), ${S.count - n0} solids, yard: ${Y ? `${Y.spots.length} plants, ${Y.parked.length} parked, ${Y.nBlocks} fence blocks` : 'none'} in ${(performance.now() - t0).toFixed(0)} ms`);
   // trees keep off the blocks and a metre and a half round them
   const faces = footprints.map((p) => ringFaces(p.poly));
   const inside = (fs, x, z, pad) => fs.every((f) => (x - f.ax) * f.nx + (z - f.az) * f.nz < pad);
@@ -305,7 +329,7 @@ export function buildSmil117({ root, map, solids: S, zips: Z, heightAt }) {
     footprints,
     // the yard plants its own trees and shrubs: the generated ones go from it
     clear: (x, z) => faces.some((fs) => inside(fs, x, z, 1.5)) || !!Y?.clear(x, z),
-    spots: Y?.spots ?? [],
+    spots: (Y?.spots ?? []).filter((p) => !faces.some((fs) => inside(fs, p.x, p.z, 1.5))), // none in a shed
     parked: Y?.parked ?? [],
     yard: Y,
     update() { M.lit.emissiveIntensity = 0.45 * nightK.value; },
@@ -545,4 +569,60 @@ function buildYard({ yards, heightAt, S, B, r }) {
   // the generated trees give way inside the fence and a little past it, where the yard's own plants stand
   const clear = (x, z) => { const [s, o] = SO(x, z); return s > -4 && s < 268 && o > -1.5 && o < fenceO(s) + 17; };
   return { spots, parked, clear, W, SO, driveO, fenceO, nBlocks, things };
+}
+function buildSheds({ root, map, S, heightAt, r }) {
+  const W = new MB(), R = new MB(), D = new MB(), footprints = [];
+  for (const [id, q] of Object.entries(SHEDS)) {
+    const b = map.buildings.find((o) => o.id === +id);
+    if (!b) continue;
+    const ring = []; for (let i = 0; i < b.p.length; i += 2) ring.push([b.p[i], b.p[i + 1]]);
+    const F = ringFaces(ring), fL = [...F].sort((a, c) => c.L - a.L)[0], fO = F[(fL.k + 2) % F.length];
+    const gs = ring.map(([x, z]) => heightAt(x, z)), gLo = Math.min(...gs) - 0.3, H = Math.max(...gs) + 2.9 + r() * 0.5;
+    const dep = -((fO.ax - fL.ax) * fL.nx + (fO.az - fL.az) * fL.nz), rise = dep / 2 * (q.pitch ?? 0.36);
+    // s along the long face from its start; the ruined stretch at the west (smaller x) end
+    const west = at(fL, 0, 0)[0] < at(fL, fL.L, 0)[0] ? 0 : 1, sR = (q.ruin ?? 0) * fL.L;
+    const ruined = (s) => (west === 0 ? s < sR : s > fL.L - sR);
+    const P = (s, o, y) => at(fL, s, y, -o); // o inward from the long face, 0..dep
+    for (const f of F) {
+      const long = f === fL || f === fO;
+      W.setColor(q.wall);
+      if (!long) {
+        // a gable end: the wall, the triangle over it (none on a ruin) and a dark door
+        rect(W, f, 0, f.L, gLo, H, 0, [1, 1]);
+        const mid = at(f, f.L / 2, H + rise), isRuin = ruined((at(f, f.L / 2, 0)[0] - fL.ax) * fL.ux + (at(f, f.L / 2, 0)[2] - fL.az) * fL.uz);
+        if (!isRuin) W.face([at(f, 0, H), at(f, f.L, H), mid], f.N);
+        D.setColor('#2b2522'); rect(D, f, f.L / 2 - 0.9, f.L / 2 + 0.9, gLo + 0.3, gLo + 2.6, 0.03);
+        continue;
+      }
+      // a long wall in 1.6 m pieces: whole, or ragged and broken down over the ruin
+      const n = Math.max(1, Math.round(f.L / 1.6)), m = f.L / n;
+      for (let i = 0; i < n; i++) {
+        const sa = i * m, sb = sa + m, sMid = (at(f, (sa + sb) / 2, 0)[0] - fL.ax) * fL.ux + (at(f, (sa + sb) / 2, 0)[2] - fL.az) * fL.uz;
+        const top = ruined(sMid) ? gLo + 1.2 + r() * (H - gLo - 1.0) : H;
+        W.setColor(q.wall); rect(W, f, sa, sb, gLo, top, 0, [1, 1]);
+        if (ruined(sMid)) { W.setColor('#7a4a3b'); quad(W, at(f, sa, top), at(f, sb, top), at(f, sb, top, -0.38), at(f, sa, top, -0.38), [0, 1, 0]); rect(W, f, sa, sb, gLo, top, -0.38, [1, 1], f.N.map((v) => -v)); }
+        // a window hole every other piece, empty and dark
+        if (i % 2 === 1 && top > gLo + 2.4) { D.setColor('#2a2421'); rect(D, f, sa + 0.25, sb - 0.25, gLo + 1.2, gLo + 2.45, 0.03); }
+      }
+    }
+    // the two roof slopes over the standing stretch, 0.4 m eaves all round
+    const [s0, s1] = q.ruin ? (west === 0 ? [sR, fL.L] : [0, fL.L - sR]) : [0, fL.L];
+    const e = 0.4, ya = H - e * (q.pitch ?? 0.36), yr = H + rise;
+    R.setColor(q.roof);
+    for (const [oa, ob] of [[-e, dep / 2], [dep + e, dep / 2]]) {
+      const a0 = P(s0 - (s0 > 0 ? 0 : e), oa, ya), a1 = P(s1 + (s1 < fL.L ? 0 : e), oa, ya), b1 = P(s1 + (s1 < fL.L ? 0 : e), ob, yr), b0 = P(s0 - (s0 > 0 ? 0 : e), ob, yr);
+      const nrm = [b0[0] - a0[0], 0, b0[2] - a0[2]], len = Math.hypot(nrm[0], nrm[2]), sl = (yr - ya) / len;
+      quad(R, a0, a1, b1, b0, [-nrm[0] / len * sl, 1, -nrm[2] / len * sl].map((v, k, A) => v / Math.hypot(...A)), [[0, 0], [fL.L / 1.2, 0], [fL.L / 1.2, len / 1.2], [0, len / 1.2]]);
+    }
+    if (q.ruin) {
+      // the cross wall where the roof stops, its gable over it
+      const sB = west === 0 ? sR : fL.L - sR, nU = west === 0 ? fL.U.map((v) => -v) : fL.U;
+      W.setColor(q.wall); quad(W, P(sB, 0, gLo), P(sB, dep, gLo), P(sB, dep, H), P(sB, 0, H), nU, [[0, 0], [dep, 0], [dep, H - gLo], [0, H - gLo]]);
+      W.face([P(sB, 0, H), P(sB, dep, H), P(sB, dep / 2, yr)], nU);
+    }
+    const flat = area2(ring) < 0 ? [...ring].reverse() : ring;
+    S.prism(flat.flat(), gLo, H, 0, 0, 'wall');
+    footprints.push({ poly: ring, h: H + rise - gLo, kind: 'shed', name: '' });
+  }
+  return { W, R, D, footprints };
 }
