@@ -21,6 +21,7 @@
 //   NARB10_RING: the outline of the new block at Нарбутівська, 10 (narbutivska10.js)
 //   NADP249_RING: the stepped outline of the new club house at Надпільна, 249 (nadpilna249.js)
 //   BULL_RING: the base of the bull sculpture by the meat plant (bull.js)
+//   CHDBK_BAKERY_RING / CHDBK_WASH_RING: the bakery-café and the car wash canopy across Чорновола from ЧДБК (chdbkbakery.js)
 import { ONIX_RINGS } from './onix_data.js';
 
 //   OLIMPM_RINGS: the section outlines of ЖК «Олімп Модерн» (olimpmodern.js; a place's `ring` may be a list of flat rings)
@@ -50,6 +51,10 @@ export const SMIL52_RING = [-386.7, 294.1, -372.7, 294.1, -358.4, 280, -358.4, 2
 export const NADP249_RING = [-696.3, -518.8, -685.9, -518.8, -685.9, -519.4, -681.9, -519.4, -681.9, -516.3, -671.5, -516.3, -671.5, -516.9, -667.5, -516.9, -667.5, -513.8, -657.1, -513.8, -657.1, -503.6, -667.5, -503.6, -667.5, -502.8, -671.5, -502.8, -671.5, -506.1, -681.9, -506.1, -681.9, -505.3, -685.9, -505.3, -685.9, -508.6, -696.3, -508.6];
 // the bull sculpture's base by the meat plant, vul. Smilianska (bull.js builds it there; tests/bull.test.mjs keeps the two in step)
 export const BULL_RING = [-3079.7, 472.6, -3077.2, 472.6, -3077.2, 477, -3079.7, 477];
+// the bakery-café and the self-service car wash's canopy at вул. Чорновола, 164 / 164-б (chdbkbakery.js builds on them;
+// both new since 2023, OSM has only the car park)
+export const CHDBK_BAKERY_RING = [-3284.5, 2389, -3271.5, 2389, -3271.5, 2397, -3284.5, 2397];
+export const CHDBK_WASH_RING = [-3304.5, 2368.5, -3274.5, 2368.5, -3274.5, 2375, -3304.5, 2375];
 
 export const PLACES = [
   // partners (paid placements; the other hand-built venues stay in the world but are not advertised)
@@ -157,6 +162,8 @@ export const PLACES = [
   { id: 'school8', kind: 'improved', name: 'Покращений об’єкт', note: 'Школа №8 · вул. Смілянська, 88/2', issue: 47, bld: [158844435, 158844436] },
   { id: 'chdbk', kind: 'improved', name: 'Покращений об’єкт', note: 'Черкаський державний бізнес-коледж (ЧДБК) і гуртожиток · вул. В’ячеслава Чорновола, 243', issue: 49, bld: [163205910, 163205911] },
   { id: 'school23', kind: 'improved', name: 'Покращений об’єкт', note: 'Черкаський колегіум «Берегиня» (колишня школа №23) · вул. Хоменка, 14/1', issue: 49, bld: [1516158] },
+  { id: 'chdbkbakery', kind: 'improved', name: 'Покращений об’єкт', note: 'Пекарня-кав’ярня · вул. В’ячеслава Чорновола, 164', issue: 49, ring: CHDBK_BAKERY_RING },
+  { id: 'chdbkwash', kind: 'improved', name: 'Покращений об’єкт', note: 'Автомийка самообслуговування · вул. В’ячеслава Чорновола, 164-б', issue: 49, ring: CHDBK_WASH_RING },
   // sights
   { id: 'mykhailo', kind: 'sight', name: 'Свято-Михайлівський собор', icon: '⛪', bld: [242469769] },
   { id: 'troitsky', kind: 'sight', name: 'Свято-Троїцький собор', icon: '⛪', bld: [157432721] },
