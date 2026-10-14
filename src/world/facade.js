@@ -241,7 +241,9 @@ const FRAG_MAIN = /* glsl */ `
     float G = shop > 0.5 ? gAbs : max(gAbs, plinth + floorH * 0.8);
     float fh = h - (G - floorH);
     float k = floor(fh / floorH), fv = fh / floorH - k;
-    float nFl = floor((Hw - G - 0.3) / floorH) + 1.0;
+    // + 0.2: a wall that ends right at a slab (pitched roofs and houses, no parapet) keeps its top floor's windows
+    // (- 0.3 dropped it: every two-storey house showed one row); a parapet still gets none, a window top stays >= 0.3 m down
+    float nFl = floor((Hw - G + 0.2) / floorH) + 1.0;
     float inFl = step(0.0, k) * step(k, nFl - 1.0);
     float bi = floor(u), fu = u - bi;
     float aa = max(fwidth(um) + fwidth(h), 1e-3);

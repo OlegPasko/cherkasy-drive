@@ -9,7 +9,8 @@
 // blocks, enclosed per floor by residents in a chaotic PVC / aluminium / wood / open mix with coloured parapet sheets;
 // wall AC units and satellite dishes; TV / cell antenna forests on flat roofs; concrete entrance canopies + doors on
 // the courtyard side; shop porches ("ганок"), fascia panels and awnings on main-street ground floors; coloured steel
-// doors on garage rows; yellow gas pipes on private houses. Everything is built in edge-local frames (edge direction u,
+// doors on garage rows; yellow gas pipes on private houses;
+// front doors, canopies and party-wall ribs on townhouse rows (A.row). Everything is built in edge-local frames (edge direction u,
 // outward normal n) since the OSM footprints come in any orientation.
 // Budget (55k buildings): ~1.2 M vertices, ~40 k solids city-wide, so the loggia fronts are one vertex "ladder" per
 // stripe: 2 vertices per level, parapet + glass quads share rows and the flat 'part' varying is taken from each
@@ -350,6 +351,43 @@ function dressGarage(C, D, b, A, outer, sg, base, H, r, fl) {
   }
 }
 
+// townhouse row (A.row: OSM terrace or an untagged row in a cottage quarter, issue #45): per unit of two bays, mirrored in
+// pairs, a front door with a sidelight on a step under a small canopy (it covers that bay's ground-floor window), and
+// a party-wall rib up to the eaves between units, on both long sides; doors on the street-most long side
+const ROWDOOR = [[3, hexL('#2E3134')], [2, hexL('#5B3A2E')], [1.5, hexL('#7A5536')], [1, hexL('#3F5F86')], [1, hexL('#3F6147')]];
+function dressRow(C, D, S, A, outer, sg, base, H, r, fl) {
+  const E = ringFrames(outer, sg, fl), maxL = Math.max(0, ...E.map((e) => e.L));
+  const longE = E.filter((e) => e.L >= 9 && e.L >= 0.6 * maxL);
+  if (!longE.length || H - base < 4) return;
+  const front = longE.reduce((m, e) => (!m || e.f > m.f || (e.f === m.f && e.L > m.L) ? e : m), null);
+  const dcol = pick(r, ROWDOOR), rib = jit(hexL('#D9D6CE'), r, 0.05), yf = base + A.plinth;
+  for (const e of longE) {
+    const { c, bw } = bays(e, A);
+    if (c.length < 2) continue;
+    for (let k = 0; k + 1 < c.length; k += 2) { // c runs from s = L downwards: bays k, k+1 are one unit
+      if (k + 2 < c.length) { // party wall between this unit and the next
+        const s = c[k + 1] - bw / 2;
+        D.setPart(DP.PAINT).setColor(rib);
+        ebox(D, e, s - 0.14, s + 0.14, 0, 0.14, base - 0.3, H, 1 | 4 | 8);
+      }
+      if (e !== front) continue;
+      const s = c[(k >> 1) % 2 ? k + 1 : k], hw = Math.min(0.85, bw * 0.3); // mirrored pairs: doors meet at the party wall
+      const p = W(e, s, 1.3, 0);
+      if (inPoly(outer, p[0], p[2]) || blocked(C, p[0], p[2])) continue;
+      D.setPart(DP.CONC).setColor(jit(CONC, r));
+      ebox(D, e, s - hw - 0.25, s + hw + 0.25, 0, 0.9, base - 0.3, yf, 1 | 4 | 8 | 16);       // step
+      D.setPart(DP.PAINT).setColor(jit(dcol, r, 0.05));
+      ebox(D, e, s - hw, s + hw, 0, 0.05, yf, yf + 2.3, 1 | 4 | 8);                             // door + sidelight frame
+      D.setPart(DP.GLASS);
+      ebox(D, e, s + hw * 0.3, s + hw - 0.08, 0, 0.06, yf + 0.1, yf + 2.2, 1);                  // sidelight
+      D.setPart(DP.PAINT).setColor(jit(dcol, r, 0.05));
+      ebox(D, e, s - hw - 0.3, s + hw + 0.3, 0, 1.0, yf + 2.45, yf + 2.57, 1 | 4 | 8 | 16 | 32); // canopy
+      eprism(S, e, s - hw - 0.3, s + hw + 0.3, -0.05, 1.0, yf + 2.45, yf + 2.57, 'awning', 1);
+      C.c.ent++;
+    }
+  }
+}
+
 function dressHouse(C, D, outer, sg, base, H, r, fl) {
   if (r() > 0.22 || H - base < 2.6) return;
   // the street-most edge longer than 3 m (ties: the longer one)
@@ -373,6 +411,7 @@ export function dressBuilding({ t, S, Z, b, A, outer, holes, base, H, r, pitched
   try {
     if (b.k === 'apt' || (b.k === 'public' && b.lv >= 2)) dressApt(C, D, S, b, A, outer, sg, base, H, r, pitched, fl);
     else if (b.k === 'garage') dressGarage(C, D, b, A, outer, sg, base, H, r, fl);
+    else if (b.k === 'house' && A.row) dressRow(C, D, S, A, outer, sg, base, H, r, fl);
     else if (b.k === 'house') dressHouse(C, D, outer, sg, base, H, r, fl);
   } finally {
     addFoot(C, outer);
