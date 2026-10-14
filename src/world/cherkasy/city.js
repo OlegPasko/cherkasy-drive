@@ -26,7 +26,7 @@
 //   places: [{ id, kind ('sight' | 'ad'), name, note, icon, url, pitch, x, z, rings, door?, glow?(k) }]  map icons, highlighted
 //     footprints (places.js); door / glow come from the hand-built partner site (restinn.js, tors.js, urban.js: a site's `partners`)
 //     and feed game/partners.js
-//   textures, materials { facade, detail, ground }, cherkasy { map, ground, hf, B, sites, setCam([x,y,z,tx,ty,tz] | null) }
+//   textures, materials { facade, detail, ground }, cherkasy { map, ground, hf, B, sites, carParks (carparks.js), setCam([x,y,z,tx,ty,tz] | null) }
 //   bridgeLimit null, bridgeDeckY() null, propAnchors() / grabbables() [], grabProp() null, releaseProp()  (unused hooks)
 //   update(dt, camera)   everything per frame (water, trees, LOD, landmarks, traffic, people, debris)
 //   setQuality('low' | 'medium' | 'high')   what the graphics level draws (DETAIL below: tree / building / site / people /
@@ -54,6 +54,7 @@ import { ringPts, bboxOf } from './geo.js';
 import { resolvePlaces } from './places.js';
 import { createFarCull } from '../farcull.js';
 import { createSiteProxies } from './proxies.js';
+import { buildCarParks } from './carparks.js';
 
 // Oleg's site modules, resolved at build time; a file that does not exist yet is simply absent
 const SITE_MODULES = import.meta.glob(['./landmarks.js', './frame.js', './restinn.js', './yalynka.js', './pagorb.js', './rosevalley.js',
@@ -276,7 +277,7 @@ export async function buildCherkasy({ scene, renderer, onProgress = null, params
 
   // street life: traffic on the carriageways, people on the pavements, shared debris (each isolated)
   const debris = createGibs(root, (x, z, y) => collision.groundHeight(x, z, y ?? 1e4), { blood: params.has('blood') });
-  let traffic = null, people = null;
+  let traffic = null, people = null, carParks = null;
   if (!params.has('notraffic')) {
     // bridge lanes ride the hand-built decks (overpass.js, khimbridge.js, odeskabridge.js deckAt), not the terrain under them
     const decks = sites.filter((s) => s.deckAt); // two or three of the sites, not a scan of all of them per lane end
@@ -291,6 +292,9 @@ export async function buildCherkasy({ scene, renderer, onProgress = null, params
   if (traffic) {
     traffic.attachSolids(collision, collision.groundHeight);
     traffic.sim.addParkingSpots(sites.flatMap((s) => s.parked ?? [])); // the sites' car parks get real, knockable cars
+    // the other open-air car parks of map.json: bays laid out when a lot first streams in (carparks.js)
+    carParks = guard('car parks', () => buildCarParks({ map, occ, heightAt, solids: collision, sites, scene: root, renderer }));
+    if (carParks) traffic.sim.addParkingLots(carParks.lots);
     traffic.sim.setDebris(debris);
     if (people) traffic.setPeds(people);
   }
@@ -351,7 +355,7 @@ export async function buildCherkasy({ scene, renderer, onProgress = null, params
       return resolvePlaces(map, geo).map((q) => Object.assign(q, partners[q.id]));
     }, []),
     textures: T, materials: { facade: facadeMat, detail: detailMat, ground: ground.root.children[0]?.material ?? null },
-    cherkasy: { map, ground, hf, B, sites, landmarks, setCam: (c) => { forced = c; } },
+    cherkasy: { map, ground, hf, B, sites, landmarks, carParks, setCam: (c) => { forced = c; } },
     update(dt, camera) {
       water.update(dt, camera); wet.update?.(dt); ponds.update?.(dt);
       if (!camera) return;
@@ -374,7 +378,7 @@ export async function buildCherkasy({ scene, renderer, onProgress = null, params
       water.setReflection(D.water.on, D.water);
     },
     stats: () => ({ loadMs: world.loadMs, stages, solids: collision.count, zips: zips.count, buildings: Bld.stats(), ground: ground.stats, trees: trees.stats(),
-      spots: spots.stats, farCull: farCull.stats(), proxies: proxies?.stats() ?? null, traffic: traffic?.stats() ?? null, people: people?.stats?.() ?? null, treeBreak: treeBreak.stats(), sites: sites.length, modules: Object.keys(S) }),
+      spots: spots.stats, carParks: carParks?.stats() ?? null, farCull: farCull.stats(), proxies: proxies?.stats() ?? null, traffic: traffic?.stats() ?? null, people: people?.stats?.() ?? null, treeBreak: treeBreak.stats(), sites: sites.length, modules: Object.keys(S) }),
   };
   world.cherkasy.proxies = proxies = guard('proxies', () => createSiteProxies({ parent: root, roots: siteRoots, places: world.places, map, skip, heightAt, facadeMat, detailMat }));
   world.loadMs = Math.round(performance.now() - t0);

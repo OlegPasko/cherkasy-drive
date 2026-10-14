@@ -7,7 +7,8 @@
 //
 // Output (all coordinates rounded to 0.1 m, rings flattened [x0,z0,x1,z1,...], outer rings counter-clockwise in x/z):
 //   frame, region, buildings[{id,p,holes?,k,lv,h,mh,rs,rc,bc,f,name,row?,parts?}], roads[{p,w,k,n,br,ow}], asphalt[rings],
-//   walks[rings], paving[rings], land[rings], cover[{k,rings}], rails[{p}], trees[[x,z]], pois[...]
+//   walks[rings], paving[rings], land[rings], cover[{k,rings}], rails[{p}], trees[[x,z]], pois[...],
+//   parking[{id,p,s?,cap?}] (open-air car parks: s 1 = street_side bays, cap = OSM capacity)
 // Run: node tools/cherkasy/build_map.mjs
 import { readFileSync, writeFileSync, mkdirSync, readdirSync } from 'node:fs';
 import ClipperLib from 'clipper-lib';
@@ -241,6 +242,23 @@ for (const e of [...roadEls, ...poiEls]) {
   if ((t.highway === 'pedestrian' && t.area === 'yes') || (t['area:highway'] && /pedestrian|footway/.test(t['area:highway'])) || t.place === 'square') pavedAreas.push(ringOf(g));
   if (t.amenity === 'parking' && t.parking !== 'underground' && t.parking !== 'multi-storey') parkingAreas.push(ringOf(g));
 }
+// the open-air car parks as lots of their own (the asphalt above swallows them): the game lays bays and parked cars on
+// them (world/cherkasy/carparks.js). Not the ones under or inside a building, on a roof, in garage rows or on the
+// carriageway (parking=lane); street_side bays are kept, flagged, as the game packs them along the street
+const PARK_SKIP = new Set(['underground', 'multi-storey', 'rooftop', 'garage_boxes', 'garages', 'carports', 'lane']);
+const parkingLots = [], parkSeen = new Set();
+for (const e of [...roadEls, ...poiEls]) {
+  const t = e.tags || {}; if (e.type !== 'way' || t.amenity !== 'parking' || !e.geometry || e.geometry.length < 4 || parkSeen.has(e.id)) continue;
+  parkSeen.add(e.id); // a way can come in both extracts
+  const g = e.geometry; if (g[0].lat !== g.at(-1).lat || g[0].lon !== g.at(-1).lon) continue;
+  if (PARK_SKIP.has(t.parking) || (+t.layer || 0) !== 0 || t.location === 'underground' || t.location === 'rooftop') continue;
+  const P = ccw(ringOf(g)), [cx, cz] = centroid(P);
+  if (!inRect(REGION, cx, cz, 50) || areaOf(P) < 25) continue;
+  const cap = parseInt(t.capacity, 10);
+  parkingLots.push({ id: e.id, p: flat(P), s: t.parking === 'street_side' ? 1 : undefined, cap: cap > 0 ? cap : undefined });
+}
+parkingLots.sort((a, b) => a.id - b.id);
+console.log('parking lots', parkingLots.length);
 const asphaltBase = buffer(motor.map(r => ({ P: r.P, hw: r.w / 2 })), 0);
 const asphalt = clipRegion(union([...asphaltBase.flatMap(p => [p.outer, ...p.holes]), ...parkingAreas.map(ccw)]));
 // sidewalks: a paved band along every main / residential street (Cherkasy: curb, 3-4.5 m of paving), minus the asphalt
@@ -653,6 +671,7 @@ const map = {
   asphalt: polysToRings(TS(simp(asphalt, 0.15))), walks: polysToRings(TS(simp(walks, 0.15))), dirt: polysToRings(TS(simp(dirt, 0.2))),
   land: polysToRings(TS(landCut)), junctions, water: polysToRings(simp(clip(water.flatMap(p => [p.outer, ...p.holes]), [rectRing({ x0: REGION.x0 - 3000, x1: REGION.x1 + 3000, z0: REGION.z0 - 3000, z1: REGION.z1 + 3000 })], ClipperLib.ClipType.ctIntersection, ClipperLib.PolyFillType.pftEvenOdd), 0.8)),
   cover: { ...coverOut, pond: polysToRings(simp(ponds, 0.4)) }, zones: coverLu, rails, trees, pois,
+  parking: parkingLots,
 };
 mkdirSync(new URL('../../public/assets/cherkasy/', import.meta.url), { recursive: true });
 // buildings go to their own file: the published artifact takes text files up to 16 MB each (city.js joins them)
