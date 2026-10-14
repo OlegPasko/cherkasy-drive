@@ -50,7 +50,9 @@ See `ARCHITECTURE.md` for the module map. Where things live:
   - `textures.js` – procedural textures.
 - `src/world/` – general world systems:
   - `facade.js` and `materials.js` – the facade shader, lit windows and the `DP` part ids;
-  - `buildings.js` – OSM building extrusion;
+  - `buildings.js` – OSM building extrusion; townhouse rows (OSM `terrace`, or `row` from the map build: untagged outlines
+    in a cottage quarter, which also gets no borrowed nine storeys – issue #45, вул. Руставі) are gabled two-storey rows
+    that the facade kit gives doors, canopies and party-wall ribs (`tests/townhouses.test.mjs`);
   - `trees.js` – procedural trees with LODs and breakable items;
   - `farcull.js` – the draw-distance cull of the hand-built sites on the lower graphics levels;
   - `water.js`;

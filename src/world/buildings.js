@@ -6,7 +6,7 @@
 // Exports
 //   buildBuildings({ map, solids, zips, heightAt, skip, dress, tile = 256, overhangFlag = 1 }) -> result
 //   buildBuildingsAsync({ ...same, sliceMs = 40, onProgress(f) }) -> Promise<result>  (time-sliced, yields between slices)
-//     map.buildings[]: { id, p:[x0,z0,...], holes?, k, lv, h?, mh?, rs?, rc?, bc?, tint?, mat?, f?, name?, bt?, am?, parts? }
+//     map.buildings[]: { id, p:[x0,z0,...], holes?, k, lv, h?, mh?, rs?, rc?, bc?, tint?, mat?, f?, name?, bt?, am?, row?, parts? }
 //     heightAt(x, z) -> terrain y            skip: Set of ids replaced by hand-made landmarks (not emitted)
 //     dress({ t, S, Z, b, A, outer, holes, base, H, r, pitched }) optional per-building hook (facade kit); S / Z are
 //       the solids / zips arguments as given, t the building's tile
@@ -198,7 +198,13 @@ export function archetype(b, r) {
       break;
     case 'house':
       A.resid = 1;
-      look = choose(r, [[3, LOOK.white], [1.5, LOOK.paleBlue], [1.5, LOOK.paleYellow], [2, LOOK.beige], [1, LOOK.peach], [2, LOOK.yellowBrick], [1, LOOK.silicate], [1, LOOK.redBrick], [0.6, LOOK.mint]]);
+      if (b.row || b.bt === 'terrace') { // townhouse row (issue #45): units of two bays, render / brick, a long gable
+        look = choose(r, [[3, LOOK.white], [2, LOOK.greige], [2, LOOK.beige], [1, LOOK.cream], [1.5, LOOK.yellowBrick], [1, LOOK.redBrick]]);
+        Object.assign(A, { row: 1, floorH: 3.0, bayW: 3.1, winW: 0.5, winH: 0.56, plinth: 0.45, parapet: 0, margin: 0.5, depth: 0.16 });
+        Object.assign(A, { roof: 'gable', roofCol: choose(r, [[3, '#3c3e42'], [2, '#5a3b2d'], [1.5, '#6d2c2a'], [0.8, '#8c8f8b']]), pitch: 0.5, overhang: 0.4 });
+        break;
+      }
+      look = choose(r,[[3, LOOK.white], [1.5, LOOK.paleBlue], [1.5, LOOK.paleYellow], [2, LOOK.beige], [1, LOOK.peach], [2, LOOK.yellowBrick], [1, LOOK.silicate], [1, LOOK.redBrick], [0.6, LOOK.mint]]);
       Object.assign(A, { floorH: 2.9, bayW: 3.4, winW: 0.4, winH: 0.5, plinth: 0.5, parapet: 0, margin: 0.9, depth: 0.14 });
       Object.assign(A, { roof: r() < 0.6 ? 'hip' : 'gable', roofCol: choose(r, ROOF_TONES), pitch: 0.55 + r() * 0.25, overhang: 0.4 });
       break;

@@ -6,7 +6,7 @@
 // then run along the axes (cheap exact box collision, axis-aligned walls like the Manhattan build).
 //
 // Output (all coordinates rounded to 0.1 m, rings flattened [x0,z0,x1,z1,...], outer rings counter-clockwise in x/z):
-//   frame, region, buildings[{id,p,holes?,k,lv,h,mh,rs,rc,bc,f,name,parts?}], roads[{p,w,k,n,br,ow}], asphalt[rings],
+//   frame, region, buildings[{id,p,holes?,k,lv,h,mh,rs,rc,bc,f,name,row?,parts?}], roads[{p,w,k,n,br,ow}], asphalt[rings],
 //   walks[rings], paving[rings], land[rings], cover[{k,rings}], rails[{p}], trees[[x,z]], pois[...]
 // Run: node tools/cherkasy/build_map.mjs
 import { readFileSync, writeFileSync, mkdirSync, readdirSync } from 'node:fs';
@@ -352,6 +352,28 @@ for (const b of blds) {
   const lv = num(b.t['building:levels']), h = num(b.t.height);
   b.tagLv = lv != null && lv > 0 ? lv : (h ? Math.max(1, Math.round(h / 3)) : null);
 }
+// cottage / townhouse quarters (issue #45: вул. Руставі's townhouses stood as nine-storey slabs): a residential landuse
+// tagged residential=cottage|single_family|… or named so, or one whose typed buildings are all houses (>= 3, no
+// apartments, no tagged 4+ levels), or with no landuse >= 4 typed houses and no apartments within 80 m. Untagged
+// building=yes outlines there under 400 m2 are houses, long narrow ones townhouse rows; bigger ones get at most 3 storeys.
+const COTTAGE_RES = /^(cottage|single_family|detached|terrace|townhouse|rural|semi_detached)$/;
+for (const b of blds) {
+  const c = coverAt(b.cx, b.cz); if (!c || c.k !== 'resid') continue;
+  b.cov = c; c.nH ??= 0; c.nA ??= 0;
+  const bt = b.t.building;
+  if (HOUSE.has(bt)) c.nH++; else if (APT.has(bt) || (b.tagLv ?? 0) >= 4) c.nA++;
+}
+const cottageArea = (c) => !!c && (COTTAGE_RES.test(c.tags?.residential ?? '') || /котедж|таунхаус|cottage|townhouse/i.test(c.tags?.name ?? '') || (c.nH >= 3 && !c.nA));
+// outside a mapped landuse: >= 4 typed houses within 80 m and no apartments there
+function cottageNear(b) {
+  let h = 0, a = 0;
+  bIdx.near(b.cx, b.cz, 80, (j) => {
+    const q = blds[j]; if (q === b || Math.hypot(q.cx - b.cx, q.cz - b.cz) > 80) return;
+    if (HOUSE.has(q.t.building)) h++; else if (APT.has(q.t.building) || (q.tagLv ?? 0) >= 4) a++;
+  });
+  return h >= 4 && !a;
+}
+for (const b of blds) b.cottage = !b.tagLv && (cottageArea(b.cov) || (!b.cov && cottageNear(b)));
 function classify(b) {
   const t = b.t, bt = t.building, A = b.A, o = b.o;
   let small = 0, n = 0; bIdx.near(b.cx, b.cz, 55, (j) => { const q = blds[j]; if (Math.hypot(q.cx - b.cx, q.cz - b.cz) > 55) return; n++; if (q.A < 220) small++; });
@@ -375,6 +397,10 @@ function classify(b) {
   if (ck === 'allot') return A < 90 ? 'shed' : 'house';
   if (privateSector && A < 320) return 'house';
   if (A < 140 && o.long < 20) return small >= 4 ? 'house' : 'shed';
+  if (b.cottage) { // a big square block there may still be flats: only houses and rows
+    const row = o.long / Math.max(1, o.short) > 2.2 && o.short <= 16 && A > 120 && A < 2000;
+    if (row || A < 400) { b.row = row; return 'house'; }
+  }
   if (ck === 'comm') return 'public';
   if (A > 450 && o.long / Math.max(1, o.short) > 2.6 && o.short < 17) return 'apt';
   if (A > 3000 && ck !== 'resid' && ck !== 'comm' && ck !== 'edu') return 'indus';
@@ -393,7 +419,7 @@ function inferLevels(b) {
     case 'garage': return 1;
     case 'roof': return 1;
     case 'ruin': return 1;
-    case 'house': return b.A > 150 && r < 0.45 ? 2 : 1;
+    case 'house': return b.row || b.t.building === 'terrace' ? 2 : b.A > 150 && r < 0.45 ? 2 : 1; // townhouse rows: two storeys
     case 'indus': return b.A > 1500 && r < 0.3 ? 2 : 1;
     case 'church': return 2;
     case 'cons': return 1;
@@ -419,7 +445,7 @@ function inferLevels(b) {
   }
   return b.A < 300 ? 2 : b.A < 1200 ? (r < 0.5 ? 2 : 3) : (r < 0.6 ? 3 : 4);
 }
-for (const b of blds) b.lv = inferLevels(b);
+for (const b of blds) { b.lv = inferLevels(b); if (b.cottage && (b.k === 'apt' || b.k === 'public')) b.lv = Math.min(b.lv, 3); } // no borrowed nine storeys among cottages
 
 // street-facing edges: ground-floor storefronts on main streets, plain doors / blank toward yards
 for (const b of blds) {
@@ -459,6 +485,7 @@ const outB = blds.map(b => {
   if (!b.tagLv) o.inf = 1;
   if (/[12]/.test(b.f)) o.f = b.f;
   if (t.building && t.building !== 'yes') o.bt = t.building;
+  if (b.row) o.row = 1; // an untagged townhouse row in a cottage quarter (buildings.js draws it like a terrace)
   if (t.amenity) o.am = t.amenity;
   if (b.parts) o.parts = b.parts.map(p => {
     const pt = p.t, q = { p: flat(p.outer) };
