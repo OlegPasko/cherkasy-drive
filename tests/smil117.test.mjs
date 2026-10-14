@@ -1,7 +1,8 @@
 // Headless checks for вул. Смілянська 117 / 119 (src/world/cherkasy/smil117.js): node tests/smil117.test.mjs
 // On the real map: both OSM outlines are there, the site builds in budget, the blocks stand five storeys (not the nine
 // the generic extrusion gave them), their walls stop rays from the street and the yard, the street-side balconies
-// stand proud up high, the yard canopies let a car under, and the tree clearing keeps to the blocks.
+// stand proud up high, the yard canopies let a car under, and the tree clearing keeps to the blocks. The yard behind
+// them (issue #44): the FBS fence, the pull-ins with parked cars, its own plants and the open lawn.
 import { readFileSync } from 'node:fs';
 import { createCollisionWorld } from '../src/world/collision.js';
 import { createHeightField } from '../src/world/cherkasy/ground.js';
@@ -28,7 +29,7 @@ ok(site && site.footprints?.length === 2, 'the site builds both blocks');
 let verts = 0, meshes = 0, nan = false;
 root.traverse((o) => { if (o.isMesh) { meshes++; verts += o.geometry.attributes.position.count; for (const v of o.geometry.attributes.position.array) if (Number.isNaN(v)) nan = true; } });
 ok(!nan, 'no NaN vertices');
-ok(verts < 16000 && meshes <= 5, `budget: ${verts} verts in ${meshes} meshes`);
+ok(verts < 24000 && meshes <= 7, `budget: ${verts} verts in ${meshes} meshes (blocks and yard)`);
 
 // the blocks' centres and their street (north-west, -z) / yard (+z) sides along a map-z ray through the middle
 for (const [id, x] of [[105315513, -2696], [105315529, -2832]]) {
@@ -64,6 +65,39 @@ for (const [id, x] of [[105315513, -2696], [105315529, -2832]]) {
     if (lo && hi) best = Math.max(best, lo.point.z - hi.point.z);
   }
   ok(best > 0.8 && best < 1.3, `the street-side balconies stand ${best.toFixed(2)} m proud`);
+}
+
+// the yard behind No.119 (issue #44): the FBS fence closes it, the pull-ins hold parked cars nose out, its own plants
+// replace the generated trees, the lawn stays open between the shrub belt and the fence
+{
+  const Y = site.yard;
+  ok(Y && Y.nBlocks > 150, `the fence is laid (${Y?.nBlocks} blocks)`);
+  ok(site.parked.length >= 6 && site.parked.every(([x, z]) => { const [s, o] = Y.SO(x, z); return o > Y.driveO(s) + 3 && o < Y.driveO(s) + 7; }), `${site.parked.length} cars stand in the pull-ins off the drive`);
+  ok(site.spots.length > 150 && site.spots.every((p) => Number.isFinite(p.x) && Number.isFinite(p.z)), `${site.spots.length} plants`);
+  ok(site.spots.every((p) => { const [s, o] = Y.SO(p.x, p.z); return o > 1.5 || s < 0 || s > 125; }), 'no plant stands against No.119');
+  // a ray across the lawn toward the fence stops at it, knee high; one over it does not
+  for (const s of [40, 90, 180]) {
+    const [x0, z0] = Y.W(s, Y.fenceO(s) - 8), [x1, z1] = Y.W(s, Y.fenceO(s) + 8), L = Math.hypot(x1 - x0, z1 - z0), d = { x: (x1 - x0) / L, y: 0, z: (z1 - z0) / L };
+    const g = hf.heightAt(...Y.W(s, Y.fenceO(s)));
+    const lo = cw.raycast({ x: x0, y: g + 0.45, z: z0 }, d, 16), hi = cw.raycast({ x: x0, y: g + 3.2, z: z0 }, d, 16);
+    const at = lo && Y.SO(lo.point.x, lo.point.z)[1] - Y.fenceO(s);
+    ok(lo && Math.abs(at) < 0.7, `s ${s}: a ray across the lawn stops ${at?.toFixed(2)} m off the fence line`);
+    ok(!hi || hi.object === 'tree', `s ${s}: a ray at 3 m clears the fence`);
+  }
+  // along the whole run a car stops at the fence (its 0.5 m kerb step does not climb a lone block), but for a few gaps
+  {
+    let n = 0, held = 0;
+    for (let s = 26; s < 258; s += 1.2) {
+      const [x0, z0] = Y.W(s, Y.fenceO(s) - 4), [x1, z1] = Y.W(s, Y.fenceO(s) + 4), L = Math.hypot(x1 - x0, z1 - z0);
+      const g = Math.max(hf.heightAt(x0, z0), hf.heightAt(...Y.W(s, Y.fenceO(s))));
+      n++; if (cw.raycast({ x: x0, y: g + 0.7, z: z0 }, { x: (x1 - x0) / L, y: 0, z: (z1 - z0) / L }, 8)) held++;
+    }
+    ok(held / n > 0.9, `the fence holds a car along ${(100 * held / n).toFixed(0)}% of its run`);
+  }
+  ok(site.clear(...Y.W(60, 24)) && !site.clear(...Y.W(60, Y.fenceO(60) + 20)), 'the generated trees clear the yard only');
+  // the lawn between the shrub belt and the path stays open
+  const lawn = site.spots.filter((p) => { const [s, o] = Y.SO(p.x, p.z); return s > 10 && s < 115 && o > Y.driveO(s) + 10 && o < Y.fenceO(s) - 5; });
+  ok(lawn.length <= 6, `the lawn is open (${lawn.length} plants on it)`);
 }
 
 console.log = log;

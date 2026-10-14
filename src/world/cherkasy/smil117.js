@@ -9,9 +9,18 @@
 // yard side (south-east) six entrances under concrete canopies with the stair windows at the half landings, kitchen
 // windows, a balcony stack between each pair. No.119 has a shop in its north-east end: a porch up a flight of steps
 // with a red fascia (no name). No.117's ground floor a little further on is a pink-rendered shop strip.
+// The yard behind them (issue #44), after a player's three evening photos from a low balcony of No.119 and the OSM
+// layout: the narrow asphalt drive along the yard fronts (the ground's own) with nose-in pull-ins of trodden earth
+// among the shrubs, cars parked in most; a dense belt of old poplars, elms, maples and lindens over thick overgrown
+// shrubs between the drive and the lawn, a white poplar leaning out over it; the open lawn with a trodden path along
+// it to the bins; the old light-blue climbing arch with its round seat, a blue П-frame and two green washing-line posts;
+// closed at the back by a patchy fence of grey FBS blocks laid dry, mostly two high; the weedy wasteland behind it.
+// No.117's yard is the same yard further on and gets the same treatment.
 //   SMIL117_SKIP: the OSM ids replaced here (buildings.js skips their extrusion)
-//   buildSmil117({ root, map, solids, zips, heightAt }) -> { update(dt), clear(x, z), footprints, roofs } | null
+//   buildSmil117({ root, map, solids, zips, heightAt }) -> { update(dt), clear(x, z), footprints, roofs, spots, parked, yard } | null
 //     roofs: { [osm id]: [the roof deck of each section, in the order the street face runs] } (tests)
+//     spots: the yard's trees and shrubs (trees.js spots); parked: its parking spots for the traffic sim
+//     yard: { W(s, o), SO(x, z), driveO(s), fenceO(s), nBlocks, things, ... } the yard frame along No.119's yard front (tests)
 // Walls are one quad per face over a painted 8-panel x 5-storey atlas (u by the panel module, v by storey), so the
 // seams and the odd tinted panel cost nothing; windows, balcony fronts and doors are quads of a second atlas, the lit
 // ones in a mesh whose emissive mask is the glass.
@@ -20,7 +29,8 @@ import { MB } from '../../kit/mesh.js';
 import { nightK } from '../../render/daylight.js';
 import { canvasTex } from './sculpt.js';
 import { rng } from './geo.js';
-import { ringFaces, at, quad, box, rect, solid, finish } from './slabkit.js';
+import { ringFaces, face, at, quad, box, rect, solid, finish } from './slabkit.js';
+import { PARK_GREENS, PAL } from '../trees.js';
 
 const ID117 = 105315513, ID119 = 105315529;
 export const SMIL117_SKIP = new Set([ID117, ID119]);
@@ -98,9 +108,9 @@ export function buildSmil117({ root, map, solids: S, zips: Z, heightAt }) {
   const bs = [ID117, ID119].map((id) => map.buildings.find((b) => b.id === id));
   if (!bs[0] && !bs[1]) return null;
   const t0 = performance.now(), r = rng(ID117 % 65521), n0 = S.count;
-  const B = { wall: new MB(), det: new MB(), tile: new MB(), lit: new MB(), roof: new MB() }, D = B.det, R = B.roof;
+  const B = { wall: new MB(), det: new MB(), tile: new MB(), lit: new MB(), roof: new MB(), fbs: new MB(), dirt: new MB() }, D = B.det, R = B.roof;
   const u0 = (t) => (t * TW + 1) / (NT * TW), u1 = (t) => ((t + 1) * TW - 1) / (NT * TW);
-  const footprints = [], roofs = {};
+  const footprints = [], roofs = {}, yards = {};   // yards: { [osm id]: { f: the yard face, doors: [[x, z]] } }
   let nWin = 0, nLit = 0, nBal = 0;
 
   // one opening: an atlas quad just proud of the wall, lit at random by the share p (never for a balcony front)
@@ -240,12 +250,14 @@ export function buildSmil117({ root, map, solids: S, zips: Z, heightAt }) {
     // windows, a balcony stack two panels off each entrance
     {
       const f = yard, N = Math.round(f.L / MOD), m = f.L / N, ent = new Map(), balP = new Set();
+      yards[b.id] = { f, doors: [] };
       for (let i = 0; i < N; i++) { const j = secAt(f, (i + 0.5) * m); if (!ent.has(j)) ent.set(j, []); ent.get(j).push(i); }
       const doors = new Set([...ent.values()].map((is) => is[Math.floor(is.length / 2)]));
       for (const is of ent.values()) { const e = is[Math.floor(is.length / 2)], p = is.includes(e + 2) ? e + 2 : e - 2; if (is.includes(p)) balP.add(p); }
       for (let i = 0; i < N; i++) {
         const s = (i + 0.5) * m, y0 = yFat(f, s), fy = (k) => y0 + (k - 1) * FH;
         if (doors.has(i)) {
+          { const d = at(f, s, 0); yards[b.id].doors.push([d[0], d[2]]); }
           const q = at(f, s, 0, 1), g = Math.min(heightAt(q[0], q[2]), y0 - 0.4);
           tile(f, T.DOOR, s - 0.7, s + 0.7, g + 0.15, g + 2.3, 0.85);
           // the half landings sit between the floors, so their windows straddle the floor seams
@@ -272,23 +284,265 @@ export function buildSmil117({ root, map, solids: S, zips: Z, heightAt }) {
     }
   }
 
+  const Y = buildYard({ yards, heightAt, S, B, r: rng(ID119 % 65521 + 44) });
 
   const M = {
     wall: new THREE.MeshStandardMaterial({ map: wallTex(r), vertexColors: true, roughness: 0.9 }),
     det: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.85 }),
     tile: new THREE.MeshStandardMaterial({ map: atlas(false), vertexColors: true, roughness: 0.45, metalness: 0.05 }),
     roof: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.95 }),
+    fbs: new THREE.MeshStandardMaterial({ map: concreteTex(rng(ID117 % 65521 + 5)), vertexColors: true, roughness: 0.95 }),
+    dirt: new THREE.MeshStandardMaterial({ map: dirtTex(rng(ID117 % 65521 + 6)), vertexColors: true, roughness: 1 }),
   };
   M.lit = new THREE.MeshStandardMaterial({ map: M.tile.map, vertexColors: true, roughness: 0.45, metalness: 0.05, emissive: 0xffc890, emissiveMap: atlas(true), emissiveIntensity: 0 });
-  const out = finish(root, 'smil117', B, M, { shade: ['wall', 'det', 'tile', 'lit'] });
-  console.log(`[cherkasy] Smilianska 117/119: ${nWin} windows (${nLit} lit), ${nBal} balconies, ${(out.verts / 1000).toFixed(1)}k verts, ${out.meshes} meshes, ${S.count - n0} solids in ${(performance.now() - t0).toFixed(0)} ms`);
+  const out = finish(root, 'smil117', B, M, { shade: ['wall', 'det', 'tile', 'lit', 'fbs'] });
+  console.log(`[cherkasy] Smilianska 117/119: ${nWin} windows (${nLit} lit), ${nBal} balconies, ${(out.verts / 1000).toFixed(1)}k verts, ${out.meshes} meshes, ${S.count - n0} solids, yard: ${Y ? `${Y.spots.length} plants, ${Y.parked.length} parked, ${Y.nBlocks} fence blocks` : 'none'} in ${(performance.now() - t0).toFixed(0)} ms`);
   // trees keep off the blocks and a metre and a half round them
   const faces = footprints.map((p) => ringFaces(p.poly));
   const inside = (fs, x, z, pad) => fs.every((f) => (x - f.ax) * f.nx + (z - f.az) * f.nz < pad);
   return {
     roofs,
     footprints,
-    clear: (x, z) => faces.some((fs) => inside(fs, x, z, 1.5)),
+    // the yard plants its own trees and shrubs: the generated ones go from it
+    clear: (x, z) => faces.some((fs) => inside(fs, x, z, 1.5)) || !!Y?.clear(x, z),
+    spots: Y?.spots ?? [],
+    parked: Y?.parked ?? [],
+    yard: Y,
     update() { M.lit.emissiveIntensity = 0.45 * nightK.value; },
   };
+}
+
+// ---- the yard behind the blocks (issue #44), after a player's three evening photos from a low balcony of No.119 and
+// the OSM layout. Map points from OSM: the drive along the yard fronts (way 157588384), the fence line (the edge between
+// the yards' landuse=residential 974803700 and the wasteland's landuse=grass 177533856, moved 5 m in toward the blocks:
+// the photos put it ~30 m off No.119; the short return toward the kindergarten path is a guess) and the waste point (node
+// 1694191528). The trodden path across the lawn is not in OSM: it runs from the kindergarten corner (way 1422416612's
+// end) along the yard to the bins, ~17 m out from the wall as the photos show it.
+const DRIVE = [[-2885, 552], [-2766, 539], [-2760, 549], [-2749, 550], [-2625, 535]];
+const FENCE = [[-2875.6, 588.3], [-2865.6, 571], [-2622.6, 560.6]];
+const BINS = [-2763, 557], PATH = [[0.5, 21.5], [8, 17.5], [121, 19.5], [126.5, 24.5]]; // the path in the yard frame (s, o)
+// along the yard from No.119's south-west end (s, metres): the pull-ins off the drive, nose-in among the shrubs (n cars)
+const POCKETS = [[15, 1], [27, 2], [44, 1], [57, 2], [74, 1], [92, 2], [109, 1], [152, 2], [176, 1], [198, 2], [224, 1], [247, 2]];
+const BAY = 2.9, POCKET_D = 5.8;
+
+function concreteTex(r) {
+  return canvasTex(256, 256, (g, w, h) => {
+    g.fillStyle = '#e4e2dc'; g.fillRect(0, 0, w, h);
+    for (let i = 0; i < 2600; i++) { g.fillStyle = r() < 0.5 ? 'rgba(255,255,255,0.28)' : 'rgba(60,55,50,0.09)'; g.fillRect(r() * w, r() * h, 1 + r() * 2, 1 + r() * 2); }
+    // rain streaks down from the top, a few dark patches of damp and lichen
+    for (let i = 0; i < 40; i++) {
+      const x = r() * w, l = 20 + r() * 120, gr = g.createLinearGradient(0, 0, 0, l);
+      gr.addColorStop(0, 'rgba(70,66,58,0.22)'); gr.addColorStop(1, 'rgba(70,66,58,0)');
+      g.fillStyle = gr; g.fillRect(x, 0, 2 + r() * 6, l);
+    }
+    for (let i = 0; i < 9; i++) { g.fillStyle = `rgba(${r() < 0.5 ? '70,78,52' : '60,58,54'},${0.1 + r() * 0.12})`; g.beginPath(); g.ellipse(r() * w, r() * h, 8 + r() * 26, 5 + r() * 16, r() * 3, 0, 7); g.fill(); }
+  });
+}
+function dirtTex(r) {
+  return canvasTex(256, 256, (g, w, h) => {
+    g.fillStyle = '#d8d2c6'; g.fillRect(0, 0, w, h);
+    for (let i = 0; i < 4200; i++) {
+      const q = r();
+      g.fillStyle = q < 0.45 ? 'rgba(95,82,64,0.16)' : q < 0.8 ? 'rgba(255,250,240,0.2)' : 'rgba(70,90,40,0.14)';
+      g.fillRect(r() * w, r() * h, 1 + r() * 3, 1 + r() * 3);
+    }
+  });
+}
+
+// the yard in a frame along No.119's yard front: s from its south-west corner toward No.117, o out into the yard.
+// Lays the FBS-block fence, the pull-ins, the path, the play things and the bins into B, and returns the plants, the
+// parking spots and the tree clearing: { spots, parked, clear(x, z), W(s, o), SO(x, z), driveO(s), fenceO(s), nBlocks, things }
+function buildYard({ yards, heightAt, S, B, r }) {
+  const y9 = yards[ID119];
+  if (!y9) return null;
+  const f9 = y9.f, A = at(f9, 0, 0), C = at(f9, f9.L, 0), [p0, p1] = A[0] < C[0] ? [A, C] : [C, A];
+  const L9 = f9.L, ux = (p1[0] - p0[0]) / L9, uz = (p1[2] - p0[2]) / L9, nx = f9.nx, nz = f9.nz;
+  const W = (s, o) => [p0[0] + ux * s + nx * o, p0[2] + uz * s + nz * o];
+  const SO = (x, z) => { const dx = x - p0[0], dz = z - p0[2]; return [dx * ux + dz * uz, dx * nx + dz * nz]; };
+  const lerpO = (pts) => {
+    const q = pts.map(([x, z]) => SO(x, z));
+    return (s) => {
+      if (s <= q[0][0]) return q[0][1];
+      for (let i = 1; i < q.length; i++) if (s <= q[i][0]) return q[i - 1][1] + (s - q[i - 1][0]) / (q[i][0] - q[i - 1][0]) * (q[i][1] - q[i - 1][1]);
+      return q[q.length - 1][1];
+    };
+  };
+  const driveO = lerpO(DRIVE), fenceO = lerpO(FENCE.slice(1));
+  // No.117's yard front stands ~15 m further out than No.119's
+  const y7 = yards[ID117], ends7 = y7 ? [at(y7.f, 0, 0), at(y7.f, y7.f.L, 0)].map((p) => [p[0], p[2]]).sort((a, b) => SO(...a)[0] - SO(...b)[0]) : null;
+  const wall7 = ends7 ? lerpO(ends7) : null, s7 = ends7 ? ends7.map((p) => SO(...p)[0]) : [1e9, 1e9];
+  const wallO = (s) => (s >= s7[0] - 1 && s <= s7[1] + 1 ? wall7(s) : s >= -1 && s <= L9 + 1 ? 0 : null);
+  const doors = [...(y9.doors ?? []), ...(y7?.doors ?? [])].map(([x, z]) => SO(x, z)[0]);
+  const gY = (x, z) => heightAt(x, z);
+  const D = B.det, F = B.fbs, G = B.dirt, LIFT = 0.18; // over heightAt: the ground's own land layer lies ~0.15 up
+
+  // a quad of map points p00 p10 p11 p01 draped on the ground in cells of <= 2 m, uv in metres
+  const drape = (P, col) => {
+    const [a, b, c, d] = P, id = [];
+    const ns = Math.max(1, Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1]) / 2)), no = Math.max(1, Math.ceil(Math.hypot(d[0] - a[0], d[1] - a[1]) / 2));
+    G.setColor(col);
+    for (let j = 0; j <= no; j++) for (let i = 0; i <= ns; i++) {
+      const u = i / ns, t = j / no;
+      const x = (a[0] * (1 - u) + b[0] * u) * (1 - t) + (d[0] * (1 - u) + c[0] * u) * t, z = (a[1] * (1 - u) + b[1] * u) * (1 - t) + (d[1] * (1 - u) + c[1] * u) * t;
+      id.push(G.vert(x, gY(x, z) + LIFT, z, 0, 1, 0, x / 3, z / 3));
+    }
+    const up = (b[0] - a[0]) * (d[1] - a[1]) - (b[1] - a[1]) * (d[0] - a[0]) < 0;
+    for (let j = 0; j < no; j++) for (let i = 0; i < ns; i++) {
+      const q0 = j * (ns + 1) + i, q1 = q0 + 1, q2 = q0 + ns + 2, q3 = q0 + ns + 1;
+      if (up) G.quad(id[q0], id[q1], id[q2], id[q3]); else G.quad(id[q0], id[q3], id[q2], id[q1]);
+    }
+  };
+  const rectSO = (s0, s1, o0, o1) => [W(s0, o0), W(s1, o0), W(s1, o1), W(s0, o1)];
+
+  // ---- the pull-ins: bare trodden earth off the drive's yard edge, a car in most bays
+  const parked = [], pockets = POCKETS.map(([s, n]) => ({ s0: s - n * BAY / 2, s1: s + n * BAY / 2, n, o0: driveO(s) + 1.9 }));
+  const ryOut = -Math.atan2(nz, nx); // nose out into the yard (traffic.js: forward = (cos ry, -sin ry))
+  for (const q of pockets) {
+    drape(rectSO(q.s0 - 0.3, q.s1 + 0.3, q.o0, q.o0 + POCKET_D + 0.4), '#6f6658');
+    for (let k = 0; k < q.n; k++) if (r() < 0.75) { const [x, z] = W(q.s0 + (k + 0.5) * BAY, q.o0 + 2.9); parked.push([x, z, ryOut + (r() - 0.5) * 0.12]); }
+  }
+  const inPocket = (s, o, pad) => pockets.some((q) => s > q.s0 - pad && s < q.s1 + pad && o > q.o0 - pad && o < q.o0 + POCKET_D + pad);
+
+  // ---- the path across the lawn, trodden grey earth, and the bins' pad at its end
+  const segs = PATH.slice(1).map((b, i) => [PATH[i], b]);
+  for (const [[sa, oa], [sb, ob]] of segs) {
+    const l = Math.hypot(sb - sa, ob - oa), ds = -(ob - oa) / l * 0.42, dd = (sb - sa) / l * 0.42, ex = 0.3 / l; // overlap the joints a little
+    const [a0, a1] = [[sa - (sb - sa) * ex, oa - (ob - oa) * ex], [sb + (sb - sa) * ex, ob + (ob - oa) * ex]];
+    drape([W(a0[0] - ds, a0[1] - dd), W(a1[0] - ds, a1[1] - dd), W(a1[0] + ds, a1[1] + dd), W(a0[0] + ds, a0[1] + dd)], '#aaa49a');
+  }
+  const pathO = lerpO(PATH.map(([s, o]) => W(s, o)));
+  const nearPath = (s, o, pad) => s > PATH[0][0] - pad && s < PATH[PATH.length - 1][0] + pad && Math.abs(o - pathO(s)) < 0.45 + pad;
+  const [bs, bo] = SO(...BINS);
+  {
+    const fb = face(W(bs - 3.4, bo), W(bs + 3.4, bo), nx, nz);
+    const g0 = Math.min(...[[-3.4, -1.3], [3.4, -1.3], [3.4, 1.3], [-3.4, 1.3]].map(([s, o]) => gY(...W(bs + s, bo + o))));
+    D.setColor('#a19e97'); box(D, fb, 0, 6.8, g0 - 0.1, g0 + 0.3, -1.3, 1.3, 'fblrt');
+    const y = g0 + 0.3;
+    for (const [k, col] of [[0, '#3f5a44'], [1, '#6f7377'], [2, '#3f5a44']]) {
+      const s0 = 0.5 + k * 2.0;
+      D.setColor(col); box(D, fb, s0, s0 + 1.4, y + 0.15, y + 1.2, -0.55, 0.55, 'fblr');
+      D.setColor('#2c2f30'); box(D, fb, s0 - 0.03, s0 + 1.43, y + 1.2, y + 1.3, -0.6, 0.62, 'fblrtu');
+      for (const ds of [0.15, 1.25]) for (const dd of [-0.4, 0.4]) { const p = at(fb, s0 + ds, 0, dd); D.cyl(p[0], y, p[2], 0.07, 0.07, 0.15, 6, false); }
+    }
+    solid(S, fb, 0.4, 6.4, -0.6, 0.62, g0 - 0.1, y + 1.3);
+  }
+
+  // ---- the fence of grey FBS blocks (2.4 x 0.6 x 0.5 m) laid dry, mostly two high, a lone one or a gap here and there
+  let nBlocks = 0;
+  for (let i = 1; i < FENCE.length; i++) {
+    const a = FENCE[i - 1], b = FENCE[i], l = Math.hypot(b[0] - a[0], b[1] - a[1]), ff = face(a, b, -(b[1] - a[1]) / l, (b[0] - a[0]) / l);
+    for (let s0 = 0; s0 + 2.38 <= l + 0.01; s0 += 2.4) {
+      const q = r(), rows = q < 0.05 ? 0 : q < 0.18 ? 1 : q < 0.93 ? 2 : 3;
+      if (!rows) continue;
+      const gs = [0, 1.19, 2.38].map((d) => { const p = at(ff, s0 + d, 0); return gY(p[0], p[2]); }), g = Math.min(...gs) - 0.06;
+      for (let k = 0; k < rows; k++) {
+        const js = k ? (r() - 0.5) * 0.3 : 0, jo = (r() - 0.5) * 0.1, y0 = g + k * 0.6;
+        F.setColor(['#c9c7c0', '#bcbab3', '#b0aea7', '#a9ab9c', '#c4bfb3'][Math.floor(r() * 5)]);
+        box(F, ff, s0 + js, s0 + js + 2.38, y0, y0 + 0.58, jo - 0.25, jo + 0.25, 'fblrt', [2.5, 2.5]);
+        nBlocks++;
+      }
+      // a lone block on a slope can stand under the car's 0.5 m kerb step: its collider keeps a bumper's height
+      solid(S, ff, s0, s0 + 2.38, -0.28, 0.28, g, Math.max(g + rows * 0.6, Math.max(...gs) + 0.85));
+    }
+  }
+
+  // ---- the play things on the lawn, all in chipped light-blue paint: the old climbing arch with its round seat, the
+  // П-frame by the fence; and two green washing-line posts
+  const tube = (P, Q, rad = 0.03, seg = 6) => D.tube(P, Q, rad, seg);
+  const pole = (x, z, y0, y1, rad = 0.05) => S.cyl(x, z, y0, y1, rad, rad, 'pole');
+  const things = [];
+  {
+    // the climbing arch: two ladder rails curving up from the lawn to the seat, rungs between, a straight back leg
+    const sC = 67, oC = fenceO(sC) - 5.5, [cx, cz] = W(sC, oC), g = gY(cx, cz), R = 1.35;
+    const P = (d, y, l) => [cx + nx * d + ux * l, g + y, cz + nz * d + uz * l];
+    D.setColor('#3fb4d4');
+    for (const l of [-0.28, 0.28]) {
+      for (let k = 0; k < 6; k++) { const t0 = k / 6 * Math.PI / 2, t1 = (k + 1) / 6 * Math.PI / 2; tube(P(-R * Math.cos(t0), R * Math.sin(t0), l), P(-R * Math.cos(t1), R * Math.sin(t1), l)); }
+      tube(P(0.3, -0.1, l * 0.6), P(0.05, R, l * 0.6), 0.035);
+    }
+    for (const t of [0.25, 0.55, 0.85, 1.15]) tube(P(-R * Math.cos(t), R * Math.sin(t), -0.28), P(-R * Math.cos(t), R * Math.sin(t), 0.28), 0.022);
+    D.setColor('#5cc4e2'); D.cyl(cx, g + R, cz, 0.36, 0.46, 0.2, 14);
+    D.setColor('#7a4a2e'); tube(P(0.2, -0.1, 0), P(0.2, R, 0), 0.04); // the rusty back post
+    pole(cx, cz, g, g + R + 0.16, 0.45);
+    things.push([sC, oC, 2.4]);
+  }
+  {
+    // the П-frame: two posts and a bar, 3 m wide, 2.1 m high
+    const sP = 58, oP = fenceO(sP) - 1.6, top = [];
+    D.setColor('#3f86c9');
+    for (const l of [-1.5, 1.5]) { const [x, z] = W(sP + l, oP), g = gY(x, z); tube([x, g - 0.2, z], [x, g + 2.1, z], 0.045); pole(x, z, g - 0.2, g + 2.1, 0.06); top.push([x, g + 2.1, z]); }
+    const yt = Math.max(top[0][1], top[1][1]);
+    tube([top[0][0], yt, top[0][2]], [top[1][0], yt, top[1][2]], 0.04);
+    for (const l of [-1.5, 1.5]) things.push([sP + l, oP, 1.3]);
+  }
+  for (const [sq, dq] of [[79, 1.1], [71, 1.8]]) {
+    // the washing-line posts: green pipes with a short cross-bar
+    const oq = fenceO(sq) - dq, [x, z] = W(sq, oq), g = gY(x, z);
+    D.setColor('#3e7f4c'); tube([x, g - 0.2, z], [x, g + 1.9, z], 0.04);
+    tube([x - nx * 0.45, g + 1.85, z - nz * 0.45], [x + nx * 0.45, g + 1.85, z + nz * 0.45], 0.025);
+    pole(x, z, g - 0.2, g + 1.9);
+    things.push([sq, oq, 1.2]);
+  }
+  things.push([bs, bo, 4.4]);
+  const nearThing = (s, o) => things.some(([a, b, d]) => Math.hypot(s - a, o - b) < d);
+
+  // ---- the plants: dense and overgrown, as in the photos
+  const spots = [];
+  const plant = (s, o, sp) => { const [x, z] = W(s, o); spots.push({ x, z, ...sp }); };
+  const free = (s, o, pad = 1) => !inPocket(s, o, pad) && !nearPath(s, o, pad * 0.8) && !nearThing(s, o);
+  const big = () => {
+    const q = r();
+    if (q < 0.26) return { kind: 'conifer', variant: 'poplar', pal: PARK_GREENS, sc: 1.6 + r() * 0.5, s3: [1.5, 1.2 + r() * 0.25, 1.5] }; // old black poplars
+    if (q < 0.5) return { kind: 'elm', variant: 'elm', sc: 1.05 + r() * 0.35 };
+    if (q < 0.72) return { kind: 'park', variant: 'maple', sc: 1.0 + r() * 0.35 };
+    if (q < 0.88) return { kind: 'street', variant: 'linden', sc: 1.1 + r() * 0.3 };
+    return { kind: 'park', variant: 'oak', sc: 0.9 + r() * 0.25 };
+  };
+  const shrub = (tall = 1) => (r() < 0.72
+    ? { kind: 'hedge', variant: 'hedge', pal: PARK_GREENS, s3: [1.0 + r() * 1.1, (1.0 + r() * 1.2) * tall, 0.9 + r() * 0.8], ry: r() * Math.PI }
+    : { kind: 'small', variant: r() < 0.5 ? 'fruit' : 'sapling', sc: 0.45 + r() * 0.3 });
+  const SPAN = [3, 262], GAP = [118, 146]; // the drive's bend between the blocks stays open
+  // the belt between the drive and the lawn: big trees over thick shrubs, two rows deep
+  for (let s = SPAN[0] + r() * 4; s < SPAN[1]; s += 8.5 + r() * 5) {
+    if (s > GAP[0] && s < GAP[1]) continue;
+    const o = driveO(s) + 4.2 + r() * 4.2;
+    if (free(s, o, 2.2)) plant(s, o, big());
+  }
+  for (let s = SPAN[0]; s < SPAN[1]; s += 1.2 + r() * 0.8) {
+    if (s > GAP[0] && s < GAP[1]) continue;
+    for (const [lo, hi] of [[2.9, 4.3], [4.6, 6.6], [6.9, 8.9]]) {
+      const o = driveO(s) + lo + r() * (hi - lo);
+      if (r() < 0.8 && free(s, o, 0.5)) plant(s, o, shrub());
+    }
+  }
+  // the white poplar leaning out over the yard by the middle of No.119
+  { const s = 86, o = driveO(s) + 3.4; plant(s, o, { kind: 'park', variant: 'birch', sc: 1.75, s3: [1.25, 1.15, 1.25], ry: Math.atan2(nx * 0.8 - ux * 0.6, nz * 0.8 - uz * 0.6), rx: 0.2 }); }
+  // the strip between the walls and the drive: a few bushes and young trees between the entrances
+  for (let s = SPAN[0] + 2; s < SPAN[1]; s += 4.5 + r() * 3) {
+    const w = wallO(s);
+    if (w == null) continue;
+    const lo = w + 2.0, hi = driveO(s) - 2.7;
+    if (hi < lo || doors.some((d) => Math.abs(d - s) < 3.2) || r() < 0.35) continue;
+    const o = lo + r() * (hi - lo);
+    plant(s, o, r() < 0.25 && hi - lo > 0.8 ? { kind: 'street', variant: 'linden', sc: 0.75 + r() * 0.2 } : shrub(0.8));
+  }
+  // the lawn: open, a lone tree or two; trees and shrub clumps along the fence, the wasteland's weeds behind it
+  for (let s = 20 + r() * 6; s < SPAN[1]; s += 12 + r() * 9) {
+    const fo = fenceO(s), o = r() < 0.4 ? fo - 1.6 - r() * 2 : fo + 1.8 + r() * 5;
+    if (free(s, o, 1.5)) plant(s, o, big());
+  }
+  for (let s = 24; s < SPAN[1]; s += 2.6 + r() * 2.4) {
+    const fo = fenceO(s);
+    if (r() < 0.45) { const o = fo - 0.9 - r() * 0.8; if (free(s, o, 0.6)) plant(s, o, shrub(0.9)); }
+    if (r() < 0.3) { const o = fo + 2 + r() * 14; plant(s, o, { kind: 'small', variant: r() < 0.6 ? 'sapling' : 'fruit', sc: 0.6 + r() * 0.5 }); } // self-sown scrub
+    for (let k = 0; k < 4; k++) {
+      const o = fo + 1.0 + r() * 16;
+      if (r() < 0.7) plant(s + r() * 2, o, { kind: 'hedge', variant: 'hedge', pal: [PAL[2], PAL[0], PARK_GREENS[2]], s3: [1.4 + r() * 2.2, 0.55 + r() * 0.75, 1.1 + r() * 1.5], ry: r() * Math.PI });
+    }
+  }
+  for (const [s, d] of [[34, 4], [101, 6], [190, 5], [232, 9]]) { const o = driveO(s) + 9 + d; if (free(s, o, 2)) plant(s, o, big()); }
+
+  // the generated trees give way inside the fence and a little past it, where the yard's own plants stand
+  const clear = (x, z) => { const [s, o] = SO(x, z); return s > -4 && s < 268 && o > -1.5 && o < fenceO(s) + 17; };
+  return { spots, parked, clear, W, SO, driveO, fenceO, nBlocks, things };
 }
