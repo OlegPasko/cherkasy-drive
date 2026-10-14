@@ -14,7 +14,7 @@
 // among the shrubs, cars parked in most; a dense belt of old poplars, elms, maples and lindens over thick overgrown
 // shrubs between the drive and the lawn, a white poplar leaning out over it; the open lawn with a trodden path along
 // it to the bins; the old light-blue climbing arch with its round seat, a blue П-frame and two green washing-line posts;
-// closed at the back by a patchy fence of grey FBS blocks laid dry, mostly two high; the weedy wasteland behind it.
+// closed at the back by a patchy fence of grey FBS blocks laid dry, two or three high; the weedy wasteland behind it.
 // No.117's yard is the same yard further on and gets the same treatment.
 //   SMIL117_SKIP: the OSM ids replaced here (buildings.js skips their extrusion)
 //   buildSmil117({ root, map, solids, zips, heightAt }) -> { update(dt), clear(x, z), footprints, roofs, spots, parked, yard } | null
@@ -427,12 +427,12 @@ function buildYard({ yards, heightAt, S, B, r }) {
     solid(S, fb, 0.4, 6.4, -0.6, 0.62, g0 - 0.1, y + 1.3);
   }
 
-  // ---- the fence of grey FBS blocks (2.4 x 0.6 x 0.5 m) laid dry, mostly two high, a lone one or a gap here and there
+  // ---- the fence of grey FBS blocks (2.4 x 0.6 x 0.5 m) laid dry, two or three high, a lone one or a gap here and there
   let nBlocks = 0;
   for (let i = 1; i < FENCE.length; i++) {
     const a = FENCE[i - 1], b = FENCE[i], l = Math.hypot(b[0] - a[0], b[1] - a[1]), ff = face(a, b, -(b[1] - a[1]) / l, (b[0] - a[0]) / l);
     for (let s0 = 0; s0 + 2.38 <= l + 0.01; s0 += 2.4) {
-      const q = r(), rows = q < 0.05 ? 0 : q < 0.18 ? 1 : q < 0.93 ? 2 : 3;
+      const q = r(), rows = q < 0.05 ? 0 : q < 0.13 ? 1 : q < 0.72 ? 2 : 3;
       if (!rows) continue;
       const gs = [0, 1.19, 2.38].map((d) => { const p = at(ff, s0 + d, 0); return gY(p[0], p[2]); }), g = Math.min(...gs) - 0.06;
       for (let k = 0; k < rows; k++) {
@@ -461,7 +461,7 @@ function buildYard({ yards, heightAt, S, B, r }) {
       tube(P(0.3, -0.1, l * 0.6), P(0.05, R, l * 0.6), 0.035);
     }
     for (const t of [0.25, 0.55, 0.85, 1.15]) tube(P(-R * Math.cos(t), R * Math.sin(t), -0.28), P(-R * Math.cos(t), R * Math.sin(t), 0.28), 0.022);
-    D.setColor('#5cc4e2'); D.cyl(cx, g + R, cz, 0.36, 0.46, 0.2, 14);
+    D.setColor('#5cc4e2'); D.cyl(cx, g + R, cz, 0.4, 0.56, 0.22, 14);
     D.setColor('#7a4a2e'); tube(P(0.2, -0.1, 0), P(0.2, R, 0), 0.04); // the rusty back post
     pole(cx, cz, g, g + R + 0.16, 0.45);
     things.push([sC, oC, 2.4]);
@@ -499,8 +499,8 @@ function buildYard({ yards, heightAt, S, B, r }) {
     return { kind: 'park', variant: 'oak', sc: 0.9 + r() * 0.25 };
   };
   const shrub = (tall = 1) => (r() < 0.72
-    ? { kind: 'hedge', variant: 'hedge', pal: PARK_GREENS, s3: [1.0 + r() * 1.1, (1.0 + r() * 1.2) * tall, 0.9 + r() * 0.8], ry: r() * Math.PI }
-    : { kind: 'small', variant: r() < 0.5 ? 'fruit' : 'sapling', sc: 0.45 + r() * 0.3 });
+    ? { kind: 'hedge', variant: 'hedge', pal: PARK_GREENS, s3: [0.9 + r() * 1.0, (0.85 + r() * 0.9) * tall, 0.8 + r() * 0.7], ry: r() * Math.PI }
+    : { kind: 'small', variant: r() < 0.5 ? 'fruit' : 'sapling', sc: 0.4 + r() * 0.25 });
   const SPAN = [3, 262], GAP = [118, 146]; // the drive's bend between the blocks stays open
   // the belt between the drive and the lawn: big trees over thick shrubs, two rows deep
   for (let s = SPAN[0] + r() * 4; s < SPAN[1]; s += 8.5 + r() * 5) {
