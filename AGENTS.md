@@ -242,7 +242,13 @@ See `ARCHITECTURE.md` for the module map. Where things live:
     grey panels with dark seams (one wall quad per face and section over a painted 8 x 5 panel atlas), a window per panel,
     balcony stacks with the blue-diamond fronts, some glazed; the yard's entrances under canopies are the series' layout,
     a guess. One section per stair, each on its own level, so No.119 steps up its slope; No.119's shop porch with the red
-    fascia, No.117's pink-rendered shop strip; `tests/smil117.test.mjs`.
+    fascia, No.117's pink-rendered shop strip; `tests/smil117.test.mjs`. The yard behind both (issue #44, from a player's
+    balcony photos): nose-in pull-ins of trodden earth off the drive (`parked`), a dense belt of old poplars, elms and
+    overgrown shrubs (its own `spots`; `clear` takes the generated trees out of the yard), the open lawn with a trodden
+    path to the bins, the light-blue climbing arch and П-frame, washing-line posts, and a patchy fence of grey FBS blocks
+    (colliders kept bumper-high) on the OSM landuse edge, moved 5 m in as the photos show it. Beyond it six depot outlines (132613632 / 625 / 636 / 647 / 674 / 685,
+    no levels in OSM, so they extruded two to nine storeys) are rebuilt as one-storey brick sheds with grey or dark gabled
+    roofs, two partly roofless, as the aerial imagery and the photos show them (`SHEDS`, in `SMIL117_SKIP`).
   - `queststreets.js` – the street cards of «Таємниці Черкас» made visible (`kavkazka`, `gogol`, `gurzhiivska`, `rozkopna`,
     `cherkasy2`; it reads their `ll` from `game/quests/secrets.js`): beside the road at each card's spot (`findSpot`: the
     first place along the street clear of the carriageways and buildings) a post with the old enamel name plate under
