@@ -9,7 +9,14 @@
 //     car: { id, type, len, wid, h, color, x, y, z, ry (fx = cos ry, fz = -sin ry), pitch, gp, v, dead, parked, adSeed }
 //   sim.setDrawDistance(far = 700, k = 1): cars drawn within `far` m, LOD distances (45 / 170 m) times k; drawing only
 //   sim.setDensity(k), sim.setPlayer(pos, vel|null, groundY), sim.setPeds(api with walkers[{ x, z, road }])
-//   sim.addParkingSpots([[x, z, ry], ...]) cars standing on car parks (knockable; refilled out of sight once emptied)
+//   sim.addParkingSpots([[x, z, ry, y?], ...]) cars standing on the sites' car parks; grouped into 96 m cells, they
+//     stream in and out like the lots below
+//   sim.addParkingLots([{ x, z, r, spots: [[x, z, ry, y?], ...] | () => that }]) car parks streamed by distance: a lot
+//     whose disc comes within the park reach of the camera gets its cars (spots() is asked then, once), one beyond the
+//     reach + 80 m drops them; at most maxParked cars live, nearest lots first. A knocked car's spot is refilled (with
+//     another car) once the camera is 250 m off and no wreck lies on it. Checked every streaming refresh (0.5 s),
+//     per lot through a 128 m grid, never per spot per frame
+//   sim.setParkReach(reach, maxParked?) (setDrawDistance sets reach = 0.6 x far, maxParked 900 / 600 / 360 by far)
 //   sim.collideDynamic(pos, radius, height) -> null | { push: Vector3, normal: Vector3, depth, grounded, groundY, vel }
 //   sim.ram(q), sim.knock(car, dv?, spin?), sim.dent(w, px, py, pz, dx, dy, dz, J), sim.massOf(car | type),
 //   sim.makeMesh(type, colour, seed) (added to the traffic scene), sim.setSolid(s), sim.setDebris(d)
@@ -210,23 +217,100 @@ export function createTrafficSimulation({ scene = null, net, models = null, phas
   }
   function dropParked(L) { for (const c of L.parked) { c._gone = true; removeFrom(parkedCars, c); } L.parked = null; }
 
-  // ---- cars on the car parks the world lays out (sim.addParkingSpots): parked records outside the lanes, knocked into
-  // wrecks like any other; an emptied spot is refilled once it is far from the camera and no wreck lies on it
-  const spots = [], lotLink = { main: false, lane: 0, nl: 2, tw: false, cls: 'service', id: 0 };
+  // ---- cars on car parks (sim.addParkingSpots / addParkingLots): parked records outside the lanes, knocked into wrecks
+  // like any other. Lots stream by distance (a 128 m grid of them, checked at each refresh); a spot's car is the same
+  // one every time its lot streams in (sp.n counts only knocks), an emptied spot gets another car once the camera is
+  // 250 m off and no wreck lies on it
+  const lotLink = { main: false, lane: 0, nl: 2, tw: false, cls: 'service', id: 0 };
+  const LOT_CELL = 128, lotGrid = new Map(), liveLots = [], lotsNear = [];
+  const park = { reach: 420, max: 900, lots: 0, spots: 0 };
+  let parkedLot = 0; // live cars on lots
   function fillSpot(sp) {
     let c = null;
-    for (let k = 0; k < 4 && (!c || c.len > 5.6); k++) c = makeCar(lotLink, 0, sp.seed + k * 7717 + sp.n * 104729);
-    sp.n++;
+    // no buses or trucks in a bay, and few cabs: a street-mix taxi share would fill a car park with them
+    const bad = (c) => c.len > 5.6 || c.type.startsWith('taxi') && c.rng() < 0.85;
+    for (let k = 0; k < 5 && (!c || bad(c)); k++) c = makeCar(lotLink, 0, sp.seed + k * 7717 + sp.n * 104729);
     if (c.len > 5.6) return;
     c.L = null; c.parked = true; c.v = 0;
     c.x = sp.x; c.z = sp.z; c.ry = sp.ry; c.fx = Math.cos(c.ry); c.fz = -Math.sin(c.ry);
-    c.y = heightAt(c.x, c.z) || 0;
-    sp.car = c; parkedCars.push(c);
+    c.y = sp.y ?? (heightAt(c.x, c.z) || 0);
+    sp.car = c; parkedCars.push(c); parkedLot++;
+  }
+  const wreckOn = (sp) => W.list.some((w) => (w.p.x - sp.x) ** 2 + (w.p.z - sp.z) ** 2 < 16);
+  function lotSpots(lot) {
+    if (!lot.sp) {
+      const raw = typeof lot.spots === 'function' ? lot.spots() : lot.spots;
+      lot.sp = raw.map(([x, z, ry, y]) => ({ x, z, ry, y, seed: (Math.imul(Math.round(x * 10), 73856093) ^ Math.imul(Math.round(z * 10), 19349663)) >>> 0, n: 0, car: null }));
+      park.spots += lot.sp.length;
+    }
+    return lot.sp;
+  }
+  function addLot(lot) {
+    lot.live = false; lot.sp = null; park.lots++;
+    const i0 = Math.floor((lot.x - lot.r) / LOT_CELL), i1 = Math.floor((lot.x + lot.r) / LOT_CELL);
+    const j0 = Math.floor((lot.z - lot.r) / LOT_CELL), j1 = Math.floor((lot.z + lot.r) / LOT_CELL);
+    for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) { const k = hk(i, j); let b = lotGrid.get(k); if (!b) lotGrid.set(k, b = []); b.push(lot); }
+  }
+  function lotIn(lot) { // fill a lot's spots up to the budget (fillSpot counts parkedLot); wrecked spots wait
+    lot.short = false;
+    for (const sp of lotSpots(lot)) {
+      if (sp.car && !sp.car._gone) continue;
+      if (parkedLot >= park.max) { lot.short = true; break; } // the budget ran out: finished on a later refresh
+      if (sp.car) sp.n++; // knocked since it was filled
+      sp.car = null;
+      if (!wreckOn(sp)) fillSpot(sp);
+    }
+    if (!lot.live) { lot.live = true; liveLots.push(lot); }
+  }
+  function lotOut(lot) {
+    for (const sp of lot.sp) if (sp.car) { if (sp.car._gone) sp.n++; else { sp.car._gone = true; parkedLot--; } sp.car = null; }
+    lot.live = false;
   }
   function refillSpots(cx, cz) {
-    for (const sp of spots) {
-      if (sp.car && !sp.car._gone || (sp.x - cx) ** 2 + (sp.z - cz) ** 2 < 250 * 250) continue;
-      if (!W.list.some((w) => (w.p.x - sp.x) ** 2 + (w.p.z - sp.z) ** 2 < 16)) fillSpot(sp);
+    const R = park.reach, out2 = (R + 80) ** 2;
+    // drop the lots that fell out of reach (one filter pass over parkedCars, not a splice per car)
+    let dropped = false;
+    for (let i = liveLots.length; i-- > 0;) {
+      const L = liveLots[i];
+      if ((L.x - cx) ** 2 + (L.z - cz) ** 2 > out2 + 2 * (R + 80) * L.r + L.r * L.r) { lotOut(L); liveLots.splice(i, 1); dropped = true; }
+    }
+    parkedLot = 0; for (const L of liveLots) for (const sp of L.sp) if (sp.car && !sp.car._gone) parkedLot++;
+    if (parkedLot > park.max) { // the budget shrank (a lower graphics level): the farthest lots go first
+      for (const L of liveLots) L._d = Math.hypot(L.x - cx, L.z - cz) - L.r;
+      liveLots.sort((a, b) => a._d - b._d);
+      while (parkedLot > park.max && liveLots.length) {
+        lotOut(liveLots.pop()); dropped = true; // counts parkedLot down
+      }
+    }
+    if (dropped) { let w = 0; for (const c of parkedCars) if (!c._gone) parkedCars[w++] = c; parkedCars.length = w; }
+    // the lots in reach, nearest first, while the budget lasts
+    lotsNear.length = 0;
+    const i0 = Math.floor((cx - R) / LOT_CELL), i1 = Math.floor((cx + R) / LOT_CELL), j0 = Math.floor((cz - R) / LOT_CELL), j1 = Math.floor((cz + R) / LOT_CELL);
+    for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) {
+      const b = lotGrid.get(hk(i, j)); if (!b) continue;
+      for (const L of b) {
+        if (L.live || L._q === frame) continue;
+        L._q = frame; L._d = Math.hypot(L.x - cx, L.z - cz) - L.r;
+        if (L._d < R) lotsNear.push(L);
+      }
+    }
+    lotsNear.sort((a, b) => a._d - b._d);
+    const t0 = performance.now();
+    for (const L of liveLots) if (L.short && parkedLot < park.max) lotIn(L); // lots the budget cut short before
+    for (const L of lotsNear) {
+      if (parkedLot >= park.max) break;
+      // a lot laid out on its first visit costs ~0.3 ms (up to ~8): past 3 ms a refresh leaves the rest to the next one
+      if (!L.sp && typeof L.spots === 'function' && !first && performance.now() - t0 > 3) continue;
+      lotIn(L);
+    }
+    // knocked cars on live lots come back once the camera is well away
+    for (const L of liveLots) {
+      if ((L.x - cx) ** 2 + (L.z - cz) ** 2 < (250 + L.r) ** 2) continue;
+      for (const sp of L.sp) {
+        if (sp.car && !sp.car._gone || parkedLot >= park.max) continue;
+        if (sp.car) { sp.n++; sp.car = null; }
+        if (!wreckOn(sp)) fillSpot(sp); // counts itself in parkedLot
+      }
     }
   }
 
@@ -467,7 +551,7 @@ export function createTrafficSimulation({ scene = null, net, models = null, phas
       if (!fleet || d > drawR.far) return;
       _q.setFromEuler(_eu.set(0, c.ry, c.pitch + c.gp, 'YZX'));
       _mat.compose(_p.set(c.x, c.y, c.z), _q, UNIT);
-      fleet.add(c.type, d < 45 * drawR.k ? 0 : d < 170 * drawR.k ? 1 : 2, _mat.elements, c.color, c.brake, c.adSeed);
+      fleet.add(c.type, d < 45 * drawR.k ? 0 : d < 170 * drawR.k ? 1 : 2, _mat.elements, c.color, c.brake, c.adSeed, c.parked ? 1 : 0);
     };
     for (const c of live) drawCar(c);
     for (const c of parkedCars) drawCar(c);
@@ -512,7 +596,11 @@ export function createTrafficSimulation({ scene = null, net, models = null, phas
     update,
     cars: () => live.concat(parkedCars),
     setDensity(k) { dens = Math.max(0, +k || 0); },
-    setDrawDistance(far = 700, k = 1) { drawR.far = Math.min(700, far); drawR.k = k; },
+    setDrawDistance(far = 700, k = 1) {
+      drawR.far = Math.min(700, far); drawR.k = k;
+      sim.setParkReach(0.6 * drawR.far, drawR.far >= 600 ? 900 : drawR.far >= 450 ? 600 : 360);
+    },
+    setParkReach(reach, max = park.max) { park.reach = Math.max(50, reach); park.max = Math.max(0, max); refreshT = 0; },
     get density() { return dens; },
     setPlayer(pos, vel, gy) {
       if (pos) { player.p.copy(pos); player.set = true; }
@@ -534,16 +622,20 @@ export function createTrafficSimulation({ scene = null, net, models = null, phas
     setSolid: (s) => W.setSolid(s),
     setDebris: (d) => W.setDebris(d),
     queryCars: (x, z, r, out) => query(x, z, r, out),
-    addParkingSpots(list) { // [[x, z, ry], ...] ry: yaw in the car frame (forward = cos ry, -sin ry)
-      for (const [x, z, ry] of list) {
-        const sp = { x, z, ry, seed: (Math.imul(Math.round(x * 10), 73856093) ^ Math.imul(Math.round(z * 10), 19349663)) >>> 0, n: 0, car: null };
-        spots.push(sp); fillSpot(sp);
-      }
+    addParkingSpots(list) { // [[x, z, ry, y?], ...] ry: yaw in the car frame (forward = cos ry, -sin ry); 96 m cells become lots
+      const cells = new Map();
+      for (const s of list) { const k = hk(Math.floor(s[0] / 96), Math.floor(s[1] / 96)); let c = cells.get(k); if (!c) cells.set(k, c = []); c.push(s); }
+      sim.addParkingLots([...cells.values()].map((sp) => {
+        let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity;
+        for (const [x, z] of sp) { x0 = Math.min(x0, x); x1 = Math.max(x1, x); z0 = Math.min(z0, z); z1 = Math.max(z1, z); }
+        return { x: (x0 + x1) / 2, z: (z0 + z1) / 2, r: Math.hypot(x1 - x0, z1 - z0) / 2 + 3, spots: sp };
+      }));
     },
+    addParkingLots(list) { for (const L of list) addLot(L); refreshT = 0; },
     stats() {
       let stopped = 0; for (const c of live) if (c.v < 0.3) stopped++;
       const f = fleet ? fleet.stats() : { drawn: 0, byLod: [0, 0, 0], meshes: 0 };
-      return { cars: live.length, parked: parkedCars.length, stopped, moving: live.length - stopped, activeLinks: active.length,
+      return { cars: live.length, parked: parkedCars.length, parkedLot, liveLots: liveLots.length, lots: park.lots, lotSpots: park.spots, parkReach: park.reach, stopped, moving: live.length - stopped, activeLinks: active.length,
         density: dens, drawn: f.drawn, lod0: f.byLod[0], lod1: f.byLod[1], lod2: f.byLod[2], meshes: f.meshes, ...cnt, ...W.stats(),
         simMs: +ms.sim.toFixed(3), wreckMs: +ms.wrecks.toFixed(3), drawMs: +ms.draw.toFixed(3) };
     },

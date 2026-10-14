@@ -341,6 +341,14 @@ See `ARCHITECTURE.md` for the module map. Where things live:
     drive or fly through it. Five draw calls, ~3.1k vertices; `tests/yacht.test.mjs`.
   - `billboards.js` – roadside billboards sold through the bot: the `BILLBOARDS` list (spot, facing, art) and the
     builder; unsold ones show the "ваша реклама / @driver_game_bot" placeholder. The header says how to add a real one.
+  - `carparks.js` – parked cars on the ordinary car parks: map.json `parking` (the open-air OSM lots; build_map leaves
+    out underground / multi-storey / roof / garage rows / `parking=lane`) minus the lots a site fills with its own
+    `parked` or keeps empty (a site's `lot.ring`: Ekvator's drift lot). A lot is laid out on its first approach (rows of
+    2.5 x 5 m stalls with 6 m aisles, or parallel bays in a strip, off buildings, roads, footways, trees and solids;
+    50–85 % taken, seeded by the OSM id) and its stalls get faint painted lines (one mesh for all lots). The traffic sim
+    streams the cars (`sim.addParkingLots`): lots within 0.6 x the traffic draw reach (420 / 300 / 210 m) hold cars,
+    dropped 80 m past it, at most 900 / 600 / 360 live; the sites' `parked` spots stream the same way. Parked cars keep
+    their lamps dark at night (`fleet.add(..., off)`). `tests/carparks.test.mjs`.
   - Requests #28–#30: `atb26` rebuilds the supermarket at Остафія Дашковича 26 with a charcoal shopfront beneath
     the three-storey tiled street block; `school7` builds both school №7 blocks at Добровольчих батальйонів 13 and
     the yellow-railed Odeska pedestrian bridge over the roads, garages and railway. Both schools and ATB are
@@ -360,7 +368,7 @@ See `ARCHITECTURE.md` for the module map. Where things live:
     deck so they follow a humped one;
   - `vehicles.js` – loads the glb models, instanced fleet, `makeMesh`; the ad tiles on vans, bus sides and backs and roof signs (tile 1 is URBAN's, paid: a quarter of the 12 m buses wear it in URBAN blue) and `makeUrbanLivery`, the URBAN box-truck livery (sides and back doors) a quarter of the box trucks wear; both are picked by `urbanDress` in `traffic.js`, which every dress hook calls last (`defaultDress` there, `dressCar` in `world/cherkasy/traffic.js`);
   - `traffic.js` and `wrecks.js` – the traffic sim, rigid-body wrecks and dents; the car rams through
-    `ram(q)`;
+    `ram(q)`; car-park cars stream by lot through a 128 m grid at each 0.5 s refresh (`addParkingLots`, `setParkReach`);
   - `people.js` and `people/` – procedural, GPU-animated pedestrians and pigeons; `people/area.js` keeps them inside
     `map.region`, near buildings or in parks (map.json's ways run on into the fields past the region);
   - `gibs.js` – gore chunks and debris.

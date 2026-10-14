@@ -7,10 +7,11 @@
 //     models = { geos: { [type]: [lod0, lod1, lod2] }, material, atlas, fallback, types[], setNight(k 0..1),
 //                makeMesh(type, colour, seed) -> { mesh (InstancedMesh, 1 instance, own geometry copy), g, dispose() } }
 //   createFleet(scene, models, { shadows = true }) -> fleet
-//     fleet.begin(); fleet.add(type, lod, matrixElements[16], paint[3] linear rgb, brake 0..1, seed); fleet.end()
+//     fleet.begin(); fleet.add(type, lod, matrixElements[16], paint[3] linear rgb, brake 0..1, seed, off 0 / 1); fleet.end()
+//     off 1: a parked car, its lamps dark at night
 //     fleet.stats() -> { drawn, byLod: [n0, n1, n2], meshes }; fleet.dispose()
 //   paintOf(colour) -> [r, g, b] linear (accepts [r,g,b], THREE.Color, 0xrrggbb)
-// Per-instance attributes: aPaint (vec3, applied to PAINT parts only), aMisc (x brake, y ad tile 0..7 from adTile(seed);
+// Per-instance attributes: aPaint (vec3, applied to PAINT parts only), aMisc (x brake, z lamps off, y ad tile 0..7 from adTile(seed);
 // tiles 5..7 also swap the box truck's red "your ad here" side for the Telegram-blue one).
 //   AD_URBAN, URBAN_BLUE, adSeedFor(tile) -> a seed that shows exactly that tile, adTile(seed) -> 0..7 (8 = LIVERY_URBAN:
 //   a box truck in the URBAN livery, makeUrbanLivery() -> CanvasTexture | null, read by the material as uUrban) The material
@@ -267,9 +268,10 @@ roughnessFactor = part == 1 ? 0.3 : part == 2 ? 0.25 : part == 3 ? 0.06 : part =
       .replace('#include <metalnessmap_fragment>', `#include <metalnessmap_fragment>
 metalnessFactor = part == 2 ? 1.0 : part == 1 ? 0.15 : part == 3 ? 0.35 : 0.0;`)
       .replace('#include <emissivemap_fragment>', `#include <emissivemap_fragment>
-if (part == 7) totalEmissiveRadiance += texel * uNight * 2.6;
-else if (part == 8) totalEmissiveRadiance += texel * vec3(1.0, 0.25, 0.2) * (uNight * 0.7 + vMisc.x * 2.2);
-else if (part == 4) totalEmissiveRadiance += texel * uNight * 0.8;
+float lampN = uNight * (1.0 - vMisc.z); // a parked car's lamps stay dark
+if (part == 7) totalEmissiveRadiance += texel * lampN * 2.6;
+else if (part == 8) totalEmissiveRadiance += texel * vec3(1.0, 0.25, 0.2) * (lampN * 0.7 + vMisc.x * 2.2);
+else if (part == 4) totalEmissiveRadiance += texel * lampN * 0.8;
 else if (part == 14) totalEmissiveRadiance += texel * (0.6 + uNight * 0.8);
 else if (part == 15 && uNight > 0.2) totalEmissiveRadiance += texel * 0.15 * uNight;`);
   };
@@ -422,7 +424,7 @@ export function createFleet(scene, models, opts = {}) {
   const byLod = [0, 0, 0];
   return {
     begin() { for (const b of batches.values()) b.n = 0; byLod[0] = byLod[1] = byLod[2] = 0; },
-    add(type, lod, m, paint, brake = 0, seed = 0) {
+    add(type, lod, m, paint, brake = 0, seed = 0, off = 0) {
       if (!models.geos[type]) type = 'sedan';
       const b = batch(type, lod);
       if (b.n >= b.cap) grow(b, b.cap * 2);
@@ -430,7 +432,7 @@ export function createFleet(scene, models, opts = {}) {
       b.mesh.instanceMatrix.array.set(m, i * 16);
       const P = b.geo.attributes.aPaint.array, M = b.geo.attributes.aMisc.array;
       P[i * 3] = paint[0]; P[i * 3 + 1] = paint[1]; P[i * 3 + 2] = paint[2];
-      M[i * 3] = brake; M[i * 3 + 1] = adTile(seed);
+      M[i * 3] = brake; M[i * 3 + 1] = adTile(seed); M[i * 3 + 2] = off;
       byLod[lod]++;
     },
     end() {
