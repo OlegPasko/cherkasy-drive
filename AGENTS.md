@@ -292,6 +292,13 @@ See `ARCHITECTURE.md` for the module map. Where things live:
     the police memorial, the «Жертвам фашизму» stele, the Holodomor cross on its boulder and the church «Чорнобильський Спас»
     (OSM 415330174) on one paved plaza, and instanced lamps and benches along the OSM footways; the generated trees stay;
     `tests/sobornyi.test.mjs`).
+  - `school8` (issue #47, `improved`): Черкаська ЗОШ I–III ступенів №8, вул. Смілянська 88/2, on its lot off Оборонна (OSM
+    583918763), from the school site's forecourt photo and the aerial: the orange-brick H of OSM 158844435 – the three-storey
+    classroom block under a low dark gable roof with its taller flat-topped south-west end and the stair tower with an
+    open canopy on posts, the one-storey glazed entrance hall between the bars (dark red piers, two white door bays, the
+    red roof edge), the two-storey north-west bar with the gym's high windows (a guess) – and the one-storey block OSM
+    158844436; the asphalt forecourt, firs and a chestnut, a worn grass pitch with goals, an asphalt basketball court, a
+    jump pit with bars, and the lot's green bar fence with the gate open at the drive; `tests/school8.test.mjs`.
   - `places.js` – the sights, the paying partners (kind `ad`) and the non-landmark objects rebuilt on request (kind
     `improved`: a grey footprint only, "Покращений об’єкт" in the big map's legend) for both maps: icon, name, note, the OSM buildings
     whose footprints get highlighted, and for partners the site `url` (with `utm_source=driver.ck.ua`) and the pitch
