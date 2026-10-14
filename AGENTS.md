@@ -292,6 +292,14 @@ See `ARCHITECTURE.md` for the module map. Where things live:
     the police memorial, the «Жертвам фашизму» stele, the Holodomor cross on its boulder and the church «Чорнобильський Спас»
     (OSM 415330174) on one paved plaza, and instanced lamps and benches along the OSM footways; the generated trees stay;
     `tests/sobornyi.test.mjs`).
+  - `chdbk` (issue #49, `improved`): ЧДБК, the state business college at Чорновола 243, its whole campus from the
+    college's photos and the aerial – the red-rendered three-storey wing on Чиковані with grey corner cassettes, a blue
+    hipped roof and its portico (four piers, the polycarbonate vault under a white arch, the college's own sign
+    «ЧЕРКАСЬКИЙ ДЕРЖАВНИЙ БІЗНЕС-КОЛЕДЖ» with the trident), the blocks behind it with the first-floor bridge the yard
+    drive passes under, the five-storey banded-brick dormitory with its blue porch on Чорновола; the grounds: the street
+    fence (brick piers with blue caps, grey ornamental iron, open gates), inner and back fences, the paved forecourt,
+    bollards, spruces, the OSM football field marked out with goals, the small pitch, the basketball hoops and bars;
+    `tests/chdbk.test.mjs`.
   - `places.js` – the sights, the paying partners (kind `ad`) and the non-landmark objects rebuilt on request (kind
     `improved`: a grey footprint only, "Покращений об’єкт" in the big map's legend) for both maps: icon, name, note, the OSM buildings
     whose footprints get highlighted, and for partners the site `url` (with `utm_source=driver.ck.ua`) and the pitch
