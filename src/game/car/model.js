@@ -1,4 +1,6 @@
 // Procedural flying Cybertruck-style pickup (the player's car). buildCarModel() -> { object, body, set(state, dt), eye, interior, driver, materials }
+// Also exports the pieces roadster.js shares: DIM, STEEL (the stainless paint), paintedTexture, gradTex, radialTex, liveCanvas,
+// bakeStatic (merge static meshes per draw state).
 // Car space: +z forward (nose), +x = LEFT side (driver sits at +x, left-hand drive), +y up, y 0 = ground contact.
 // Shape after the Tesla Cybertruck (5.6 m, 3.6 m wheelbase, 1.8 m tall): one straight line from the nose over the hood
 // and the huge windshield up to the roof peak, then the "sail" straight down to the tailgate; flat unpainted stainless
@@ -22,11 +24,13 @@ import { logoTexture } from '../../kit/logo.js';
 const { clamp, lerp } = THREE.MathUtils;
 const smooth = (t) => { const u = clamp(t, 0, 1); return u * u * (3 - 2 * u); }; // smoothstep 0..1
 
+// the unpainted stainless body: the Roadster (roadster.js) wears the same
+export const STEEL = { color: 0xbfc3c7, metalness: 0.9, roughness: 0.3 };
 export const DIM = { len: 5.68, wid: 2.03, wb: 3.6, track: 1.72, wheelR: 0.43, wheelZ: 1.8, wheelX: 0.86, height: 1.8 };
 const EYE = new THREE.Vector3(0.42, 1.57, -0.18);
 
 // a canvas of w x h painted once by paint(ctx2d) -> sRGB CanvasTexture
-function paintedTexture(w, h, paint, flip = true) {
+export function paintedTexture(w, h, paint, flip = true) {
   const cv = Object.assign(document.createElement('canvas'), { width: w, height: h });
   paint(cv.getContext('2d'), w, h);
   const tex = new THREE.CanvasTexture(cv);
@@ -34,13 +38,13 @@ function paintedTexture(w, h, paint, flip = true) {
   return tex;
 }
 // vertical colour ramp (flame cones): stops [[t, css], ...] from v = 0 down to v = 1
-const gradTex = (stops) => paintedTexture(4, 64, (g, w, h) => {
+export const gradTex = (stops) => paintedTexture(4, 64, (g, w, h) => {
   const ramp = g.createLinearGradient(0, 0, 0, h);
   stops.forEach(([t, css]) => ramp.addColorStop(t, css));
   g.fillStyle = ramp; g.fillRect(0, 0, w, h);
 }, false);
 // soft round glow sprite for the nozzles
-const radialTex = () => paintedTexture(64, 64, (g) => {
+export const radialTex = () => paintedTexture(64, 64, (g) => {
   const ramp = g.createRadialGradient(32, 32, 0, 32, 32, 32);
   [[0, 'rgba(255,255,255,1)'], [0.3, 'rgba(160,210,255,0.5)'], [1, 'rgba(60,120,255,0)']].forEach(([t, css]) => ramp.addColorStop(t, css));
   g.fillStyle = ramp; g.fillRect(0, 0, 64, 64);
@@ -48,7 +52,7 @@ const radialTex = () => paintedTexture(64, 64, (g) => {
 
 // ---------------------------------------------------------------- centre screen (Tesla-style UI, canvas)
 // a canvas redrawn at run time: { g (2d context), tex }
-function liveCanvas(w, h) {
+export function liveCanvas(w, h) {
   const cv = Object.assign(document.createElement('canvas'), { width: w, height: h });
   const tex = new THREE.CanvasTexture(cv);
   tex.colorSpace = THREE.SRGBColorSpace;
@@ -157,7 +161,7 @@ function flipWinding(g) {
 // Kept as they are: subtrees flagged userData.live (moved, spun or toggled at run time: bake those on their own),
 // meshes flagged userData.solo (the glass panes, sorted back to front one by one) and draw states with a single mesh.
 // opts.receiveShadow overrides the flag on the result (the cabin has always been lit without the roof's shadow).
-function bakeStatic(root, opts = {}) {
+export function bakeStatic(root, opts = {}) {
   root.updateMatrixWorld(true);
   const inv = root.matrixWorld.clone().invert(), bins = new Map(), rel = new THREE.Matrix4();
   (function walk(o) {
@@ -190,7 +194,7 @@ export function buildCarModel({ accent = 0xf2c230 } = {}) {
   const root = new THREE.Group(); root.name = 'PlayerCar';
   const body = new THREE.Group(); root.add(body);
   const M = {
-    paint: new THREE.MeshStandardMaterial({ name: 'CarSteel', color: 0xbfc3c7, metalness: 0.9, roughness: 0.3 }), // unpainted stainless
+    paint: new THREE.MeshStandardMaterial({ name: 'CarSteel', ...STEEL }), // unpainted stainless
     accent: new THREE.MeshPhysicalMaterial({ name: 'CarAccent', color: accent, metalness: 0.3, roughness: 0.35, clearcoat: 1, clearcoatRoughness: 0.08 }),
     black: new THREE.MeshStandardMaterial({ name: 'CarBlack', color: 0x141517, metalness: 0.2, roughness: 0.7 }),
     plastic: new THREE.MeshStandardMaterial({ name: 'CarPlastic', color: 0x1b1c1f, roughness: 0.85 }),

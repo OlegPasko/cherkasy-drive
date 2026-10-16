@@ -1,7 +1,9 @@
-// The player's flying car. createCar({ scene, world, camera, input }) -> player API
-//   { update(dt), object, state, model, cam, position (body centre, ~0.95 m over the road), velocity, heading (camera
-//     yaw), yaw, grounded, mode ('drive' | 'air'), flying, teleport(pos, yaw), reset(toSafe?), home() (back to the start),
-//     setControlOverride(fn),
+// The player's flying car. createCar({ scene, world, camera, input, kind = 'cybertruck' }) -> player API
+//   { update(dt, hold? (all controls released: a modal card is up)), object (the car's node: the current model hangs in it), state, model (the current one), cam, position
+//     (body centre, ~0.95 m over the road), velocity, heading (camera yaw), yaw, grounded, mode ('drive' | 'air'), flying,
+//     kind ('cybertruck' | 'roadster'), gas (true for the Roadster), swap(kind) -> bool (the other car in place:
+//     position, velocity and heading kept; each model built once), teleport(pos, yaw), reset(toSafe?), home() (back to
+//     the start), setControlOverride(fn),
 //     frozen, onEvents (set by missions: fn(events[]) with { type: 'crash' | 'land' | 'splat' | 'takeoff' | 'splash', severity, ram? }),
 //     onSound (set by src/audio/game.js: the same events, first; the motor sound reads `state` itself),
 //     hud (set by main: { setTelemetry(state, vF, camMode) } – the chase-view speed readout) }
@@ -25,8 +27,18 @@
 // Touching down keeps the wings out while the car is fast; back at normal speed (without Shift) they fold away.
 // Controls: W / S gas / brake-reverse, A / D steer, Space handbrake, Shift wings + jet, C camera (cockpit / chase),
 // F horn (state.horn; the sound is src/audio/game.js), R reset (upright, back on the road), mouse look.
+// Two cars (CARS: physics P, model, collision circles, ram box, camera): the Cybertruck above (model.js) and the
+// Roadster (roadster.js, unlocked by game/garage.js): a low wedge, ~1.5x the top speed (87 m/s limiter), a hard launch,
+// ~1.5 g of grip; no wings: cold-gas thrusters. On the ground Shift charges the jump (state.charge 0..1 over 10 s,
+// state.jumpH the height it gives, jumpHeight(c) = 1.5..48 m); letting go leaps straight up (the road speed kept; a
+// 'takeoff' event with gas: true). In the air the belly jets only push up: the climb is ballistic, then they catch the
+// fall at a 5 m/s sink (glide) and cushion the touchdown; Shift / Space climb slowly (hover), arrow up / Ctrl / X sink
+// faster, W thrusts forward on the rear nozzles (to 45 m/s), S brakes, A / D turn. state.gasDown / gasRear drive the
+// jets, the puffs and the hiss. Its ram box carries wedge: 1, so struck cars fly up and over it (npc/wrecks.js).
+// state.parkT: seconds standing still with no input (the Roadster opens its doors after 4 s in the chase view).
 import * as THREE from 'three';
-import { buildCarModel, DIM } from './model.js';
+import { buildCarModel, DIM as CT_DIM } from './model.js';
+import { buildRoadsterModel, RDIM } from './roadster.js';
 import { createCarCollider, pushOutCapsule } from './collide.js';
 import { nightK } from '../../render/daylight.js';
 
@@ -37,7 +49,7 @@ function damp(a, b, r, dt) { return b + (a - b) * Math.exp(-r * dt); }
 function angWrap(a) { return Math.atan2(Math.sin(a), Math.cos(a)); }
 const G = 9.81, WATER_Y = -1.0;
 const V_SKIM = 100 / 3.6; // over the river: slower than this the car sinks at once, faster it skims the surface
-const P = {
+const P_CT = {
   vRoad: 58,          // motor-only top speed (m/s, ~209 km/h, the Cyberbeast's limiter)
   aEngine: 10.5,      // launch acceleration (m/s^2): instant electric torque
   pw: 200,            // power / mass (W/kg ~ 630 kW / 3.1 t): a = min(aEngine, pw / v)
@@ -48,24 +60,45 @@ const P = {
   latMax: 11.5,       // lateral grip cap (m/s^2): a heavy, low-slung car corners flat, ~1.2 g
   air: { cruise: 25, boost: 85, accCruise: 0.9, accBoost: 0.55, glideDrag: 0.035, brake: 0.9, climb: 11, climbJet: 22, dive: 22, ceil: 900, turn: 1.15 },
 };
+// The Roadster: a low, grippy wedge; ~1.5x the Cybertruck's limiter, a hard launch. No wings: cold-gas thrusters.
+const P_RD = {
+  vRoad: 87, aEngine: 12.5, pw: 800, aBrake: 17, aRev: 6, vRev: 10,
+  cd: 0.0012, roll: 0.12, engBrake: 0.8, aJet: 0, vLift: 40, latMax: 15,
+  // air: W pushes toward `cruise`, no W bleeds slowly; the belly jets catch the fall at `sink` (Shift: climb at
+  // `climb`), cushion it over the ground (`flare` m), push up with at most `thrust` (m/s^2)
+  air: { cruise: 45, accCruise: 0.75, glideDrag: 0.05, brake: 0.9, turn: 1.3, follow: 2.5, sink: 5, climb: 4, dive: 12, flare: 5, gain: 3, thrust: 2.2 * G, ceil: 700 },
+  // the jump: Shift held on the ground charges for `chargeT` s; the release leaps hop..high metres (straight up, the
+  // road speed kept)
+  gas: { chargeT: 10, hop: 1.5, high: 48 },
+};
+// the two player cars: physics, model, collision circles, ram box height (wedge: struck cars are lifted over it), camera
+export const CARS = {
+  cybertruck: { kind: 'cybertruck', P: P_CT, DIM: CT_DIM, build: buildCarModel, gas: false, offs: [1.95, 0.65, -0.65, -1.95], ramH: 1.8, wedge: 0, cam: { dist: 7, tgt: 1.5, look: 1.6 } },
+  roadster: { kind: 'roadster', P: P_RD, DIM: RDIM, build: buildRoadsterModel, gas: true, offs: [1.35, 0.45, -0.45, -1.35], ramH: 1.15, wedge: 1, cam: { dist: 6.2, tgt: 1.1, look: 1.15 } },
+};
+export const jumpHeight = (charge, P = P_RD) => P.gas.hop + (P.gas.high - P.gas.hop) * clamp(charge, 0, 1);
 const STALL_VN = 6; // m/s into a wall while flying: above it the wings stall and the car drops
 const R_COL = 1.0, H_COL = 2.0, STEP = 0.5; // big tyres: kerbs and steps up to half a metre
-const OFFS = [1.95, 0.65, -0.65, -1.95]; // 5.7 m long: four circles
 const CAM_KEY = 'cd.carCam';
 const TRAUMA = { crash: 1, land: 0.5, takeoff: 0.15 }; // camera shake per event (x severity)
 
-export function createCar({ scene, world, camera, input }) {
-  const model = buildCarModel();
-  const object = model.object; scene.add(object);
+export function createCar({ scene, world, camera, input, kind = 'cybertruck' }) {
+  let K = CARS[kind] || CARS.cybertruck, P = K.P, DIM = K.DIM, OFFS = K.offs;
+  const models = {};
+  let model = models[K.kind] = K.build();
+  // the car's node: the current model hangs in it, so a swap keeps every outside reference (water.reflectCull, ...)
+  const object = new THREE.Group(); object.name = 'PlayerCar'; object.add(model.object); scene.add(object);
+  if (model.fx) scene.add(model.fx);
   const col = createCarCollider(world);
   const s = {
     p: new THREE.Vector3(), v: new THREE.Vector3(), yaw: 0, yawRate: 0, steer: 0, grounded: true,
     wing: 0, turb: 0, thrust: 0, jetK: 0, gear: 1, rpm: 900, wheelA: 0,
+    charge: 0, chargeT: 0, charging: false, jumpH: 0, burst: 0, gasDown: 0, gasRear: 0, parkT: 0,
     pitch: 0, roll: 0, bank: 0, susP: 0, susR: 0, heave: 0, heaveV: 0, slip: 0, brake: false, hb: false,
     airT: 0, fpa: 0, stall: 0, airbrake: false, drift: 0, safe: new THREE.Vector3(), safeYaw: 0, safeT: 0, sinkT: 0, throttle: 0, lastA: 0, alt: 0, horn: false,
   };
   const pos = new THREE.Vector3(); // body centre (API position)
-  const cam = createCarCamera(camera, world, model);
+  const cam = createCarCamera(camera, world, model, K);
   const events = [];
 
   // ---------------------------------------------------------------- helpers
@@ -88,7 +121,7 @@ export function createCar({ scene, world, camera, input }) {
   let lastHit = 0;
   // traffic and people give way: the car rams them with a heavy "gameplay" mass (people barely register, small cars
   // cost a little speed, buses a lot but never all of it); the struck cars fly off as wrecks (world.ram)
-  const RAM_MASS = 12000, ramQ = { x: 0, y: 0, z: 0, fx: 0, fz: 0, hl: DIM.len / 2 + 0.25, hw: DIM.wid / 2 + 0.06, /* a bit beyond the collision circles' reach (1.95 + R_COL): the ram sees a car / tree before the wall-like push-out */ h: 1.8, v: null, mass: RAM_MASS };
+  const RAM_MASS = 12000, ramQ = { x: 0, y: 0, z: 0, fx: 0, fz: 0, hl: DIM.len / 2 + 0.25, hw: DIM.wid / 2 + 0.06, /* a bit beyond the collision circles' reach (1.95 + R_COL): the ram sees a car / tree before the wall-like push-out */ h: K.ramH, v: null, mass: RAM_MASS, wedge: K.wedge };
   let lastRam = 0;
   function ram() {
     if (!world.ram) return;
@@ -288,6 +321,71 @@ export function createCar({ scene, world, camera, input }) {
     s.roll = -s.bank;
   }
 
+  // ---------------------------------------------------------------- air, gas (the Roadster: no wings, cold-gas jets)
+  // The belly jets only ever push up: after the jump the climb is ballistic, then they catch the fall at a gentle sink
+  // (glide), Shift / Space hold a slow climb, arrow up / Ctrl / X sink faster, arrow down climbs; W thrusts forward
+  // through the rear nozzles, S brakes, A / D turn (the path follows the nose). A short drop off a kerb stays ballistic.
+  function stepAirGas(h, I) {
+    s.airT += h;
+    { const f0 = floorAt(s.p.x, s.p.z, s.p.y + 0.6); s.alt = s.p.y - Math.max(f0, WATER_Y); }
+    const A = P.air, ws = I.throttle ?? I.move.y, up = !!I.sprint || !!I.jump;
+    s.throttle = 0; s.hb = false; s.brake = false; s.airbrake = ws < -0.1;
+    _vh.set(s.v.x, 0, s.v.z);
+    let hs = _vh.length();
+    if (ws > 0.1 && hs < A.cruise) hs += (A.cruise - hs) * (1 - Math.exp(-A.accCruise * ws * h));
+    else hs *= Math.exp(-A.glideDrag * h);
+    if (ws < -0.1) hs *= Math.exp(-A.brake * -ws * h);
+    s.yawRate = damp(s.yawRate, -I.move.x * A.turn / (1 + hs / 60), 3, h);
+    s.yaw += s.yawRate * h;
+    const cur = hs > 0.1 ? Math.atan2(s.v.x, s.v.z) : s.yaw;
+    const along = cur + angWrap(s.yaw - cur) * (1 - Math.exp(-A.follow * h));
+    const pIn = clamp((I.pitch || 0) + (I.drop ? 1 : 0), -1, 1);
+    let vyT = up ? A.climb : -A.sink;
+    if (pIn > 0) vyT -= pIn * A.dive; else if (pIn < 0) vyT = Math.max(vyT, -pIn * A.climb);
+    if (ws < -0.1 && !up) vyT -= 2.5;
+    if (s.alt < A.flare && s.v.y < 0) vyT = Math.max(vyT, -1.2 - s.alt * 0.7); // cushion the touchdown
+    const active = up || s.airT > 0.35 || s.alt > 3; // a kerb drop stays a plain fall
+    const aUp = active ? clamp(G + (vyT - s.v.y) * A.gain, 0, A.thrust) : 0;
+    s.gasDown = damp(s.gasDown, aUp / A.thrust, 12, h);
+    s.gasRear = damp(s.gasRear, ws > 0.1 ? ws : 0, 6, h);
+    s.v.y = Math.max(s.v.y + (aUp - G) * h, -40);
+    if (s.p.y > A.ceil) s.v.y = Math.min(s.v.y, (A.ceil - s.p.y) * 2);
+    s.v.x = Math.sin(along) * hs; s.v.z = Math.cos(along) * hs;
+    s.rpm = damp(s.rpm, 1100, 2, h); s.gear = 1;
+    s.p.addScaledVector(s.v, h);
+    collide(h);
+    const f = floorAt(s.p.x, s.p.z, s.p.y + 0.6), wet = f < WATER_Y, fy = wet ? WATER_Y : f;
+    s.alt = s.p.y - fy;
+    if (s.p.y <= fy) {
+      s.p.y = fy;
+      if (wet && hs < V_SKIM) { sink(); return; }
+      const sev = clamp(-s.v.y / 14, 0, 1);
+      s.v.y = 0; s.grounded = true; s.airT = 0; s.fpa = 0; s.stall = 0;
+      events.push({ type: 'land', severity: sev });
+      const g = probeGround(); s.pitch = g.pitch; s.roll = g.roll;
+    }
+    const pitchT = clamp(s.v.y / 70, -0.12, 0.2) - 0.07 * s.gasRear + (s.airbrake ? 0.06 : 0);
+    s.pitch = damp(s.pitch, pitchT, 3, h);
+    s.bank = damp(s.bank, clamp(s.yawRate * hs / G * 0.4, -0.45, 0.45), 3, h);
+    s.roll = -s.bank;
+  }
+  // on the ground Shift charges the jump; letting go fires it (the road speed is kept)
+  function stepGas(dt, I) {
+    const ground = s.grounded && !(s.sinkT > 0);
+    if (ground && I.sprint) {
+      s.chargeT += dt; s.charging = true;
+      s.charge = Math.min(1, s.chargeT / P.gas.chargeT); s.jumpH = jumpHeight(s.charge, P);
+    } else if (ground && s.charging) jump();
+    else { s.charging = false; s.chargeT = 0; s.charge = Math.max(0, s.charge - dt * 4); }
+    if (s.grounded) { s.gasDown = damp(s.gasDown, 0, 8, dt); s.gasRear = damp(s.gasRear, 0, 8, dt); }
+  }
+  function jump() {
+    const c = s.charge, H = jumpHeight(c, P);
+    s.v.y = Math.sqrt(2 * G * H); s.grounded = false; s.airT = 0; s.p.y += 0.05;
+    s.burst = Math.max(0.15, c); s.charging = false; s.chargeT = 0; s.charge = 0; s.jumpH = H;
+    events.push({ type: 'takeoff', severity: 0.3 + 0.7 * c, gas: true });
+  }
+
   // ---------------------------------------------------------------- flight kit animation
   function stepKit(h, I) {
     const hs = Math.hypot(s.v.x, s.v.z);
@@ -302,10 +400,16 @@ export function createCar({ scene, world, camera, input }) {
   // ---------------------------------------------------------------- frame
   let override = null, frozen = false, camKey = false, resetKey = false, honkT = 0;
   s.time = 0;
-  function update(dt) {
+  const _held = { move: { x: 0, y: 0 }, look: { dx: 0, dy: 0 } };
+  const neutral = (I) => { // every control released (a modal card is up): the car rolls to a stop, the camera still follows
+    for (const k in I) if (typeof I[k] === 'number') _held[k] = 0; else if (typeof I[k] === 'boolean') _held[k] = false;
+    return _held;
+  };
+  function update(dt, hold = false) {
     if (frozen || !(dt > 1e-5)) return;
     s.time += dt;
     let I = input.poll(dt);
+    if (hold) I = neutral(I);
     if (override) { // missions / cut-scenes may rewrite the controls; a throwing override is ignored
       try { I = override(I, dt, api) || I; } catch { /* keep the raw input */ }
     }
@@ -322,10 +426,10 @@ export function createCar({ scene, world, camera, input }) {
       s.sinkT -= dt; s.p.y -= dt * 0.8; s.v.multiplyScalar(Math.exp(-3 * dt));
       if (s.sinkT <= 0) reset(true);
     } else {
-      stepKit(dt, I);
+      if (K.gas) stepGas(dt, I); else stepKit(dt, I);
       // sub-steps of at most ~0.45 m of travel (1..10 per frame)
-      const steps = Math.min(10, Math.max(1, Math.ceil(s.v.length() * dt / 0.45))), h = dt / steps;
-      for (let k = 0; k < steps && !(s.sinkT > 0); k++) (s.grounded ? stepDrive : stepAir)(h, I);
+      const steps = Math.min(10, Math.max(1, Math.ceil(s.v.length() * dt / 0.45))), h = dt / steps, air = K.gas ? stepAirGas : stepAir;
+      for (let k = 0; k < steps && !(s.sinkT > 0); k++) (s.grounded ? stepDrive : air)(h, I);
     }
     // body pose: squat / dive on accel, lean on corners, heave spring on bumps / landings
     const fwdA = s.grounded ? clamp(s.lastA || 0, -16, 16) : 0, latA = s.grounded ? clamp(s.latA || 0, -14, 14) : 0;
@@ -338,11 +442,16 @@ export function createCar({ scene, world, camera, input }) {
     object.rotation.set(0, s.yaw, 0, 'YXZ');
     pos.set(s.p.x, s.p.y + 0.95, s.p.z);
     const night = nightK.value > 0.5;
+    // parked: standing still on the ground with no input for a while (the Roadster opens its doors)
+    s.parkT = s.grounded && Math.hypot(s.v.x, s.v.z) < 0.2 && !s.throttle && !I.sprint && Math.abs(I.move.x) < 0.1 ? s.parkT + dt : 0;
     model.set({
       steer: s.steer, wheelAngle: s.wheelA, bodyPitch: s.pitch + s.susP, bodyRoll: s.roll + s.susR, heave: s.heave, air: !s.grounded,
       wing: s.wing, turb: s.turb, thrust: s.thrust, brake: s.brake, night, cockpit: cam.mode === 'cockpit',
       speed: vF, rpm: s.rpm, gear: s.gear === -1 ? 'R' : Math.abs(vF) < 0.3 && s.throttle < 0.05 ? 'P' : 'D', power: s.grounded ? clamp(s.throttle * Math.min(1, (Math.abs(vF) + 4) / 20), 0, 1) : 0, alt: s.alt, vy: s.v.y, jet: s.thrust, handbrake: s.hb,
+      charge: s.charge, jumpH: s.jumpH, burst: s.burst, gasDown: s.gasDown, gasRear: s.gasRear, parked: s.parkT > 4, velocity: s.v,
+      groundY: s.grounded ? s.p.y : s.p.y - (s.alt || 0), light: 1 - 0.75 * clamp(nightK.value, 0, 1),
     }, dt);
+    s.burst = 0;
     cam.update(dt, s, events);
     api.hud?.setTelemetry?.(s, vF, cam.mode);
     if (events.length && api.onSound) { try { api.onSound(events); } catch (e) { console.error('[car] onSound', e); } }
@@ -357,6 +466,7 @@ export function createCar({ scene, world, camera, input }) {
     frozen = false;
     s.p.set(p.x, floorAt(p.x, p.z, p.y + 2), p.z);
     s.v.set(0, 0, 0); s.yaw = yaw; s.yawRate = 0; s.steer = 0; s.grounded = true; s.sinkT = 0; s.wing = 0; s.turb = 0; s.thrust = 0;
+    s.charge = s.chargeT = s.gasDown = s.gasRear = 0; s.charging = false;
     s.pitch = s.roll = s.bank = s.fpa = s.stall = s.drift = 0; s.safe.copy(s.p); s.safeYaw = yaw;
     object.position.copy(s.p); pos.set(s.p.x, s.p.y + 0.95, s.p.z);
     cam.reset(s);
@@ -364,8 +474,27 @@ export function createCar({ scene, world, camera, input }) {
   const spawn = world.carSpawn || world.spawn || new THREE.Vector3(), spawnYaw = world.carSpawnYaw ?? world.spawnYaw ?? 0;
   teleport(spawn.clone(), spawnYaw);
 
+  // switch to the other car in place: position, velocity, heading and the flight state carry over (the flight kit or the
+  // gas charge starts from rest); each model is built once and kept
+  function swap(kind) {
+    const N = CARS[kind];
+    if (!N || N === K) return false;
+    K = N; P = K.P; DIM = K.DIM; OFFS = K.offs;
+    model.object.removeFromParent(); model.fx?.removeFromParent(); model.gas?.clear?.();
+    model = models[K.kind] ??= K.build();
+    object.add(model.object); if (model.fx) scene.add(model.fx);
+    Object.assign(ramQ, { hl: DIM.len / 2 + 0.25, hw: DIM.wid / 2 + 0.06, h: K.ramH, wedge: K.wedge });
+    s.wing = s.turb = s.thrust = 0; s.charge = s.chargeT = s.gasDown = s.gasRear = s.burst = 0; s.charging = false; s.stall = 0; s.fpa = 0;
+    cam.setModel(model, K);
+    return true;
+  }
+
   const api = {
-    object, cam, state: s, model,
+    object, cam, state: s,
+    get model() { return model; },
+    get kind() { return K.kind; },
+    get gas() { return K.gas; }, // the Roadster: Shift charges a jump, no wings
+    swap,
     get position() { return pos; },
     get velocity() { return s.v; },
     get heading() { return cam.yaw; },
@@ -382,7 +511,7 @@ export function createCar({ scene, world, camera, input }) {
 }
 
 // ---------------------------------------------------------------- camera: chase (default) / cockpit
-function createCarCamera(camera, world, model) {
+function createCarCamera(camera, world, model, K) {
   const c = { mode: 'chase', yaw: 0, lookYaw: 0, lookPitch: 0, idle: 9, pos: new THREE.Vector3(), look: new THREE.Vector3(), fov: 68, trauma: 0, t: 0, chaseYaw: 0, chasePitch: 0.12, dist: 6.4, blend: 1 };
   let saved = null;
   try { saved = localStorage.getItem(CAM_KEY); } catch { /* storage off */ }
@@ -390,7 +519,8 @@ function createCarCamera(camera, world, model) {
   const _m = new THREE.Matrix4(), _e = new THREE.Euler();
   const [_q, _q2] = [new THREE.Quaternion(), new THREE.Quaternion()];
   const [_v, _v2, _d] = Array.from({ length: 3 }, () => new THREE.Vector3());
-  const eyeObj = model.body;
+  let CK = K.cam;
+  c.setModel = (m, k) => { model = m; CK = k.cam; };
   c.toggle = () => { c.mode = c.mode === 'cockpit' ? 'chase' : 'cockpit'; c.blend = 0; try { localStorage.setItem(CAM_KEY, c.mode); } catch (e) { /* storage off */ } };
   c.applyLook = (I) => {
     const dx = I.look.dx, dy = I.look.dy;
@@ -413,10 +543,10 @@ function createCarCamera(camera, world, model) {
     const rumble = s.grounded ? Math.min(1, sp / 50) * 0.0025 : 0;
     const yawNow = s.yaw;
     if (c.mode === 'cockpit') {
-      model.object.updateMatrixWorld(true);
-      c.pos.copy(model.eye).applyMatrix4(eyeObj.matrixWorld);
+      (model.object.parent ?? model.object).updateMatrixWorld(true); // the car's node: its pose was set this frame
+      c.pos.copy(model.eye).applyMatrix4(model.body.matrixWorld);
       c.pos.y += n(1) * rumble + n(3) * shake * 0.04;
-      _q.setFromRotationMatrix(_m.extractRotation(eyeObj.matrixWorld));
+      _q.setFromRotationMatrix(_m.extractRotation(model.body.matrixWorld));
       _e.set(c.lookPitch + n(5) * shake * 0.02, Math.PI + c.lookYaw, n(7) * shake * 0.02, 'YXZ'); // camera looks down -z: turn it to the car's +z
       camera.quaternion.copy(_q).multiply(_q2.setFromEuler(_e));
       camera.position.copy(c.pos);
@@ -430,10 +560,10 @@ function createCarCamera(camera, world, model) {
       c.chaseYaw += angWrap(baseYaw - c.chaseYaw) * (1 - Math.exp(-(s.grounded ? 4 : 2.2) * dt));
       const yaw = c.chaseYaw + c.lookYaw;
       const air = !s.grounded;
-      const D = lerp(7, 11.5, clamp(sp / 85, 0, 1)) + (air ? 2 : 0) + 3 * s.wing * 0.5;
+      const D = lerp(CK.dist, CK.dist + 4.5, clamp(sp / 85, 0, 1)) + (air ? 2 : 0) + 3 * s.wing * 0.5;
       c.dist = damp(c.dist, D, 2.5, dt);
       const pitch = 0.16 + (air ? clamp(-s.v.y / 60, -0.25, 0.3) : 0) - c.lookPitch;
-      const tgt = _v.set(s.p.x, s.p.y + 1.5, s.p.z);
+      const tgt = _v.set(s.p.x, s.p.y + CK.tgt, s.p.z);
       _d.set(-Math.sin(yaw) * Math.cos(pitch), Math.sin(pitch), -Math.cos(yaw) * Math.cos(pitch));
       // collision: pull in in front of walls
       let dist = c.dist;
@@ -445,7 +575,7 @@ function createCarCamera(camera, world, model) {
       c.pos.x += n(1) * shake * 0.25; c.pos.y += n(2) * shake * 0.25;
       camera.position.copy(c.pos);
       camera.up.set(0, 1, 0);
-      c.look.set(s.p.x + s.v.x * 0.05, s.p.y + 1.6 + (air ? s.v.y * 0.03 : 0), s.p.z + s.v.z * 0.05);
+      c.look.set(s.p.x + s.v.x * 0.05, s.p.y + CK.look + (air ? s.v.y * 0.03 : 0), s.p.z + s.v.z * 0.05);
       camera.lookAt(c.look);
       if (air) camera.rotateZ(-s.bank * 0.25);
       c.fov = damp(c.fov, 58 + 16 * clamp(sp / 85, 0, 1), 3, dt);

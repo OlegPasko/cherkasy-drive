@@ -1,4 +1,6 @@
-// The game's sound: the car (electric motor, drift squeal, ducted fans, wind), the place (city / Sosnivka forest /
+// The game's sound: the car (electric motor, drift squeal, ducted fans, wind; the Roadster: the same motor pitched up
+// and spread over its higher top speed, a cold-gas hiss that builds with the jump charge and follows the hover / rear
+// jets, a gas blast on the jump), the place (city / Sosnivka forest /
 // altitude, day and night beds), one-shots for what happens in the world, and the dispatcher on the radio.
 //
 //   createGameAudio({ car, camera, world, daylight, silent? }) -> { update(dt), setPaused(bool), engine, radio }
@@ -75,7 +77,7 @@ export function createGameAudio({ car, camera, world, daylight, silent = false }
     const m = (id) => E.loop(id, { bus: 'motor' }), a = (id) => E.loop(id, { bus: 'amb' });
     L = {
       inv_low: m('inv_low'), inv_mid: m('inv_mid'), inv_high: m('inv_high'), squeal: m('squeal'),
-      fan_idle: m('fan_idle'), fan_thrust: m('fan_thrust'), wind: m('wind'), horn: m('horn'),
+      fan_idle: m('fan_idle'), fan_thrust: m('fan_thrust'), wind: m('wind'), horn: m('horn'), gas: m('gas_hiss'),
       city_day: a('city_day'), city_night: a('city_night'),
       forest_day: a('forest_day'), forest_night: a('forest_night'), altitude: a('altitude'),
       plane: E.loop('plane_engine', { bus: 'sfx', pan: true }), // a world object: the map pause mutes it with the sfx
@@ -96,7 +98,7 @@ export function createGameAudio({ car, camera, world, daylight, silent = false }
       if (e.type === 'crash' && !e.ram && ready('wall', 0.25)) { // rams (cars, trees, people) sound where they happen
         E.play(e.severity > 0.35 ? 'hit_wall_heavy' : 'hit_wall', { vol: 0.5 + 0.5 * e.severity });
       } else if (e.type === 'land' && e.severity > 0.08 && ready('land', 0.4)) E.play('land', { vol: 0.35 + 0.65 * e.severity });
-      else if (e.type === 'takeoff') E.play('takeoff');
+      else if (e.type === 'takeoff') E.play(e.gas ? 'gas_jump' : 'takeoff', e.gas ? { vol: 0.45 + 0.55 * (e.severity || 0) } : undefined);
     }
   }
 
@@ -161,11 +163,17 @@ export function createGameAudio({ car, camera, world, daylight, silent = false }
 
     // motor: three fixed inverter recordings crossfaded by road speed, each pitched a little around its anchor
     const kmh = Math.hypot(s.v.x, s.v.z) * 3.6, onRoad = s.grounded && s.sinkT <= 0;
+    // the Roadster: the motor's curve spread over its ~1.5x top speed and pitched up a little (a smaller, faster motor)
+    const RD = car.kind === 'roadster', kq = RD ? kmh / 1.5 : kmh, up = RD ? 1.18 : 1;
     const drive = onRoad ? ramp(kmh, 2, 8) * (0.75 + 0.25 * clamp01(s.throttle)) : 0;
-    const lm = ramp(kmh, 20, 40), mh = ramp(kmh, 55, 80);
-    L.inv_low.set(drive * fadeOut(lm), 0.12); L.inv_low.rate.value = Math.min(1.15, Math.max(0.85, kmh / 15));
-    L.inv_mid.set(drive * fadeIn(lm) * fadeOut(mh), 0.12); L.inv_mid.rate.value = Math.min(1.15, Math.max(0.85, kmh / 45));
-    L.inv_high.set(drive * fadeIn(mh), 0.12); L.inv_high.rate.value = Math.min(1.45, Math.max(0.85, kmh / 90));
+    const lm = ramp(kq, 20, 40), mh = ramp(kq, 55, 80);
+    L.inv_low.set(drive * fadeOut(lm), 0.12); L.inv_low.rate.value = up * Math.min(1.15, Math.max(0.85, kq / 15));
+    L.inv_mid.set(drive * fadeIn(lm) * fadeOut(mh), 0.12); L.inv_mid.rate.value = up * Math.min(1.15, Math.max(0.85, kq / 45));
+    L.inv_high.set(drive * fadeIn(mh), 0.12); L.inv_high.rate.value = up * Math.min(1.45, Math.max(0.85, kq / 90));
+    // cold gas: the charge's rising hiss, the hover and rear jets
+    const ch = clamp01(s.charge || 0), gj = Math.max(clamp01(s.gasDown || 0), 0.8 * clamp01(s.gasRear || 0));
+    L.gas.set(RD ? Math.max(ch > 0.004 ? 0.25 + 0.55 * ch : 0, gj) : 0, 0.08);
+    L.gas.rate.value = 0.85 + 0.35 * Math.max(ch, gj);
     L.squeal.set(onRoad ? clamp01(s.slip) * ramp(kmh, 8, 30) * 0.8 : 0, 0.05);
     // ducted fans: by thrust, not airspeed, so a hover still hums
     const fan = clamp01(s.turb), thr = ramp(s.thrust, 0.25, 0.75);

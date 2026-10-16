@@ -93,6 +93,13 @@
     "gain": 0.58
    },
    {
+    "id": "gas_jump",
+    "prompt": "One powerful burst of compressed cold gas blasting down from vehicle thrusters onto concrete, a sharp pneumatic release with a dense rushing hiss that swells and trails off as a cloud. Close exterior dry mono. No voice, no fire, no explosion, no jet engine roar, no music.",
+    "dur": 1.6,
+    "n": 2,
+    "gain": 0.7
+   },
+   {
     "id": "pigeons",
     "prompt": "Three pigeons taking off nearby, soft irregular feather flaps and a brief rush of wings moving away, no calls. Outdoor perspective at three metres, fairly dry mono with natural short decay. No voice, no shrieks, no impact, no music.",
     "dur": 1.0,
@@ -277,6 +284,14 @@
     "loop": true,
     "stereo": false,
     "gain": 0.75
+   },
+   {
+    "id": "gas_hiss",
+    "prompt": "Seamless steady hiss of compressed cold gas venting through small nozzles, a smooth dense high-pressure air rush with a soft whistle, constant level and pitch. Close dry mono. No voice, no motor, no fire, no jet roar, no music.",
+    "dur": 8,
+    "loop": true,
+    "stereo": false,
+    "gain": 0.6
    },
    {
     "id": "wind",
