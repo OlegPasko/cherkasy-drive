@@ -404,7 +404,7 @@ See `ARCHITECTURE.md` for the module map. Where things live:
     and a swept splitter, a wide windshield on thin A-pillars, one arched black glass canopy to the deck, side glass under
     a white roof rail, a thin black sill; butterfly doors that open when parked; a sharp Kamm tail with the red light line
     (brighter centre), the Everlabs plate, a diffuser with thin fins and four bronze cold-gas nozzles; six-blade aero
-    wheels; a rear wing that is up while driving on the ground (over `WING_UP`, ~15 km/h; down under `WING_DOWN`) and
+    wheels; a rear wing that is up while driving on the ground (over `WING_UP`, 100 km/h; down under `WING_DOWN`, 85 km/h) and
     folds when stopped or flying, easing both ways (`model.wing`); white sport seats, a yoke and a canvas screen; the
     Cybertruck's stainless; ~27k vertices / 74 meshes, under the Cybertruck's 33.6k / 77), `collide.js` (car
     collider). The Roadster drives ~1.5x faster (87 m/s limiter) on more grip; it has no wings: Shift held on the ground

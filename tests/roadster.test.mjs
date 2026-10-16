@@ -134,15 +134,16 @@ check('…and the Roadster keeps more of its speed', Math.abs(wedge.r.dv.x) < Ma
 // ---------------------------------------------------------------- the rear wing: up while driving, folded when stopped / flying
 {
   const m = buildRoadsterModel(), feed = (speed, sec, air = false) => { for (let t = 0; t < sec; t += 1 / 60) m.set({ steer: 0, wheelAngle: 0, speed, air }, 1 / 60); return m.wing; };
+  check('the wing waits for 100 km/h', Math.abs(WING_UP * 3.6 - 100) < 1e-9 && feed(WING_UP - 1, 1.5) === 0);
   check('the wing starts folded', m.wing === 0 && !m.object.getObjectByName('RdWing')?.visible);
   const part = feed(WING_UP + 1, 0.35);
-  check('…deploys smoothly above ~15 km/h on the ground', part > 0.2 && part < 0.8 && feed(WING_UP + 1, 1) > 0.99, `${part.toFixed(2)} after 0.35 s`);
+  check('…deploys smoothly above 100 km/h on the ground', part > 0.2 && part < 0.8 && feed(WING_UP + 1, 1) > 0.99, `${part.toFixed(2)} after 0.35 s`);
   check('…stays up between the thresholds (no flicker)', feed((WING_UP + WING_DOWN) / 2, 2) > 0.99);
   check('…folds when slowing to a stop', feed(WING_DOWN - 0.5, 1.5) < 0.01 && feed(0, 0.5) === 0);
   check('…does not rise again between the thresholds', feed((WING_UP + WING_DOWN) / 2, 2) === 0);
-  feed(30, 2); check('…folds in flight, even fast', feed(30, 1.5, true) < 0.01);
+  feed(40, 2); check('…folds in flight, even fast', feed(40, 1.5, true) < 0.01);
   input.set({ throttle: 0, sprint: false });
-  car.swap('roadster'); car.teleport(V(-1100, 0, -400), Math.PI / 2); input.set({ throttle: 1 }); run(3);
+  car.swap('roadster'); car.teleport(V(-1100, 0, -400), Math.PI / 2); input.set({ throttle: 1 }); run(4.5);
   check('in the game: up while driving', S.grounded && hs() > WING_UP && car.model.wing > 0.99, `${(hs() * 3.6).toFixed(0)} km/h, wing ${car.model.wing.toFixed(2)}`);
   input.set({ throttle: 0 }); S.v.set(0, 0, 0); run(2);
   check('in the game: folded when parked', car.model.wing === 0);

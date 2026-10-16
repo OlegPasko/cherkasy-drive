@@ -20,8 +20,8 @@
 // The body wears the Cybertruck's unpainted stainless (model.js STEEL). Arches are cut by tucking the lower section
 // points into a liner (ARCH_IN). Butterfly doors: the door strips (rail to sill) are their own groups hinged on the roof
 // rail; they swing up when the car stands parked in the chase view (state.parked). The rear wing (group 'RdWing', two
-// stalks and a blade) is up while driving on the ground: it deploys over WING_UP m/s (~15 km/h, state.speed) and folds
-// under WING_DOWN, and folds whenever the car is in the air (state.air), easing both ways; the returned `wing` getter is
+// stalks and a blade) is up while driving on the ground: it deploys over WING_UP m/s (100 km/h, state.speed) and folds
+// under WING_DOWN (85 km/h), and folds whenever the car is in the air (state.air), easing both ways; the returned `wing` getter is
 // its 0..1 deploy. Interior: white bolstered sport seats with grey stripes, a yoke, a low dark dash with a red
 // ambient strip, a centre screen (canvas: speed, PRND, gas charge and thrust, altitude), door cards; a driver whose arms
 // follow the yoke.
@@ -43,8 +43,9 @@ const WSZ = 1.4, APZ = 1.3, DOOR_F = 0.95, ROOF_F = 0.3, DOOR_R = -0.4, ROOF_R =
 // the wheels are drawn a little larger than the physics radius (RDIM.wheelR), their centres raised to match
 const RW = 0.38, ARCH_R = 0.42, ARCH_IN = 0.7, WHEEL_Y = RW;
 const NOZ_Y = 0.5, NOZ_Z = TAIL + 0.11, DIF_Z = TAIL + 0.2, BAR_Y = 0.88, POD_CANT = 0.42; // the pods' front faces turn this far (rad) outward
-// the rear wing deploys on the ground above WING_UP (m/s, ~15 km/h) and folds below WING_DOWN, at a stop and in the air
-export const WING_UP = 4.2, WING_DOWN = 2.8;
+// the rear wing deploys on the ground above WING_UP (m/s, 100 km/h) and folds below WING_DOWN (85 km/h: no flicker
+// round the threshold), and in the air
+export const WING_UP = 100 / 3.6, WING_DOWN = 85 / 3.6;
 
 // ---------------------------------------------------------------- hull sections
 // piecewise-linear tables [[z, value], ...] from the nose back
