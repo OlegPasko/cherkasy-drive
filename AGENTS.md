@@ -398,15 +398,19 @@ See `ARCHITECTURE.md` for the module map. Where things live:
 - `src/game/` – gameplay:
   - `car/` – `car.js` (control, flight, camera; `CARS` holds the two player cars, `swap(kind)` changes car in place,
     keeping position, velocity and heading), `model.js` (the Cybertruck), `roadster.js` (the Roadster, after the Tesla
-    Roadster shown on 2026-10-16, rebuilt view by view against the reveal photos with Codex scoring: a faceted hull
-    lofted through ~30 cross-sections from z-keyed tables – a flat trapezoid bonnet between two angular fender pods,
-    inverted-triangle headlights notched into the pods' inner faces, a thin light line over a tall black recessed fascia
-    and a swept splitter, a wide windshield on thin A-pillars, one arched black glass canopy to the deck, side glass under
+    Roadster shown on 2026-10-16, rebuilt view by view against the reveal photos with Codex scoring: a hull lofted
+    through ~30 cross-sections from z-keyed tables and shaded as sculpted steel (corner normals smooth along each strip
+    and across the soft lines, split at the deliberate creases) – a faintly crowned, bowed bonnet running into two fender
+    pods with one crease each side (a short inner chamfer at the nose, a crisp crest, a long triangular facet under it),
+    pod front faces canted out with a raked brow holding the inverted-triangle headlight, a chin bevel and a narrow corner
+    bevel, a thin light line over a tall black recessed fascia
+    and a swept splitter, a wide windshield on thin A-pillars (the steel's inner side is dark matte trim, so from the seat the pillars and roof
+    rails read as thin black lining), one arched black glass canopy to the deck, side glass under
     a white roof rail, a thin black sill; butterfly doors that open when parked; a sharp Kamm tail with the red light line
     (brighter centre), the Everlabs plate, a diffuser with thin fins and four bronze cold-gas nozzles; six-blade aero
     wheels; a rear wing that is up while driving on the ground (over `WING_UP`, 100 km/h; down under `WING_DOWN`, 85 km/h) and
     folds when stopped or flying, easing both ways (`model.wing`); white sport seats, a yoke and a canvas screen; the
-    Cybertruck's stainless; ~27k vertices / 74 meshes, under the Cybertruck's 33.6k / 77), `collide.js` (car
+    Cybertruck's stainless; ~27.5k vertices / 74 meshes, under the Cybertruck's 33.6k / 77), `collide.js` (car
     collider). The Roadster drives ~1.5x faster (87 m/s limiter) on more grip; it has no wings: Shift held on the ground
     charges a jump for up to 10 s (a gauge at the bottom; a full charge clears ~48 m), the release leaps straight up, and
     in the air the belly jets catch the fall into a glide, Shift hovers / climbs, W thrusts on the rear nozzles; gas puffs
