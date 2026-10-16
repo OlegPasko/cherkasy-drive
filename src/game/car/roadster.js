@@ -696,8 +696,10 @@ export function buildRoadsterModel() {
     }
     // gas: emit from this frame's pose, then age the puffs
     if (fx.object.parent) {
-      (root.parent ?? root).updateMatrixWorld(true); // car.js posed the car's node this frame
-      if (st.burst > 0 || st.gasDown > 0.01 || st.gasRear > 0.01 || st.charge > 0.005) emit(dt, st);
+      if (st.burst > 0 || st.gasDown > 0.01 || st.gasRear > 0.01 || st.charge > 0.005) {
+        (root.parent ?? root).updateMatrixWorld(true); // emit() reads the nozzles' world pose: car.js posed the car's node this frame
+        emit(dt, st);
+      }
       fx.update(dt, st.light ?? 1);
     }
   }

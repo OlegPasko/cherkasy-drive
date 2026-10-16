@@ -8,12 +8,14 @@
 //     { type, len, wid, h, color, x, y, z, ry, v, pitch? }
 //   W.ram(q) -> { dv, push, hits, knocked, severity }  q: player box { x, y (bottom), z, fx, fz, hl, hw, h, v, mass, wedge? }
 //     wedge (0..1): a low wedge nose (the Roadster) scoops the struck car up and over it, tumbling end over end, and
-//     loses less of its own speed than a flat front shoving it ahead
+//     loses less of its own speed than a flat front shoving it ahead; both fade with the struck car's mass (a bus or a
+//     truck barely rises and still costs speed)
 //   W.dent(wreck, px, py, pz, dx, dy, dz, J)  world impact point, direction into the body, impulse (N s)
 //   W.massOf(carOrType) -> kg;  W.setSolid({ ground(x, z, y) -> y, push(x, y, z, r, h) -> { dx, dz, nx, nz } | null })
 //   W.setDebris(d) d.shards(x, y, z, vx, vy, vz, n, cols, sizeMin, sizeMax, spread, flat, life)
-//   W.update(dt, camera);  W.draw(fleet, camera, frustum);  W.collide(pos, r, h, acc) (player push-out; a car a wedge just
-//     scooped up is skipped for 0.7 s, so it rides over the Roadster instead of stopping it like a wall);  W.stats()
+//   W.update(dt, camera);  W.draw(fleet, camera, frustum);  W.collide(pos, r, h, acc) (player push-out; a light car a wedge
+//     just scooped up at speed is skipped for 0.7 s, so it rides over the Roadster instead of stopping it like a wall;
+//     a slow nudge or a heavy car stays solid);  W.stats()
 import * as THREE from 'three';
 import { VTYPES, paintOf } from './vehicles.js';
 import { cue } from '../audio/cue.js';
@@ -196,43 +198,47 @@ export function createWrecks({ scene = null, models = null, query = () => [], re
 
   // ---- player ram (the player's car is treated as heavy and keeps most of its speed)
   const res = { dv: new THREE.Vector3(), push: new THREE.Vector3(), hits: 0, knocked: 0, severity: 0 };
-  const ov = {};
+  const ov = {}, hit = { J: 0, vc: 0 };
   let ramId = 0;
+  // how much a wedge's scoop acts on a struck car: full on a car, little on a bus or a truck (it rides up a heavy one)
+  const scoopK = (wedge, m) => wedge * Math.min(1, Math.max(0.15, 1500 / m));
+  const SCOOP_VC = 4; // m/s of closing speed under which a wedge only nudges (the struck car stays solid)
   function ram(q) {
     ramId++;
     res.dv.set(0, 0, 0); res.push.set(0, 0, 0); res.hits = 0; res.knocked = 0; res.severity = 0;
     if (!q) return res;
     const vx = q.v?.x || 0, vy = q.v?.y || 0, vz = q.v?.z || 0, M = q.mass || 12000, sp = Math.hypot(vx, vz), wedge = q.wedge || 0;
     let lost = 0;
-    const hitOne = (tx, tz, tfx, tfz, thl, thw, ovx, ovz, m) => { // -> closing speed and impulse, or null
+    const hitOne = (tx, tz, tfx, tfz, thl, thw, ovx, ovz, m) => { // -> hit { J (impulse), vc (closing speed) }, or null
       if (!boxOverlap(q.x, q.z, q.fx, q.fz, q.hl, q.hw, tx, tz, tfx, tfz, thl, thw, ov)) return null;
       const vc = (vx - ovx) * ov.nx + (vz - ovz) * ov.nz;
       if (vc < RAM_MIN) return null;
-      ov.vc = vc;
       const J = 1.35 * vc / (1 / M + 1 / m);
-      const give = Math.min(J / M, 0.6 * vc, Math.max(0, 0.6 * sp - lost)) * (1 - 0.6 * wedge);
+      const give = Math.min(J / M, 0.6 * vc, Math.max(0, 0.6 * sp - lost)) * (1 - 0.6 * scoopK(wedge, m));
       lost += give;
       res.dv.x -= ov.nx * give; res.dv.z -= ov.nz * give;
       res.push.x -= ov.nx * ov.depth * 0.5; res.push.z -= ov.nz * ov.depth * 0.5;
       res.hits++;
       res.severity = Math.max(res.severity, Math.min(1, vc / 22) * Math.min(1, Math.max(0.35, m / 1500)));
-      return J;
+      hit.J = J; hit.vc = vc;
+      return hit;
     };
     for (const c of query(q.x, q.z, q.hl + 9, near)) {
       if (c.dead || q.y > c.y + c.h - 0.05 || q.y + q.h < c.y + 0.1) continue;
       const cfx = Math.cos(c.ry), cfz = -Math.sin(c.ry), cv = c.parked ? 0 : c.v;
-      const m = massOf(c), J = hitOne(c.x, c.z, cfx, cfz, c.len / 2, c.wid / 2, cfx * cv, cfz * cv, m);
-      if (J === null) continue;
-      const nx = ov.nx, nz = ov.nz, k = J / m;
+      const m = massOf(c), h = hitOne(c.x, c.z, cfx, cfz, c.len / 2, c.wid / 2, cfx * cv, cfz * cv, m);
+      if (!h) continue;
+      const J = h.J, vc = h.vc, nx = ov.nx, nz = ov.nz, k = J / m;
       // side offset of the car from the push line spins it; a lift reads as the car being tipped
       const side = (c.x - q.x) * -q.fz + (c.z - q.z) * q.fx;
-      // a wedge: less shove, a lift by the closing speed, and a flip about the axis across the push (the near end rises)
-      const vc = ov.vc, lift = wedge * Math.min(7, 0.5 + vc * 0.25), flip = wedge * Math.min(4, 0.6 + vc * 0.12), kh = k * (1 - 0.45 * wedge), rk = 1 - 0.7 * wedge;
-      const w = knock(c, _t.set(nx * kh + vx * 0.08, 0.8 + k * 0.18 * (1 - 0.6 * wedge) + Math.max(0, vy) * 0.3 + lift, nz * kh + vz * 0.08),
+      // a wedge: less shove, a lift by the closing speed, and a flip about the axis across the push (the near end rises);
+      // scaled down by the struck car's mass (sw)
+      const sw = scoopK(wedge, m), lift = sw * Math.min(7, 0.5 + vc * 0.25), flip = sw * Math.min(4, 0.6 + vc * 0.12), kh = k * (1 - 0.45 * sw), rk = 1 - 0.7 * sw;
+      const w = knock(c, _t.set(nx * kh + vx * 0.08, 0.8 + k * 0.18 * (1 - 0.6 * sw) + Math.max(0, vy) * 0.3 + lift, nz * kh + vz * 0.08),
         _u.set((Math.random() - 0.5) * k * 0.25 * rk + nz * flip, side * k * 0.12 * rk + (Math.random() - 0.5) * 1.5, (Math.random() - 0.5) * k * 0.2 * rk - nx * flip));
       if (!w) continue;
       w.ramId = ramId; res.knocked++;
-      if (wedge) w.scoop = time + 0.7; // it rides up over the wedge: no push-out against the player meanwhile
+      if (sw > 0.5 && vc > SCOOP_VC) w.scoop = time + 0.7; // it rides up over the wedge: no push-out against the player meanwhile
       const ext = c.len / 2 * Math.abs(cfx * nx + cfz * nz) + c.wid / 2 * Math.abs(cfz * nx - cfx * nz);
       const hx = c.x - nx * ext, hy = c.y + c.h * 0.45, hz = c.z - nz * ext;
       dent(w, hx, hy, hz, nx, 0, nz, J);
@@ -243,13 +249,13 @@ export function createWrecks({ scene = null, models = null, query = () => [], re
       if (w.ramId === ramId) continue;
       if (Math.abs(w.p.x - q.x) > q.hl + w.hl + 2 || Math.abs(w.p.z - q.z) > q.hl + w.hl + 2) continue;
       if (q.y > w.p.y + w.ey - 0.05 || q.y + q.h < w.p.y - w.ey + 0.05) continue;
-      const J = hitOne(w.p.x, w.p.z, w.fx, w.fz, w.fl, w.fw, w.v.x, w.v.z, w.mass);
-      if (J === null) continue;
-      const k = J / w.mass;
-      w.v.x += ov.nx * k * (1 - 0.45 * wedge); w.v.z += ov.nz * k * (1 - 0.45 * wedge); w.v.y += 0.5 + k * 0.12 + wedge * Math.min(10, 1 + k * 0.4);
+      const h = hitOne(w.p.x, w.p.z, w.fx, w.fz, w.fl, w.fw, w.v.x, w.v.z, w.mass);
+      if (!h) continue;
+      const J = h.J, k = J / w.mass, sw = scoopK(wedge, w.mass);
+      w.v.x += ov.nx * k * (1 - 0.45 * sw); w.v.z += ov.nz * k * (1 - 0.45 * sw); w.v.y += 0.5 + k * 0.12 + sw * Math.min(10, 1 + k * 0.4);
       w.w.y += (Math.random() - 0.5) * k * 0.3; w.w.x += (Math.random() - 0.5) * k * 0.15;
       w.sleep = false; w.still = 0;
-      if (wedge) w.scoop = time + 0.7;
+      if (sw > 0.5 && h.vc > SCOOP_VC) w.scoop = time + 0.7; // a slow nudge keeps the wreck solid
       const hx = w.p.x - ov.nx * w.fw, hz = w.p.z - ov.nz * w.fw;
       if (k > 3) dent(w, hx, w.p.y, hz, ov.nx, 0, ov.nz, J);
       if (k > 1) cue('carhit', { x: hx, y: w.p.y, z: hz, k });

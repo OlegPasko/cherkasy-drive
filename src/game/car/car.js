@@ -71,14 +71,15 @@ const P_RD = {
   // road speed kept)
   gas: { chargeT: 10, hop: 1.5, high: 48 },
 };
-// the two player cars: physics, model, collision circles, ram box height (wedge: struck cars are lifted over it), camera
+// the two player cars: physics, model, collision circles (offsets along the car, radius r, height h against the city
+// solids, dynH against the traffic and wrecks), ram box height (wedge: struck cars are lifted over it), camera
 export const CARS = {
-  cybertruck: { kind: 'cybertruck', P: P_CT, DIM: CT_DIM, build: buildCarModel, gas: false, offs: [1.95, 0.65, -0.65, -1.95], ramH: 1.8, wedge: 0, cam: { dist: 7, tgt: 1.5, look: 1.6 } },
-  roadster: { kind: 'roadster', P: P_RD, DIM: RDIM, build: buildRoadsterModel, gas: true, offs: [1.35, 0.45, -0.45, -1.35], ramH: 1.15, wedge: 1, cam: { dist: 6.2, tgt: 1.1, look: 1.15 } },
+  cybertruck: { kind: 'cybertruck', P: P_CT, DIM: CT_DIM, build: buildCarModel, gas: false, offs: [1.95, 0.65, -0.65, -1.95], col: { r: 1.0, h: 2.0, dynH: 1.3 }, ramH: 1.8, wedge: 0, cam: { dist: 7, tgt: 1.5, look: 1.6 } },
+  roadster: { kind: 'roadster', P: P_RD, DIM: RDIM, build: buildRoadsterModel, gas: true, offs: [1.35, 0.45, -0.45, -1.35], col: { r: 1.0, h: 1.3, dynH: 1.15 }, ramH: 1.15, wedge: 1, cam: { dist: 6.2, tgt: 1.1, look: 1.15 } },
 };
 export const jumpHeight = (charge, P = P_RD) => P.gas.hop + (P.gas.high - P.gas.hop) * clamp(charge, 0, 1);
 const STALL_VN = 6; // m/s into a wall while flying: above it the wings stall and the car drops
-const R_COL = 1.0, H_COL = 2.0, STEP = 0.5; // big tyres: kerbs and steps up to half a metre
+const STEP = 0.5; // big tyres: kerbs and steps up to half a metre
 const CAM_KEY = 'cd.carCam';
 const TRAUMA = { crash: 1, land: 0.5, takeoff: 0.15 }; // camera shake per event (x severity)
 
@@ -121,7 +122,7 @@ export function createCar({ scene, world, camera, input, kind = 'cybertruck' }) 
   let lastHit = 0;
   // traffic and people give way: the car rams them with a heavy "gameplay" mass (people barely register, small cars
   // cost a little speed, buses a lot but never all of it); the struck cars fly off as wrecks (world.ram)
-  const RAM_MASS = 12000, ramQ = { x: 0, y: 0, z: 0, fx: 0, fz: 0, hl: DIM.len / 2 + 0.25, hw: DIM.wid / 2 + 0.06, /* a bit beyond the collision circles' reach (1.95 + R_COL): the ram sees a car / tree before the wall-like push-out */ h: K.ramH, v: null, mass: RAM_MASS, wedge: K.wedge };
+  const RAM_MASS = 12000, ramQ = { x: 0, y: 0, z: 0, fx: 0, fz: 0, hl: DIM.len / 2 + 0.25, hw: DIM.wid / 2 + 0.06, /* a bit beyond the collision circles' reach (the front offset + col.r): the ram sees a car / tree before the wall-like push-out */ h: K.ramH, v: null, mass: RAM_MASS, wedge: K.wedge };
   let lastRam = 0;
   function ram() {
     if (!world.ram) return;
@@ -142,10 +143,10 @@ export function createCar({ scene, world, camera, input, kind = 'cybertruck' }) 
     _push.set(0, 0, 0); let n = 0, best = null, bestD = 0;
     for (const o of OFFS) {
       _c.set(s.p.x + _f.x * o, s.p.y, s.p.z + _f.z * o);
-      const c = pushOutCapsule(col, _c, R_COL, H_COL, STEP);
+      const c = pushOutCapsule(col, _c, K.col.r, K.col.h, STEP);
       if (c) { _push.x += _c.x - (s.p.x + _f.x * o); _push.z += _c.z - (s.p.z + _f.z * o); n++; if (c.depth > bestD) { bestD = c.depth; best = c; } }
       if (world.collideDynamic) {
-        let r = null; try { r = world.collideDynamic(_c.set(s.p.x + _f.x * o, s.p.y, s.p.z + _f.z * o), 1.0, 1.3); } catch (e) { r = null; }
+        let r = null; try { r = world.collideDynamic(_c.set(s.p.x + _f.x * o, s.p.y, s.p.z + _f.z * o), K.col.r, K.col.dynH); } catch (e) { r = null; }
         if (r?.push && !r.grounded) { _push.x += r.push.x; _push.z += r.push.z; n++; if (!best) { best = { normal: _n.set(r.push.x, 0, r.push.z).normalize(), dyn: true }; } }
       }
     }
@@ -328,7 +329,8 @@ export function createCar({ scene, world, camera, input, kind = 'cybertruck' }) 
   function stepAirGas(h, I) {
     s.airT += h;
     { const f0 = floorAt(s.p.x, s.p.z, s.p.y + 0.6); s.alt = s.p.y - Math.max(f0, WATER_Y); }
-    const A = P.air, ws = I.throttle ?? I.move.y, up = !!I.sprint || !!I.jump;
+    // Shift held through a bump is still the jump's charge (stepGas), not the hover
+    const A = P.air, ws = I.throttle ?? I.move.y, up = (!!I.sprint && !s.charging) || !!I.jump;
     s.throttle = 0; s.hb = false; s.brake = false; s.airbrake = ws < -0.1;
     _vh.set(s.v.x, 0, s.v.z);
     let hs = _vh.length();
@@ -369,13 +371,16 @@ export function createCar({ scene, world, camera, input, kind = 'cybertruck' }) 
     s.bank = damp(s.bank, clamp(s.yawRate * hs / G * 0.4, -0.45, 0.45), 3, h);
     s.roll = -s.bank;
   }
-  // on the ground Shift charges the jump; letting go fires it (the road speed is kept)
+  // on the ground Shift charges the jump; letting go fires it (the road speed is kept). A kerb or a bump that lifts the
+  // car for a moment (under BUMP_T s) keeps the pressure: the charge goes on, and a release in the air fires on touchdown
+  const BUMP_T = 0.5;
   function stepGas(dt, I) {
-    const ground = s.grounded && !(s.sinkT > 0);
-    if (ground && I.sprint) {
+    const wet = s.sinkT > 0, ground = s.grounded && !wet, bump = !s.grounded && !wet && s.charging && s.airT < BUMP_T;
+    if ((ground || bump) && I.sprint) {
       s.chargeT += dt; s.charging = true;
       s.charge = Math.min(1, s.chargeT / P.gas.chargeT); s.jumpH = jumpHeight(s.charge, P);
     } else if (ground && s.charging) jump();
+    else if (bump) { /* let go mid-bump: the jump waits for the wheels */ }
     else { s.charging = false; s.chargeT = 0; s.charge = Math.max(0, s.charge - dt * 4); }
     if (s.grounded) { s.gasDown = damp(s.gasDown, 0, 8, dt); s.gasRear = damp(s.gasRear, 0, 8, dt); }
   }

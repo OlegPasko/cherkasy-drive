@@ -76,6 +76,16 @@ check('lands softly', landed && evs.filter((e) => e.type === 'land').every((e) =
 car.teleport(V(3, 0, 12), 0); top = 0;
 input.set({ sprint: true }); run(0.1); input.set({ sprint: false }); run(2, () => { top = Math.max(top, S.p.y); });
 check('a tap is a hop', top > 1 && top < 3, `${top.toFixed(2)} m`);
+// a kerb or a bump mid-charge: the pressure holds, and a release while the wheels are off fires on touchdown
+const bump = () => { S.p.y += 0.25; S.grounded = false; S.airT = 0; S.v.y = 1; };
+car.teleport(V(3, 0, 12), 0);
+input.set({ sprint: true }); run(6); const c6 = S.charge; bump(); run(0.2);
+check('a bump while charging keeps the charge', S.charging && S.charge >= c6, `${c6.toFixed(2)} -> ${S.charge.toFixed(2)}`);
+run(1);
+check('…and it goes on after the wheels touch down', S.grounded && S.charge > c6 + 0.08, S.charge.toFixed(2));
+const cB = S.charge; bump(); input.set({ sprint: false }); top = 0; run(3, () => { top = Math.max(top, S.p.y); });
+check('a release mid-bump jumps on touchdown', top > jumpHeight(cB) * 0.85, `apex ${top.toFixed(1)} m for ${jumpHeight(cB).toFixed(1)} m`);
+car.teleport(V(3, 0, 12), 0);
 check('jumpHeight 0 / 1', Math.abs(jumpHeight(0) - 1.5) < 1e-9 && jumpHeight(1) >= 45);
 car.onEvents = null;
 const gasFx = car.model.gas; car.teleport(V(3, 0, 12), 0); input.set({ sprint: true }); run(1); input.set({ sprint: false });
@@ -98,10 +108,10 @@ check('0–100 km/h in about 2 s', t100 > 1.6 && t100 < 2.8, `${t100.toFixed(2)}
 input.set({ throttle: 0 });
 
 // ---------------------------------------------------------------- the wedge ram
-function rammed(wedge) {
-  const c = { type: 'sedan', len: 4.5, wid: 1.8, h: 1.45, x: 3.3, y: 0, z: 0, ry: -Math.PI / 2, v: 0, color: 0 };
+function rammed(wedge, o = {}, speed = 20) {
+  const c = { type: 'sedan', len: 4.5, wid: 1.8, h: 1.45, x: 3.3, y: 0, z: 0, ry: -Math.PI / 2, v: 0, color: 0, ...o };
   const W = createWrecks({ query: () => [c] });
-  const v = V(0, 0, 0); v.set(20, 0, 0); // 72 km/h along +x into it
+  const v = V(speed, 0, 0); // 72 km/h along +x into it
   const r = W.ram({ x: 0, y: 0, z: 0, fx: 1, fz: 0, hl: 2.55, hw: 1.06, h: wedge ? 1.15 : 1.8, v, mass: 12000, wedge });
   const acc = { x: 0, z: 0, n: 0, top: -Infinity, vel: null };
   W.collide({ x: 1.8, y: 0, z: 0 }, 1.06, 1.15, acc); // the player's front circle still overlaps the struck car
@@ -112,6 +122,13 @@ check('a flat front knocks the car mostly ahead', flat.w && flat.w.v.y < 6, `vy 
 check('the wedge launches it up and over', wedge.w && wedge.w.v.y > 7 && wedge.w.v.y > 1.5 * flat.w.v.y, `vy ${wedge.w?.v.y.toFixed(1)}`);
 check('…tumbling end over end', wedge.w && Math.abs(wedge.w.w.z) > 1.5, `wz ${wedge.w?.w.z.toFixed(2)}`);
 check('…and it does not stop the Roadster like a wall (no push-out at once)', !wedge.pushed && flat.pushed);
+const bus = rammed(1, { type: 'bus', len: 12.67, wid: 2.6, h: 3.11, x: 3.6 }); // broadside, like the sedan
+const busFlat = rammed(0, { type: 'bus', len: 12.67, wid: 2.6, h: 3.11, x: 3.6 });
+const extra = (a, b) => a.w.v.y - b.w.v.y; // what the wedge adds over a flat front
+check('a bus barely rises over the wedge (the lift fades with mass)', bus.w && busFlat.w && extra(bus, busFlat) < 0.3 * extra(wedge, flat), `+${extra(bus, busFlat).toFixed(1)} m/s on the bus vs +${extra(wedge, flat).toFixed(1)} on a car`);
+check('…stays solid and still costs speed', bus.pushed && Math.abs(bus.r.dv.x) > Math.abs(wedge.r.dv.x));
+const nudge = rammed(1, {}, 2.5);
+check('a slow nudge keeps the struck car solid', nudge.w && nudge.pushed, `knocked ${!!nudge.w}`);
 check('…and the Roadster keeps more of its speed', Math.abs(wedge.r.dv.x) < Math.abs(flat.r.dv.x), `${wedge.r.dv.x.toFixed(2)} vs ${flat.r.dv.x.toFixed(2)}`);
 
 // ---------------------------------------------------------------- the rear wing: up while driving, folded when stopped / flying

@@ -19,13 +19,13 @@ export function createGarage({ car, explore, hud = null, storage, force = false 
   try { want = storage?.getItem(CAR_KEY) === 'roadster' ? 'roadster' : 'cybertruck'; } catch { /* storage off */ }
   const unlocked = () => force || isUnlocked(explore);
   const left = () => Math.max(0, (explore?.total || 0) - (explore?.visited || 0));
-  let was = unlocked(), announceT = -1, shown = '';
+  let was = unlocked(), announceT = -1, shownKind = '', shownU = false, shownLeft = -1;
   if (want === 'roadster' && was && car.kind !== 'roadster') car.swap('roadster');
-  const chip = (fresh = false) => {
-    const key = `${car.kind}|${unlocked()}|${left()}`;
-    if (key === shown && !fresh) return;
-    shown = key;
-    hud?.setGarage?.({ kind: car.kind, unlocked: unlocked(), left: left(), total: explore?.total || 0, fresh });
+  const chip = (fresh = false) => { // the HUD chip, redrawn only when the car, the lock or the count changes
+    const u = unlocked(), n = left();
+    if (!fresh && car.kind === shownKind && u === shownU && n === shownLeft) return;
+    shownKind = car.kind; shownU = u; shownLeft = n;
+    hud?.setGarage?.({ kind: car.kind, unlocked: u, left: n, total: explore?.total || 0, fresh });
   };
   chip();
   const banner = (t, sub, col) => hud?.mission?.banner?.(t, sub, col);

@@ -448,7 +448,7 @@ export function createHud({ player, world, camera, container = globalThis.docume
       el.gasI.style.width = `${(ch * 100).toFixed(1)}%`; setClass(el.gas, 'full', ch >= 1);
       setText(el.gasB, `${Math.round(ch * 100)} %`); setText(el.gasH, `стрибок ≈ ${Math.round(s.jumpH || 0)} м`);
     }
-    const gasFlying = !s.grounded && !(s.wing > 0.02) && s.airT > 0.8 && (s.gasDown > 0.05 || s.alt > 4);
+    const gasFlying = !!player?.gas && !s.grounded && s.airT > 0.8 && (s.gasDown > 0.05 || s.alt > 4); // the Roadster only
     if (gasFlying && !gasAir) gasFlights++;
     gasAir = gasFlying;
     setClass(el.gasFly, 'on', gasFlying && gasFlights <= 3);
