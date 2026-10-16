@@ -457,7 +457,10 @@ See `ARCHITECTURE.md` for the module map. Where things live:
   - `mapdraw.js` – the painter both maps share: feature index, canvas tiles per zoom level (one LRU cache), place
     badges, the street-name chains built from `map.json` road names and `layAlong`, which lays a name's glyphs along a
     street for both maps. Motor-road bridges (`br`) are drawn last, with a dark edge each side, so a road or a railway
-    under one reads as passing under it.
+    under one reads as passing under it. The game's maps are `quiet` (the explore quest): improved objects look like
+    any building (the big map names them on hover), a sight not found yet is a grey footprint with a dashed gold outline
+    and a nameless "?" badge («Невідома пам’ятка» on hover), and only visited sights light up gold with their emoji and
+    name (`painter.refresh(place)` repaints the tiles under one when it is found). The phone page marks every place.
   - `perfhint.js` – watches the real frame rate; after ~6 s under 40 fps it offers G (simpler graphics, one quality
     step down) in a pill at the bottom, but only once the adaptive resolution has nothing lower left to try. G works any time and goes round (the lowest wraps to the highest); F9 cycles the levels upward.
   - `bigmap.js` – the full-screen map on M: north up, wheel / drag / arrows or the + / − buttons, street names along the streets, sight and

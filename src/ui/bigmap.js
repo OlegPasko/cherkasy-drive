@@ -1,7 +1,9 @@
 // Full-screen city map (the M key): north up, wheel / keys zoom around the cursor, drag or arrows / WASD to pan. Shows
 // the painted city tiles with highlighted sight and partner footprints, street names laid along the streets, place
 // badges with labels (improved objects: a grey footprint only, named "Покращений об'єкт" in the legend and on hover;
-// sights dim until visited, then checked – game/explore.js; hover: name, note, distance and visited; a partner's footprint glows, a click on its badge opens its site in
+// with painter.quiet – the game – they look like any building and only the hover names them, and a sight not visited
+// yet is a "?" with no label, "Невідома пам’ятка" on hover, until the car finds it – game/explore.js; visited ones are
+// checked; hover: name, note, distance and visited; a partner's footprint glows, a click on its badge opens its site in
 // a new tab), the mission markers, the objective (with a straight line from the
 // car) and the car itself. A right click offers the Telegram bot at that point (improve this object / advertise here). The game is expected to pause while it is open (main.js reads hud.map.isOpen).
 // With a car and onGo, a click on a paying partner's badge asks "Переміститись сюди?"; yes (or Enter) calls onGo(place).
@@ -58,7 +60,7 @@ export function createBigMap({ painter, player, container, map = null, getObject
       <button data-k="sights"><span class="dot sight"></span>Пам’ятки<em class="bm-seen"></em></button>
       <button data-k="ads"><span class="dot ad"></span>Партнери</button>
       <button data-k="streets"><span class="dot street"></span>Вулиці</button>
-      ${painter.places.some((p) => p.kind === 'improved') ? '<span class="bm-imp"><span class="dot imp"></span>Покращений об’єкт</span>' : ''}
+      ${!painter.quiet && painter.places.some((p) => p.kind === 'improved') ? '<span class="bm-imp"><span class="dot imp"></span>Покращений об’єкт</span>' : ''}
       ${player ? '<button data-k="me" class="act">◎ До авто</button>' : ''}
       <a class="bm-bot" href="${botLink()}" target="_blank" rel="noopener">✈ Бот: ідея, покращення, реклама</a>
     </div>
@@ -363,7 +365,7 @@ export function createBigMap({ painter, player, container, map = null, getObject
       toScreen(p.x, p.z, q);
       if (q.x < -30 || q.y < -30 || q.x > W + 30 || q.y > H + 30) continue;
       const ad = p.kind === 'ad', size = ad ? (big ? 30 : 22) : (big ? 24 : 17);
-      list.push({ p, x: q.x, y: q.y, size, ad, label: ad || s >= 0.42 });
+      list.push({ p, x: q.x, y: q.y, size, ad, label: ad || (s >= 0.42 && p.visited !== false) }); // a sight not found yet: no name
     }
     list.sort((a, b) => (a.ad === b.ad ? 0 : a.ad ? -1 : 1)); // partners claim their space first
     for (const it of list) { const r = it.size / 2; boxes.push({ x0: it.x - r, y0: it.y - r, x1: it.x + r, y1: it.y + r }); }
@@ -561,7 +563,8 @@ export function createBigMap({ painter, player, container, map = null, getObject
     if (!best) { if (tipFor) { el.tip.classList.remove('on'); tipFor = null; } return; }
     if (tipFor !== best.p) {
       tipFor = best.p;
-      el.tipB.textContent = best.p.name; el.tipS.textContent = best.p.note || '';
+      const unknown = best.p.kind === 'sight' && best.p.visited === false; // the explore quest: found by driving there
+      el.tipB.textContent = unknown ? 'Невідома пам’ятка' : best.p.name; el.tipS.textContent = unknown ? '' : best.p.note || '';
       el.tip.classList.toggle('ad', best.p.kind === 'ad');
       el.tip.classList.toggle('imp', best.p.kind === 'improved');
       el.tipU.textContent = canGo(best.p) ? (touch ? 'Торкніться ще раз – переміститись сюди' : 'Клік – переміститись сюди')

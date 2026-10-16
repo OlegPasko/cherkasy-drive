@@ -3,8 +3,9 @@
 // in localStorage ('cherkasy.explore'), and so does the list of sights the player has already seen on the map: when new
 // ones are added to places.js, a returning player is told how many are new and the counter grows with them. Ids that
 // left places.js stay stored (harmless) but do not count.
-// Each tracked place gets p.visited = true | false, which the map badges read (mapdraw.js: dim until visited, then a
-// check); places without the flag (the phone map) draw as before.
+// Each tracked place gets p.visited = true | false, which the maps read (mapdraw.js: a nameless "?" and a grey
+// footprint with a dashed outline until visited, then its emoji, a check and the gold footprint – a visit repaints it
+// through hud.painter.refresh); places without the flag (the phone map) draw as before.
 //   createExplore({ world, player, hud?, reward?(n) (money for a new sight), storage? (localStorage) })
 //     -> { update(dt), visit(id) (debug), reset() (debug), visited: n, total: n, list: [place] }
 //   reachOf(place) -> metres (pure: the footprint's radius around its anchor + 40, at least 60)
@@ -39,6 +40,7 @@ export function createExplore({ world, player, hud = null, reward = null, storag
   function visit(q) {
     if (!q || q.visited) return false;
     q.visited = true; done.add(q.id); save(); track('sight_visited', { sight: q.id });
+    hud?.painter?.refresh?.(q); // its footprint lights up on both maps
     const n = count(), all = n === list.length;
     reward?.(all ? REWARD + REWARD_ALL : REWARD);
     hud?.setExplore?.(n, list.length, true);
@@ -52,7 +54,7 @@ export function createExplore({ world, player, hud = null, reward = null, storag
     get visited() { return count(); },
     get total() { return list.length; },
     visit: (id) => visit(list.find((q) => q.id === id)),
-    reset() { done.clear(); for (const q of list) q.visited = false; save(); hud?.setExplore?.(0, list.length); },
+    reset() { done.clear(); for (const q of list) { q.visited = false; hud?.painter?.refresh?.(q); } save(); hud?.setExplore?.(0, list.length); },
     update(dt) {
       if (greet > 0 && (greet -= dt) <= 0) hud?.mission?.banner(`Нові пам’ятки: ${fresh}`, 'Вони вже на мапі (M) – ще не відвідані', '#f2c14e');
       if ((t += dt) < EVERY) return;

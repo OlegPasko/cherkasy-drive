@@ -173,7 +173,7 @@ export function createHud({ player, world, camera, container = globalThis.docume
   measure();
 
   // ---------------------------------------------------------------- map tiles (shared with the big map)
-  const painter = createMapPainter({ world, features, doc });
+  const painter = createMapPainter({ world, features, doc, quiet: true }); // the game's maps: grey, sights found by driving (mapdraw.js)
   const bigmap = createBigMap({ painter, player, container, map: world?.cherkasy?.map, getObjective: () => objective, getMarkers: () => markers,
     getWaypoint: player ? () => waypoint : null, setWaypoint: player ? setWaypoint : null,
     onGo: player ? (p) => hud.onGo?.(p) : null, getZones: () => hud.getZones?.() || [] });

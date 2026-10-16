@@ -1,8 +1,12 @@
 // Shared 2D map painter for the minimap (hud.js) and the full-screen map (bigmap.js): the city features bucketed once,
 // then painted into cached canvas tiles at a few fixed resolutions; place icons as cached sprites; street-name chains.
 //
-//   createMapPainter({ world, features?, doc }) -> painter
+//   createMapPainter({ world, features?, doc, quiet? }) -> painter
 //     world / features: as in createHud (features override, else world.mapFeatures, world.cherkasy.map, getMapFeatures())
+//     quiet (the game's maps, where the explore quest runs): the map stays grey – improved objects draw as plain
+//     buildings (the big map names them on hover), a sight not visited yet is a grey footprint with a dashed gold
+//     outline and a "?" badge with no name; only visited sights light up gold with their emoji. Without it (the phone
+//     page) every place is marked as before.
 //   painter.index()                       the feature index ({ buckets, wide, valid }), built on first use
 //   painter.tile(level, i, j) -> t        cached tile (t.c canvas, t.ready, t.m metres, t.row > 0 while half painted)
 //   painter.work(budgetMs) -> ms          paints queued tiles within the budget (at least one per call)
@@ -12,11 +16,15 @@
 //   painter.frame()                       starts a draw: tiles asked for after it are not evicted until the next one
 //   painter.bounds                        { x0, z0, x1, z1 } the area worth painting (map region + margin) or null
 //   painter.places                        world.places ([{ id, kind, name, note, icon, x, z, rings }]) or []; kind
-//                                          'improved' has no badge, only its grey footprint in the tiles
+//                                          'improved' has no badge, only its grey footprint in the tiles (none when quiet)
+//   painter.quiet                         the option above
+//   painter.refresh(place)                repaint the cached tiles under a place's footprint in place (a sight just
+//                                          visited lights up; the old image shows until the new one is painted)
 //   painter.icon(place, size, dpr) -> canvas   cached round badge (size = css px across; a partner with a url gets the
 //                                          "open in a new tab" glyph instead of its emoji)
-//                                          a sight with place.visited === false (the explore quest, game/explore.js) is dim
-//                                          with a grey rim, one with visited === true gets a green check; no flag – plain
+//                                          a sight with place.visited === false (the explore quest, game/explore.js) is a
+//                                          "?" with a grey rim, one with visited === true its emoji with a green check;
+//                                          no flag – plain
 //   painter.streets() -> [{ name, label, rank, p: flat [x, z, ...], len, x0, z0, x1, z1 }]  named road chains
 // layAlong(P, cum, a0, text, width(ch), inside(x, y)) -> [{ ch, x, y, ang }] | null   a street name's glyphs along a screen
 //   polyline (flat P, arc lengths cum) from arc a0; null where the path bends too much under it or a glyph leaves the frame
@@ -26,7 +34,7 @@
 export const COL = {
   road: '#7d8ca3', block: '#1a273b', water: '#2b6aa0', park: '#2c5a47', bld: '#3f5575', bldEdge: '#5b7398', edge: 'rgba(255,255,255,.28)',
   rail: '#b3aa9c', tie: '#5c574f',
-  sight: '#8a7a4c', sightEdge: '#f2c14e', ad: '#8c3a6c', adEdge: '#ff6fb5', imp: '#5f6570', impEdge: '#b4bac4',
+  sight: '#8a7a4c', sightEdge: '#f2c14e', sightHidden: 'rgba(242,193,78,.6)', ad: '#8c3a6c', adEdge: '#ff6fb5', imp: '#5f6570', impEdge: '#b4bac4',
 };
 export const LEVELS = { mini: { m: 256, px: 192 } };
 for (let k = 0; k < 6; k++) LEVELS[k] = { m: 2048 / 2 ** k, px: 512 };
@@ -66,12 +74,12 @@ export function featuresOf(world) {
 
 // layers: 0 blocks, 1 parks, 2 water, 3 buildings, 4 road strokes, railway lines (item.rail: 1 main, 2 siding) and,
 // over them, road bridges (item.bridge: the deck with a dark edge each side, so what runs under it shows as passing under),
-// 5 sight footprints, 6 partner footprints, 7 improved-object footprints (grey).
+// 5 sight footprints, 6 partner footprints, 7 improved-object footprints (grey); those three carry item.place.
 // Every drawable goes into the 256 m buckets its bounds touch; features spanning many buckets go to a shared "wide" list.
 function indexFeatures(F, places) {
   const buckets = new Map(), wide = [];
   let valid = 0, seq = 0;
-  const put = (layer, rings, pad = 0, rail = 0, bridge = 0) => {
+  const put = (layer, rings, pad = 0, rail = 0, bridge = 0, place = null) => {
     const outer = rings[0];
     if (!outer || outer.length < 4) return;
     let x0 = Infinity, z0 = Infinity, x1 = -Infinity, z1 = -Infinity;
@@ -80,7 +88,7 @@ function indexFeatures(F, places) {
       if (!Number.isFinite(x) || !Number.isFinite(z)) return;
       if (x < x0) x0 = x; if (x > x1) x1 = x; if (z < z0) z0 = z; if (z > z1) z1 = z;
     }
-    const item = { layer, rings, rail, bridge, seq: seq++, w: pad * 2, x0: x0 - pad, z0: z0 - pad, x1: x1 + pad, z1: z1 + pad };
+    const item = { layer, rings, rail, bridge, place, seq: seq++, w: pad * 2, x0: x0 - pad, z0: z0 - pad, x1: x1 + pad, z1: z1 + pad };
     const i0 = Math.floor(item.x0 / BUCKET), i1 = Math.floor(item.x1 / BUCKET), j0 = Math.floor(item.z0 / BUCKET), j1 = Math.floor(item.z1 / BUCKET);
     valid++;
     if ((i1 - i0 + 1) * (j1 - j0 + 1) > 16) { wide.push(item); return; }
@@ -98,7 +106,7 @@ function indexFeatures(F, places) {
   for (const r of F.roads || []) if (r?.p?.length >= 4) put(4, [r.p], (r.w || 6) / 2);
   for (const r of F.rails || []) if (r?.p?.length >= 4) put(4, [r.p], 2, r.sv ? 2 : 1);
   for (const r of F.bridges || []) put(4, [r.p], r.w / 2 + 2, 0, 1);
-  for (const q of places) for (const ring of q.rings || []) put(q.kind === 'ad' ? 6 : q.kind === 'improved' ? 7 : 5, [ring]);
+  for (const q of places) for (const ring of q.rings || []) put(q.kind === 'ad' ? 6 : q.kind === 'improved' ? 7 : 5, [ring], 0, 0, 0, q);
   const order = (a, b) => a.layer - b.layer || a.seq - b.seq;
   for (const b of buckets.values()) b.sort(order);
   wide.sort(order);
@@ -181,7 +189,7 @@ function streetChains(roads) {
 }
 
 // ------------------------------------------------------------------------------------------------ painter
-export function createMapPainter({ world, features = null, doc = globalThis.document }) {
+export function createMapPainter({ world, features = null, doc = globalThis.document, quiet = false }) {
   let index = null, chains = null;
   const places = (() => { try { return (world?.places || []).filter((q) => Number.isFinite(q?.x) && Number.isFinite(q?.z)); } catch { return []; } })();
   const region = world?.cherkasy?.map?.region, M = 7000; // far enough that the zoomed-out view never shows the edge
@@ -255,12 +263,17 @@ export function createMapPainter({ world, features = null, doc = globalThis.docu
         for (let k = 2; k < ring.length; k += 2) g.lineTo(ring[k], ring[k + 1]);
         g.closePath();
       }
-      g.fillStyle = FILL[f.layer]; g.fill('evenodd');
-      if (f.layer === 3 && fine) { g.strokeStyle = COL.bldEdge; g.lineWidth = edge; g.stroke(); }
-      else if (f.layer >= 5) { g.strokeStyle = EDGE[f.layer]; g.lineWidth = Math.max(1, 1.3 * Math.min(2, s)) / s; g.stroke(); }
+      // quiet: an improved object is just a building; a sight not found yet is grey with a dashed gold outline
+      const plain = quiet && f.layer === 7, hidden = quiet && f.layer === 5 && f.place?.visited === false;
+      g.fillStyle = plain || hidden ? COL.bld : FILL[f.layer]; g.fill('evenodd');
+      if ((f.layer === 3 || plain) && fine) { g.strokeStyle = COL.bldEdge; g.lineWidth = edge; g.stroke(); }
+      else if (hidden) {
+        const lw = Math.max(1, 1.2 * Math.min(2, s)) / s;
+        g.strokeStyle = COL.sightHidden; g.lineWidth = lw; g.setLineDash([lw * 3, lw * 2.5]); g.stroke(); g.setLineDash([]);
+      } else if (f.layer >= 5 && !plain) { g.strokeStyle = EDGE[f.layer]; g.lineWidth = Math.max(1, 1.3 * Math.min(2, s)) / s; g.stroke(); }
     }
     g.setTransform(1, 0, 0, 1, 0, 0);
-    t.ready = true;
+    t.ready = true; t.stale = false;
   }
   // fallback (no map data): sample the world a few rows per call; building tops light, water blue, rest field
   function paintFallbackRows(t, rows) {
@@ -279,7 +292,7 @@ export function createMapPainter({ world, features = null, doc = globalThis.docu
         g.fillStyle = c; g.fillRect(k * cp, t.row * cp, cp + 0.5, cp + 0.5);
       }
     }
-    if (t.row >= N) t.ready = true;
+    if (t.row >= N) { t.ready = true; t.stale = false; }
   }
 
   function tile(level, i, j) {
@@ -305,13 +318,13 @@ export function createMapPainter({ world, features = null, doc = globalThis.docu
     let n = 0;
     while (queue.length && (n === 0 || performance.now() - t0 < budget)) {
       const t = queue[queue.length - 1];
-      if (t.dead || t.ready) { queue.pop(); continue; }
+      if (t.dead || (t.ready && !t.stale)) { queue.pop(); continue; }
       try {
         if (ensureIndex().valid) { paintTile(t); queue.pop(); n++; }
         else { paintFallbackRows(t, 4); if (t.ready) queue.pop(); break; }
       } catch (e) { // a bad feature must not freeze the map: keep what was painted and move on
         if (!paintErr) { paintErr = true; console.error('[map] tile', e); }
-        t.ready = true; queue.pop();
+        t.ready = true; t.stale = false; queue.pop();
       }
     }
     return performance.now() - t0;
@@ -336,7 +349,7 @@ export function createMapPainter({ world, features = null, doc = globalThis.docu
     g.fillStyle = ad ? '#d63d86' : 'rgba(17,22,33,.92)'; g.fill();
     g.shadowColor = 'transparent';
     g.lineWidth = ad ? 1.6 : 1.3; g.strokeStyle = ad ? '#ffffff' : seen === false ? 'rgba(160,170,190,.7)' : '#f2c14e'; g.stroke();
-    if (seen === false) g.globalAlpha = 0.5; // not visited yet: the emoji fades
+    if (seen === false) g.globalAlpha = 0.75; // not visited yet: a grey "?" in place of the emoji
     if (link) { // a partner with a site: the "open in a new tab" glyph (a box, its corner broken by an arrow)
       const b = size * 0.2, a = size * 0.24, o = size * 0.04;
       g.lineWidth = Math.max(1.4, size * 0.085); g.lineCap = g.lineJoin = 'round'; g.strokeStyle = '#fff';
@@ -344,7 +357,8 @@ export function createMapPainter({ world, features = null, doc = globalThis.docu
       g.beginPath(); g.moveTo(-o, o); g.lineTo(a, -a); g.moveTo(a * 0.2, -a); g.lineTo(a, -a); g.lineTo(a, -a * 0.2); g.stroke();
     } else {
       g.font = `${Math.round(size * 0.58)}px ${EMOJI_FONT}`; g.textAlign = 'center'; g.textBaseline = 'middle';
-      g.fillStyle = '#fff'; g.fillText(q.icon || '•', 0, size * 0.04);
+      if (seen === false) { g.font = `700 ${Math.round(size * 0.56)}px system-ui, sans-serif`; g.fillStyle = '#c3cad6'; g.fillText('?', 0, size * 0.05); }
+      else { g.fillStyle = '#fff'; g.fillText(q.icon || '•', 0, size * 0.04); }
     }
     g.globalAlpha = 1;
     if (seen) { // visited: a small green check on the lower right of the rim
@@ -365,7 +379,17 @@ export function createMapPainter({ world, features = null, doc = globalThis.docu
       for (const [k, t] of C) if (!t.ready) { t.dead = true; C.delete(k); }
     },
     stats: () => Object.fromEntries([...caches].map(([L, C]) => [L, `${[...C.values()].filter((t) => t.ready).length}/${C.size}`])),
-    get pending() { while (queue.length && (queue[queue.length - 1].dead || queue[queue.length - 1].ready)) queue.pop(); return queue.length; },
+    get pending() { while (queue.length && (queue[queue.length - 1].dead || (queue[queue.length - 1].ready && !queue[queue.length - 1].stale))) queue.pop(); return queue.length; },
+    quiet,
+    refresh(q) { // repaint the cached tiles under the place's footprint (they keep showing the old image meanwhile)
+      let x0 = Infinity, z0 = Infinity, x1 = -Infinity, z1 = -Infinity;
+      for (const r of q?.rings || []) for (let i = 0; i < r.length; i += 2) { x0 = Math.min(x0, r[i]); x1 = Math.max(x1, r[i]); z0 = Math.min(z0, r[i + 1]); z1 = Math.max(z1, r[i + 1]); }
+      if (!(x1 >= x0)) return;
+      for (const C of caches.values()) for (const t of C.values()) {
+        if (t.dead || t.i * t.m > x1 || (t.i + 1) * t.m < x0 || t.j * t.m > z1 || (t.j + 1) * t.m < z0) continue;
+        if (t.ready) { t.stale = true; if (!queue.includes(t)) queue.push(t); }
+      }
+    },
     streets() {
       if (chains) return chains;
       try { chains = streetChains(world?.cherkasy?.map?.roads); } catch (e) { console.error('[map] streets', e); chains = []; }
