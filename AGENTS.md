@@ -1,7 +1,7 @@
 # AGENTS.md
 
 Cherkasy Drive is an open-world driving and flying game set in the real city of Cherkasy, Ukraine. You drive a
-Cybertruck-style car that can also fly. The city has traffic, pedestrians, landmarks along the Dnipro, and
+Cybertruck-style car that can also fly (and, once every sight is found, a Roadster that leaps on cold gas). The city has traffic, pedestrians, landmarks along the Dnipro, and
 missions: couriers, taxi, chases and muggings. It is built with three.js r186 and Vite, as plain ES modules
 without a framework. The code is open source under the GNU AGPL-3.0 (see `LICENSE`).
 
@@ -396,8 +396,21 @@ See `ARCHITECTURE.md` for the module map. Where things live:
     `map.region`, near buildings or in parks (map.json's ways run on into the fields past the region);
   - `gibs.js` – gore chunks and debris.
 - `src/game/` – gameplay:
-  - `car/` – `car.js` (control, flight, camera), `model.js` (the Cybertruck), `collide.js` (car
-    collider);
+  - `car/` – `car.js` (control, flight, camera; `CARS` holds the two player cars, `swap(kind)` changes car in place,
+    keeping position, velocity and heading), `model.js` (the Cybertruck), `roadster.js` (the Roadster, after the Tesla
+    Roadster shown on 2026-10-16: a faceted hull lofted through ~20 cross-sections, fender peaks with triangular lamps, a
+    light bar, a dark canopy into a black glass deck, butterfly doors that open when parked, a Kamm tail with four
+    bronze cold-gas nozzles, a rear wing that rises in the air, turbine wheels, white sport seats, a yoke and a canvas
+    screen; the Cybertruck's stainless and Everlabs plate; ~30k vertices like the Cybertruck), `collide.js` (car
+    collider). The Roadster drives ~1.5x faster (87 m/s limiter) on more grip; it has no wings: Shift held on the ground
+    charges a jump for up to 10 s (a gauge at the bottom; a full charge clears ~48 m), the release leaps straight up, and
+    in the air the belly jets catch the fall into a glide, Shift hovers / climbs, W thrusts on the rear nozzles; gas puffs
+    are a world-space `THREE.Points` pool plus additive jet cones. Its ram box is a wedge (`ram(q)` with `wedge: 1`,
+    `npc/wrecks.js`): struck cars are thrown up and over it, tumbling. `tests/roadster.test.mjs`;
+  - `garage.js` – which car: the Roadster is unlocked while every sight is visited (`explore.visited === total`; a new
+    sight locks it again until found), V or the "V" chip after "На старт" switches (locked: a lock and the sights left),
+    the choice is kept as `cherkasy.car`; the unlock is announced the moment the last sight falls. `?roadster` unlocks it
+    in dev builds only;
   - `partners.js` – a partner's soft pink ring at its door, the building's light-up on approach, and the card that
     slides in on the right inside the ring (O or a click opens the site in a new tab);
   - `explore.js` – the standing quest "visit every sight": every `places.js` sight counts once the car comes within
@@ -416,6 +429,9 @@ See `ARCHITECTURE.md` for the module map. Where things live:
   - `missions.js` – the dispatcher and the five mission types; fines; money is stored in localStorage under
     `cherkasy.money`;
   - `testworld.js` – a small flat world for car tests.
+- `src/ui/roadsternews.js` and `roadsternews.css` – the Roadster's one-time news card after the consent card (what it
+  does, how to earn it, the player's progress, the key; any key closes it, V there switches when earned); seen once ->
+  `cherkasy.news.roadster`.
 - `src/audio/` – the sound, all recorded with ElevenLabs:
   - `engine.js` – the sample player: buses (sfx, ui, amb, motor, dispatcher `vo` with a radio band-pass, passenger
     `pax`), positional one-shots, seamless loops, one voice line at a time with ducking;
@@ -510,13 +526,14 @@ See `ARCHITECTURE.md` for the module map. Where things live:
   - `?stilltime` – the clock stands still (the game runs a day per hour of play and skips the night, `startGame` in `main.js`);
   - `?nosound` – no sound at all (no AudioContext, nothing fetched, the radio muted); use it for every dev and test run;
   - `?mobile` / `?desktop` – force the phone map page or the game (`src/mapview.js`).
-- Handles: `window.__game` (ctx with `world`, `car`, `hud` (`hud.map`, `hud.painter`), `missions`, `perf`), `window.__car`,
+  - `?roadster` – dev builds only (`import.meta.env.DEV`): the Roadster counts as unlocked (V switches to it).
+- Handles: `window.__game` (ctx with `world`, `car`, `hud` (`hud.map`, `hud.painter`), `missions`, `garage`, `perf`), `window.__car`,
   `window.__missions`, `window.__cherkasyTraffic`, `window.__cherkasyPeds`.
 - `window.tick(n, dt)` pauses the loop, steps n frames deterministically and returns a snapshot.
   `__game.start()` resumes the loop. Use this for scripted checks.
 - In the game: M opens the city map (Esc or M closes it), H (or the always-visible H chip) shows the controls card –
   every key, grouped; add new keys to `HELP` in `hud.js` –, F2 hides the HUD, T jumps to a time of day (morning, midday, evening – the clock runs on from there, a day per hour, and skips the night; the evening has the lights on: windows, lamps, signs, car lights, from `daylight.state.lamps`),
-  Q turns the radio on / off and E skips a track, F honks the horn (people in a cone ahead dash off to the sides), G lowers the graphics quality one step (from the lowest back to the highest; besides the post chain a lower level draws
+  V switches between the Cybertruck and the Roadster (once every sight is found; `cherkasy.car` keeps the choice), Q turns the radio on / off and E skips a track, F honks the horn (people in a cone ahead dash off to the sides), G lowers the graphics quality one step (from the lowest back to the highest; besides the post chain a lower level draws
   less: shorter tree / building / site / people / traffic draw and shadow distances, no river mirror at low), F9 cycles quality, B (or Home, or the "На старт" chip) takes a stuck car back to the start, N skips a mission call, J (or the «Місії» chip over the minimap) turns the missions off and on – just driving, no calls; kept as `cherkasy.missions` –, K opens the quest book, O opens a partner's site inside its ring, Enter retries after a failure, and Backspace abandons a mission.
 - Chrome gives hidden tabs no animation frames, so a background tab looks frozen. Keep the tab in front, or use
   `tick()`.

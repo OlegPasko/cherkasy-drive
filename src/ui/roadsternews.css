@@ -1,0 +1,27 @@
+/* the one-time Roadster news card (roadsternews.js): the HUD's dark glass, the consent card's yellow */
+.rd-news { position: fixed; inset: 0; z-index: 30; display: grid; place-items: center; padding: 16px; box-sizing: border-box;
+  background: rgba(6, 8, 13, .45); opacity: 0; transition: opacity .3s; }
+.rd-news.on { opacity: 1; }
+.rd-card { width: min(560px, 100%); max-height: calc(100vh - 32px); overflow-y: auto; box-sizing: border-box; padding: 22px 26px 18px;
+  border-radius: 14px; border: 1px solid rgba(242, 193, 78, .45); background: rgba(12, 16, 26, .9); color: #e8eef7;
+  font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; box-shadow: 0 18px 60px rgba(0, 0, 0, .55);
+  transform: translateY(10px) scale(.98); transition: transform .3s; }
+.rd-news.on .rd-card { transform: none; }
+.rd-tag { font: 700 11px system-ui, sans-serif; letter-spacing: .18em; color: #f2c14e; }
+.rd-card h3 { margin: 2px 0 8px; font: 800 34px/1.1 system-ui, sans-serif; letter-spacing: .02em;
+  background: linear-gradient(90deg, #ffffff, #c9cdd2 60%, #ff5a4a); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.rd-lead { margin: 0 0 10px; color: #dfe6f0; }
+.rd-card ul { margin: 0 0 14px; padding-left: 18px; display: grid; gap: 6px; color: #c9d3e4; }
+.rd-goal { padding: 10px 12px; border-radius: 10px; background: rgba(255, 255, 255, .06); color: #dfe6f0; }
+.rd-goal.open { background: rgba(242, 193, 78, .14); }
+.rd-goal b { color: #f2c14e; }
+.rd-bar { height: 8px; margin: 8px 0 4px; border-radius: 4px; background: rgba(255, 255, 255, .12); overflow: hidden; }
+.rd-bar i { display: block; height: 100%; border-radius: 4px; background: #f2c14e; }
+.rd-n { display: block; margin-bottom: 4px; font-size: 13px; color: #aab4c4; }
+.rd-card button { display: block; margin: 16px auto 0; padding: 10px 26px; border: 0; border-radius: 999px; cursor: pointer;
+  font: 700 15px system-ui, sans-serif; color: #0d1117; background: #f2c14e; transition: transform .15s; }
+.rd-card button:hover { transform: translateY(-1px); }
+.rd-foot { margin-top: 8px; text-align: center; font-size: 12px; color: #8b94a3; }
+.rd-card kbd { display: inline-block; min-width: 20px; padding: 1px 6px; box-sizing: border-box; border-radius: 5px; text-align: center;
+  font: 700 11px/1.35 system-ui, sans-serif; color: #fff; background: linear-gradient(180deg, #3a4660, #283247);
+  border: 1px solid rgba(255, 255, 255, .22); border-bottom-width: 2px; }

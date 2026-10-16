@@ -8,7 +8,9 @@
 //             setQuality('low' | 'medium' | 'high'), step(dt), start(), stop(), resize() }
 //   startGame({ container, overlay? }) -> Promise<ctx>   the game page: world (Cherkasy, or the test world with ?testworld
 //     or when src/world/cherkasy/city.js is absent), the car, HUD and missions as systems (car -> traffic player sync ->
-//     world.update(dt, camera) -> missions -> partners -> explore -> quests -> audio -> perf -> hud). ctx gains { world, car, hud, missions, partners, explore, quests, audio, perf }. M opens the city map
+//     world.update(dt, camera) -> missions -> partners -> explore -> garage -> quests -> audio -> perf -> hud). ctx gains { world, car, hud, missions, partners, explore, garage, quests, audio, perf }.
+//     V switches the car (game/garage.js: the Roadster once every sight is found; ?roadster unlocks it in dev builds
+//     only); the Roadster's one-time news card (ui/roadsternews.js) follows the consent card. M opens the city map
 //     (hud.map) and K the quest book (game/quests.js); either pauses the game until it closes. The loading screen carries the consent card (ui/consent.js): the
 //     loop starts once it is accepted, at once for a returning player. window.__game = ctx;
 //     window.tick(n, dt = 1/60) steps n fixed frames with the real-time loop paused (ctx.start() resumes). ?paused
@@ -38,6 +40,8 @@ import { createCar } from './game/car/car.js';
 import { createMissions } from './game/missions.js';
 import { createPartners } from './game/partners.js';
 import { createExplore } from './game/explore.js';
+import { createGarage } from './game/garage.js';
+import { showRoadsterNews } from './ui/roadsternews.js';
 import { createQuests } from './game/quests.js';
 import { roadSpotNear } from './game/placeat.js';
 import { worldXZ } from './ui/botlink.js';
@@ -221,10 +225,12 @@ export async function startGame({ container = document.getElementById('app') || 
   const missions = createMissions({ world, player: car, hud, scene, input });
   const partners = createPartners({ world, player: car, scene, isBlocked: () => hud.map.isOpen });
   const explore = createExplore({ world, player: car, hud, reward: (n) => missions.addMoney(n) });
+  const garage = createGarage({ car, explore, hud, force: !!import.meta.env?.DEV && params.has('roadster') });
+  hud.onCar = () => garage.toggle();
   const quests = createQuests({ world, player: car, scene, hud, reward: (n) => missions.addMoney(n) });
   hud.getZones = () => quests.zones();
   const audio = createGameAudio({ car, camera, world, daylight: ctx.daylight, silent: params.has('nosound') });
-  Object.assign(ctx, { car, player: car, hud, missions, partners, explore, quests, audio }); // player: the name the city polls for the traffic
+  Object.assign(ctx, { car, player: car, hud, missions, partners, explore, garage, quests, audio }); // player: the name the city polls for the traffic
 
   // resume where the last session ended. The saved spot is the car's last safe point (on a street, slow, dry), not the
   // raw position, so a save taken mid-flight or in the river still restarts on a road.
@@ -260,6 +266,7 @@ export async function startGame({ container = document.getElementById('app') || 
   input.bind('quests', ['KeyK']);
   input.bind('simpler', ['KeyG']);
   input.bind('home', ['KeyB', 'Home']);
+  input.bind('car', ['KeyV']);
   // a stuck car: back to the city's start spot (the saved position moves with it, so a reload does not undo it)
   const goHome = () => { car.home(); if (inCity) savePos(); };
   hud.onHome = goHome;
@@ -287,7 +294,8 @@ export async function startGame({ container = document.getElementById('app') || 
   ctx.perf = perf;
   ctx.events.on('quality', () => perf.restart()); // F9 too, not only G
   const sim = () => world.life?.traffic;
-  ctx.addSystem((dt) => car.update(dt), 'car');
+  let news = null; // the Roadster's one-time news card: the car stands still under it (keys held through the load, a gamepad)
+  ctx.addSystem((dt) => car.update(dt, !!news?.isOpen), 'car');
   ctx.addSystem(() => { // traffic yields to / collides with the player
     const s = sim(); if (!s?.setPlayer) return;
     const p = car.state.p;
@@ -297,6 +305,7 @@ export async function startGame({ container = document.getElementById('app') || 
   ctx.addSystem((dt) => missions.update(dt), 'missions');
   ctx.addSystem((dt) => partners.update(dt), 'partners');
   ctx.addSystem((dt) => explore.update(dt), 'explore');
+  ctx.addSystem((dt) => garage.update(dt), 'garage');
   ctx.addSystem((dt) => quests.update(dt), 'quests');
   ctx.addSystem((dt) => audio.update(dt), 'audio');
   ctx.addSystem(() => { if (input.pressed('simpler')) perf.cycle(); perf.update(); }, 'perf');
@@ -307,6 +316,7 @@ export async function startGame({ container = document.getElementById('app') || 
       if (input.pressed('help')) hud.toggleHelp();
       if (input.pressed('hudToggle')) hud.setVisible(!hud.visible);
       if (input.pressed('home')) goHome();
+      if (input.pressed('car')) garage.toggle();
       if (input.pressed('radio')) audio.radio.toggle();
       if (input.pressed('radioNext')) audio.radio.next();
     }
@@ -325,6 +335,8 @@ export async function startGame({ container = document.getElementById('app') || 
     if (!params.has('paused')) ctx.start();
     overlay?.classList.add('done');
     setTimeout(() => overlay?.remove(), 700);
+    // the Roadster's news, once (any key closes it; V there switches at once when it is earned)
+    news = showRoadsterNews({ visited: explore.visited, total: explore.total, unlocked: garage.unlocked, onSwitch: () => { if (garage.kind !== 'roadster') garage.toggle(); } });
   });
   if (typeof window !== 'undefined') {
     window.__game = ctx;
@@ -337,6 +349,7 @@ export async function startGame({ container = document.getElementById('app') || 
       return {
         frame: ctx.frame, x: +p.x.toFixed(2), y: +p.y.toFixed(2), z: +p.z.toFixed(2), yaw: +car.yaw.toFixed(3),
         kmh: Math.round(Math.hypot(v.x, v.z) * 3.6), mode: car.mode, alt: +(car.state.alt || 0).toFixed(1), wing: +car.state.wing.toFixed(2),
+        car: car.kind, charge: +car.state.charge.toFixed(2),
         cam: car.cam.mode, money: missions.money, mission: missions.active?.type || null, offer: missions.offers[0]?.type || null,
         objective: hud.objective ? hud.objective.toArray().map((q) => +q.toFixed(1)) : null,
       };

@@ -3,7 +3,8 @@
 // (title, objective text, labelled condition bar with hit shake and "−N%" toasts, timer; centred at the top for 5 s on a
 // new mission or step, then docked on the right), banners, money with a flash, hint line), the controls card (every key the game knows, grouped; toggled by H or the always-visible "H" chip, which
 // stays on screen even with the HUD hidden; the "Бот" chip next to it opens the game's Telegram bot, the "B – На старт"
-// chip after it calls hud.onHome (a stuck car goes back to the start), the "🔔 Оновлення" chip opens the bot's daily updates
+// chip after it calls hud.onHome (a stuck car goes back to the start), the "V – Roadster" chip after that calls hud.onCar
+// (the car switch, game/garage.js; a lock while the Roadster is not yet earned), the "🔔 Оновлення" chip opens the bot's daily updates
 // subscription (t.me/…?start=sub), the "Q – Радіо" chip after that calls hud.onRadio and
 // shows what plays (hud.setRadio), and while it plays an "E – Далі" chip next to it calls hud.onRadioNext; an "M – Велика мапа"
 // chip over the minimap opens the big map, and the "J – Місії" chip beside it calls hud.onMissions and shows whether
@@ -20,7 +21,9 @@
 //   hud.update(dt)                         per frame: objective projection + compass every frame, map at ~25 Hz;
 //                                          while the big map is open only the big map (the game is paused meanwhile)
 //   hud.setTelemetry(state, vF, camMode)   the car's per-frame readout (state: grounded, alt, gear, wing, airT, stall,
-//                                          airbrake); in flight it also shows the "S – glide down" tip, and a minute
+//                                          airbrake, charge / jumpH / gasDown for the Roadster: the gas gauge at the
+//                                          bottom while Shift charges a jump, and the gas flight tip for the first
+//                                          flights); in flight it also shows the "S – glide down" tip, and a minute
 //                                          into the ride the "hold Shift – turbo" tip for a minute or until the wings
 //                                          come out (never again once Shift was used: cherkasy.turbo in localStorage)
 //   hud.setObjective(pos | null)           world position (copied); non-finite -> cleared
@@ -34,6 +37,8 @@
 //                   banner(title, sub?, color?), setMoney(n), flashMoney(), setHint(text | null) }
 //   hud.map = { open(), close(), toggle(), isOpen }   the full-screen map (M in main.js; Esc closes it too)
 //   hud.onHome = fn                      set by main: the "На старт" chip calls it
+//   hud.onCar = fn, hud.setGarage({ kind, unlocked, left, total, fresh? })   the car chip (game/garage.js): the car
+//                                        you would switch to, or a lock with the sights left; fresh pulses it
 //   hud.onGo = fn(place)                 set by main: the big map's "Переміститись сюди?" – move the car beside that place
 //   hud.getZones = fn -> [{ x, z, r, label }]   set by main: the active quest's search circles on the big map (game/quests.js)
 //   hud.onMissions = fn, hud.setMissionsOn(on)   the missions on / off chip over the minimap
@@ -61,6 +66,8 @@ const HELP = [
   ['Їзда', [['W / S', 'газ / гальмо, задній хід'], ['A / D', 'кермо'], ['Space', 'ручник'], ['F', 'сигнал: люди попереду розбігаються'], ['R', 'поставити авто на дорогу'], ['B / Home', 'застряг? повернутись на старт']]],
   ['Політ', [['Shift', 'тримай: крила + реактивна тяга, відрив ~150 км/год'], ['W', 'крейсерська тяга'], ['S', 'повітряне гальмо'],
     ['↑ / ↓', 'ніс вниз / вгору'], ['Space / Ctrl', 'набір висоти / пікірування'], ['A / D', 'віраж']]],
+  ['Roadster', [['V', 'пересісти: Cybertruck / Roadster (Roadster – коли відкриєш усі пам’ятки)'], ['Shift', 'на землі тримай – тиск газу (до 10 с), відпусти – стрибок: повний заряд ≈ 48 м, над 15-поверхівкою'],
+    ['Shift / Space', 'у повітрі: газові струмені тримають авто, повільний набір'], ['W', 'тяга вперед (задні сопла)'], ['S', 'гальмо, швидше вниз'], ['↑ / Ctrl', 'вниз швидше'], ['A / D', 'поворот']]],
   ['Камера', [['C', 'кабіна / вид ззаду'], ['Миша', 'огляд (клік по грі захоплює курсор)'], ['Esc', 'відпустити курсор']]],
   ['Місії', [['', 'заїдь у стовп світла, щоб узяти виклик'], ['J', 'приймати виклики / вимкнути місії (просто кататись)'], ['N', 'інший виклик'], ['Backspace', 'скасувати місію'], ['Enter', 'ще раз після невдачі']]],
   ['Мапа', [['M', 'карта міста (гра на паузі)'], ['M / Esc', 'закрити карту'], ['Колесо / + −', 'масштаб'], ['Тягни / ←↑→↓ / WASD', 'рух карти'],
@@ -95,9 +102,12 @@ export function createHud({ player, world, camera, container = globalThis.docume
     <div class="hud-toast"></div><div class="hud-banner"></div><div class="hud-hint"></div>
     <div class="hud-fly"><kbd>S</kbd> – скинути швидкість і спланувати вниз</div>
     <div class="hud-fly hud-turbo">Натисни й тримай <kbd>Shift</kbd> для турборежиму</div>
+    <div class="hud-fly hud-gasfly"><kbd>Shift</kbd> – зависнути й набрати висоту · <kbd>W</kbd> – вперед · <kbd>S</kbd> – гальмо</div>
+    <div class="hud-gas"><span class="l">ТИСК ГАЗУ</span><div class="g"><i></i></div><b>0 %</b><span class="h"></span></div>
     <button class="hud-helpkey" type="button" title="Керування (H)"><kbd>H</kbd><span>Керування</span></button>
     <a class="hud-botkey" href="${botLink()}" target="_blank" rel="noopener" title="Telegram-бот гри"><i>✈</i><span>Бот</span></a>
     <button class="hud-homekey" type="button" title="Повернутись на старт (B)"><kbd>B</kbd><span>На старт</span></button>
+    <button class="hud-carkey locked" type="button" title="Пересісти в інше авто (V)"><kbd>V</kbd><span>🔒 Roadster</span></button>
     <a class="hud-botkey hud-newskey" href="${botLink('sub')}" target="_blank" rel="noopener" title="Раз на день, о 21:00, оновлення гри в Telegram – лише коли вони є"><i>🔔</i><span>Оновлення</span></a>
     <button class="hud-radiokey" type="button" title="Радіо: Q – увімк. / вимк., E – наступний трек"><kbd>Q</kbd><span>Радіо</span></button>
     <button class="hud-radionext off" type="button" title="Наступний трек (E)"><kbd>E</kbd><span>Далі</span></button>
@@ -114,6 +124,7 @@ export function createHud({ player, world, camera, container = globalThis.docume
     bl: $('.hud-panel .bl'), bar: $('.hud-panel .bar'), barI: $('.hud-panel .bar i'), tm: $('.hud-panel .tm'),
     toast: $('.hud-toast'), banner: $('.hud-banner'), hint: $('.hud-hint'), fly: $('.hud-fly:not(.hud-turbo)'), turbo: $('.hud-turbo'), help: $('.hud-help'), helpKey: $('.hud-helpkey'), botKey: $('.hud-botkey'), newsKey: $('.hud-newskey'), homeKey: $('.hud-homekey'), radioKey: $('.hud-radiokey'), radioT: $('.hud-radiokey span'), radioNext: $('.hud-radionext'), mapKey: $('.hud-mapkey:not(.hud-misskey)'), missKey: $('.hud-misskey'), missT: $('.hud-misskey span'),
     explore: $('.hud-explore'), exploreN: $('.hud-explore b'), exploreT: $('.hud-explore span'),
+    carKey: $('.hud-carkey'), carT: $('.hud-carkey span'), gasFly: $('.hud-gasfly'), gas: $('.hud-gas'), gasI: $('.hud-gas i'), gasB: $('.hud-gas b'), gasH: $('.hud-gas .h'),
   };
   const mapG = el.map.getContext('2d'), cmpG = el.compass.getContext('2d');
 
@@ -145,7 +156,12 @@ export function createHud({ player, world, camera, container = globalThis.docume
     mapAcc = 1;
     el.botKey.style.left = `${el.helpKey.offsetLeft + el.helpKey.offsetWidth + 8}px`; // right next to the H chip
     el.homeKey.style.left = `${el.botKey.offsetLeft + el.botKey.offsetWidth + 8}px`;
-    el.newsKey.style.left = `${el.homeKey.offsetLeft + el.homeKey.offsetWidth + 8}px`;
+    placeCar();
+    placeRadio();
+  }
+  function placeCar() { // the car chip's text changes length with the lock: the chips after it follow
+    el.carKey.style.left = `${el.homeKey.offsetLeft + el.homeKey.offsetWidth + 8}px`;
+    el.newsKey.style.left = `${el.carKey.offsetLeft + el.carKey.offsetWidth + 8}px`;
     placeRadio();
   }
   function placeRadio() { // last in the row: the radio chip grows with the track name and the "next" chip follows it
@@ -422,9 +438,21 @@ export function createHud({ player, world, camera, container = globalThis.docume
 
   // ---------------------------------------------------------------- telemetry (the car calls this every frame)
   let camMode = 'chase', telT = 0, flyUsed = false, flyLearned = 0, playT = 0;
-  let turboKnown = false;
+  let turboKnown = false, gasOn = false, gasFlights = 0, gasAir = false;
   try { turboKnown = localStorage.getItem('cherkasy.turbo') === '1'; } catch {}
   function setTelemetry(s, vF, mode) {
+    // the Roadster: the charge gauge while Shift builds the pressure; the gas tip on the first three flights
+    const ch = s.charge || 0, gOn = ch > 0.004;
+    if (gOn !== gasOn) { gasOn = gOn; setClass(el.gas, 'on', gOn); }
+    if (gOn) {
+      el.gasI.style.width = `${(ch * 100).toFixed(1)}%`; setClass(el.gas, 'full', ch >= 1);
+      setText(el.gasB, `${Math.round(ch * 100)} %`); setText(el.gasH, `стрибок ≈ ${Math.round(s.jumpH || 0)} м`);
+    }
+    const gasFlying = !s.grounded && !(s.wing > 0.02) && s.airT > 0.8 && (s.gasDown > 0.05 || s.alt > 4);
+    if (gasFlying && !gasAir) gasFlights++;
+    gasAir = gasFlying;
+    setClass(el.gasFly, 'on', gasFlying && gasFlights <= 3);
+    if (!turboKnown && ch > 0.05) { turboKnown = true; try { localStorage.setItem('cherkasy.turbo', '1'); } catch {} }
     // the Shift tip: from 60 s to 120 s of play (map time does not count), until the wings first come out
     if (!turboKnown && s.wing > 0.05) { turboKnown = true; try { localStorage.setItem('cherkasy.turbo', '1'); } catch {} }
     setClass(el.turbo, 'on', !turboKnown && playT > 60 && playT < 120);
@@ -443,6 +471,7 @@ export function createHud({ player, world, camera, container = globalThis.docume
   function applyHelp() { setClass(el.help, 'on', helpOn && visible); setClass(el.helpKey, 'act', helpOn && visible); }
   el.helpKey.addEventListener('click', (e) => { e.preventDefault(); el.helpKey.blur(); hud.toggleHelp(); });
   el.homeKey.addEventListener('click', (e) => { e.preventDefault(); el.homeKey.blur(); hud.onHome?.(); });
+  el.carKey.addEventListener('click', (e) => { e.preventDefault(); el.carKey.blur(); hud.onCar?.(); });
   el.radioKey.addEventListener('click', (e) => { e.preventDefault(); el.radioKey.blur(); hud.onRadio?.(); });
   el.radioNext.addEventListener('click', (e) => { e.preventDefault(); el.radioNext.blur(); hud.onRadioNext?.(); });
   el.missKey.addEventListener('click', (e) => { e.preventDefault(); el.missKey.blur(); hud.onMissions?.(); });
@@ -452,7 +481,14 @@ export function createHud({ player, world, camera, container = globalThis.docume
   applyHelp();
 
   const hud = {
-    mission, setTelemetry, onHome: null, onGo: null, getZones: null, onRadio: null, onRadioNext: null, onMissions: null,
+    mission, setTelemetry, onHome: null, onCar: null, onGo: null, getZones: null, onRadio: null, onRadioNext: null, onMissions: null,
+    setGarage({ kind, unlocked, left, total, fresh = false }) {
+      setClass(el.carKey, 'locked', !unlocked);
+      setText(el.carT, !unlocked ? `🔒 Roadster · ${total - left} / ${total}` : kind === 'roadster' ? 'Cybertruck' : 'Roadster');
+      el.carKey.title = !unlocked ? `Roadster відкриється, коли знайдеш усі пам’ятки: залишилось ${left} (V)` : `Пересісти в ${kind === 'roadster' ? 'Cybertruck' : 'Roadster'} (V)`;
+      if (fresh) { el.carKey.classList.remove('fresh'); void el.carKey.offsetWidth; el.carKey.classList.add('fresh'); }
+      placeCar();
+    },
     setMissionsOn(on) { setClass(el.missKey, 'act', !!on); setText(el.missT, on ? 'Місії: увімк.' : 'Місії: вимк.'); },
     setRadio({ on, loading, title, artist, empty }) {
       setClass(el.radioKey, 'act', on);
