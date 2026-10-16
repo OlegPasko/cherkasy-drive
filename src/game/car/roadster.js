@@ -1,19 +1,28 @@
 // Procedural Roadster (the second player car, after the 2026 Tesla Roadster shown on 2026-10-16), unlocked once every
 // sight is found (src/game/garage.js). The same contract as the Cybertruck's model.js:
-//   buildRoadsterModel() -> { object, body, set(state, dt), eye, interior, driver, materials, fx }
+//   buildRoadsterModel() -> { object, body, set(state, dt), eye, interior, driver, materials, fx, gas, wing (getter, 0..1) }
+//   WING_UP / WING_DOWN: the rear wing's deploy / fold speeds (m/s)
 //   RDIM: { len, wid, wb, track, wheelR, wheelZ, wheelX, height } (car.js reads it like model.js's DIM)
 //   fx: a world-space THREE.Points of cold-gas puffs; car.js adds it to the scene while this car is driven.
 // Car space as in model.js: +z forward, +x = LEFT (the driver sits at +x), +y up, y 0 = ground contact.
-// Shape (4.6 m, 3.0 m wheelbase, 1.15 m tall): one faceted hull lofted through ~20 cross-sections (7 creased strips a side,
-// flat-shaded, so every section vertex is a crease): a flat bonnet between two raised front fender peaks with small
-// triangular headlights at their tips, a full-width white light bar over a black intake and a splitter; a dark glass
-// canopy (windshield, roof, side glass) running into a black glass rear deck between raised rear haunches; sharp
-// shoulder and waist creases, a carbon sill; a Kamm tail with a full-width red bar, a thin upper bar, the Everlabs plate
-// (as on the Cybertruck) and a black diffuser with four round cold-gas nozzles. Turbine-spoke wheels. The body wears the
-// Cybertruck's unpainted stainless (model.js STEEL). Wheel arches are cut by tucking the lower section points inward.
-// Butterfly doors: the door strips (glass to sill) are their own groups hinged on the canopy edge; they swing up when
-// the car stands parked in the chase view (state.parked). A rear wing on two stalks rises from the deck while the car is
-// in the air (state.air). Interior: white bolstered sport seats with grey stripes, a yoke, a low dark dash with a red
+// Shape (4.6 m, 3.0 m wheelbase, 1.15 m tall): one faceted hull lofted through ~30 cross-sections, 9 points a half-section
+// (the tables T.x / T.y by z; flat-shaded, so every section vertex is a crease), compared view by view with the reveal
+// photos: a wide, nearly flat trapezoid bonnet sloping to the nose with a faint shut line by the windshield, between two
+// angular fender pods (a top facet falling inward, an outer face dropping to the arch, the front faces on one canted
+// plane); the headlights are inverted-triangle notches in the pods' inner faces at bonnet level (a black pocket, the
+// lamp inset); a thin white light line along the bonnet's leading edge over a tall black recessed fascia, a black
+// splitter swept back at its ends. A very wide windshield wraps over the pods' rear tips into thin A-pillars; one arched
+// black glass canopy runs over the roof to the rear deck, the side glass under a white roof rail tapering to a point;
+// one sharp shoulder crease, a thin black sill; a short front overhang. A sharp Kamm tail with a leaning white panel:
+// the full-width red light line with a brighter centre and a short thin bar above, the Everlabs plate (as on the
+// Cybertruck), a black diffuser set in under a lip, thin fins and four round bronze cold-gas nozzles. Six-blade dark aero
+// wheels with bright swept blades, drawn at RW (0.38 m, a touch over RDIM.wheelR) with their centres raised to match.
+// The body wears the Cybertruck's unpainted stainless (model.js STEEL). Arches are cut by tucking the lower section
+// points into a liner (ARCH_IN). Butterfly doors: the door strips (rail to sill) are their own groups hinged on the roof
+// rail; they swing up when the car stands parked in the chase view (state.parked). The rear wing (group 'RdWing', two
+// stalks and a blade) is up while driving on the ground: it deploys over WING_UP m/s (~15 km/h, state.speed) and folds
+// under WING_DOWN, and folds whenever the car is in the air (state.air), easing both ways; the returned `wing` getter is
+// its 0..1 deploy. Interior: white bolstered sport seats with grey stripes, a yoke, a low dark dash with a red
 // ambient strip, a centre screen (canvas: speed, PRND, gas charge and thrust, altitude), door cards; a driver whose arms
 // follow the yoke.
 // Gas: state.charge (0..1, building on the ground: vents puff under the sills), state.burst (the jump: a blast down from
@@ -28,7 +37,14 @@ const smooth = (t) => { const u = clamp(t, 0, 1); return u * u * (3 - 2 * u); };
 
 export const RDIM = { len: 4.6, wid: 2.0, wb: 3.0, track: 1.7, wheelR: 0.36, wheelZ: 1.5, wheelX: 0.85, height: 1.15 };
 const EYE = new THREE.Vector3(0.4, 0.97, -0.3);
-const NOSE = 2.3, TAIL = -2.3, WSZ = 0.95, CABIN_END = -0.95, GLASS_END = -2.14, WC = RDIM.wheelZ, ARCH_Y = 0.78;
+// key stations (z): the windshield base sits over the front axle, so the bonnet is short and the glass canopy long
+const NOSE = 2.3, TAIL = -2.3, WC = RDIM.wheelZ;
+const WSZ = 1.4, APZ = 1.3, DOOR_F = 0.95, ROOF_F = 0.3, DOOR_R = -0.4, ROOF_R = -0.75, WIN_R = -1.22, DECK = -2.0, CABIN_END = -0.95;
+// the wheels are drawn a little larger than the physics radius (RDIM.wheelR), their centres raised to match
+const RW = 0.38, ARCH_R = 0.42, ARCH_IN = 0.7, WHEEL_Y = RW;
+const NOZ_Y = 0.5, NOZ_Z = TAIL + 0.11, DIF_Z = TAIL + 0.2, BAR_Y = 0.88, POD_CANT = 0.42; // the pods' front faces turn this far (rad) outward
+// the rear wing deploys on the ground above WING_UP (m/s, ~15 km/h) and folds below WING_DOWN, at a stop and in the air
+export const WING_UP = 4.2, WING_DOWN = 2.8;
 
 // ---------------------------------------------------------------- hull sections
 // piecewise-linear tables [[z, value], ...] from the nose back
@@ -40,49 +56,77 @@ const lin = (t, z) => {
   }
   return t[t.length - 1][1];
 };
+// nine section points a side, from the top centre round to the bottom centre. Their roles change along the car:
+//   0 centre (bonnet / windshield and roof glass / black rear glass / white tail deck)
+//   1 bonnet edge -> windshield edge, A-pillar and roof rail inner -> rear glass edge
+//   2 pod inner top (a step above the bonnet) -> roof rail outer -> haunch inner crest
+//   3 pod crest -> side glass bottom (belt) -> haunch outer crest
+//   4 shoulder: the top of the pod's outer face and of the body side
+//   5 the crease (widest), 6 sill top, 7 sill bottom, 8 bottom centre
+// Between the bonnet's rear edge (WSZ) and the A-pillar base (APZ) points 1 and 2 swing out to the pod's outer rear
+// corner, so the windshield wraps over the pods' rear edges and the thin A-pillar rises from their outer tips.
 const T = {
-  y0: [[NOSE, 0.5], [WSZ, 0.78], [-0.25, 1.2], [-0.7, 1.18], [GLASS_END, 0.9], [TAIL, 0.88]],   // centre line
-  x1: [[NOSE, 0.46], [WSZ, 0.56], [-0.2, 0.52], [-0.65, 0.52], [GLASS_END, 0.46], [TAIL, 0.47]], // bonnet / canopy edge
-  d1: [[NOSE, 0], [WSZ, 0], [0.4, 0.05], [-0.2, 0.08], [-0.65, 0.08], [GLASS_END, 0.03], [TAIL, 0.02]],
-  x2: [[NOSE, 0.7], [WSZ, 0.79], [0.2, 0.87], [-0.7, 0.88], [-1.1, 0.84], [TAIL, 0.89]],        // fender peak / belt / haunch
-  y2: [[NOSE, 0.8], [1.5, 0.88], [WSZ, 0.89], [0.2, 0.87], [-0.7, 0.88], [-1.1, 0.97], [-2.0, 0.99], [TAIL, 0.98]],
-  x3: [[NOSE, 0.94], [1.9, 0.985], [-0.9, 0.99], [-1.4, 1.03], [TAIL, 1.02]],                                                 // outer shoulder
-  y3: [[NOSE, 0.66], [1.5, 0.83], [WSZ, 0.8], [0, 0.76], [-0.9, 0.8], [-1.5, 0.88], [TAIL, 0.86]],
-  x4: [[NOSE, 0.99], [1.9, 1.0], [-0.9, 1.0], [-1.4, 1.04], [TAIL, 1.03]],                                                    // waist crease (widest)
-  y4: [[NOSE, 0.44], [1.5, 0.52], [0.3, 0.55], [-0.9, 0.58], [-1.5, 0.62], [TAIL, 0.62]],
-  x5: [[NOSE, 0.96], [WC - 0.5, 0.96], [0.6, 0.92], [CABIN_END, 0.93], [-WC + 0.5, 0.97], [TAIL, 0.97]], // lower crease (sill top): the doors draw in
-  y5: [[NOSE, 0.25], [WC - 0.5, 0.27], [0.2, 0.28], [CABIN_END, 0.34], [-WC - 0.5, 0.33], [TAIL, 0.32]],
-  x6: [[NOSE, 0.9], [TAIL, 0.9]], y6: [[NOSE, 0.13], [TAIL, 0.15]],                               // sill bottom
+  x: [
+    null,
+    [[NOSE, 0.645], [WSZ, 0.56], [APZ, 0.87], [DOOR_F, 0.81], [ROOF_F, 0.66], [DOOR_R, 0.65], [ROOF_R, 0.6], [WIN_R, 0.52], [DECK, 0.43], [TAIL, 0.43]],
+    [[NOSE, 0.57], [1.936, 0.62], [WSZ, 0.63], [APZ, 0.895], [DOOR_F, 0.84], [ROOF_F, 0.74], [DOOR_R, 0.73], [ROOF_R, 0.69], [WIN_R, 0.64], [DECK, 0.56], [TAIL, 0.56]],
+    [[NOSE, 0.735], [WSZ, 0.935], [APZ, 0.915], [DOOR_F, 0.895], [ROOF_F, 0.885], [DOOR_R, 0.88], [ROOF_R, 0.86], [WIN_R, 0.67], [DECK, 0.9], [TAIL, 0.94]],
+    [[NOSE, 0.8], [1.936, 0.94], [WSZ, 0.985], [APZ, 0.975], [ROOF_F, 0.955], [DOOR_R, 0.95], [WIN_R, 0.98], [DECK, 0.99], [TAIL, 0.985]],
+    [[NOSE, 0.82], [1.936, 0.97], [WC, 1.0], [-WC - ARCH_R, 1.0], [TAIL, 0.96]],
+    [[NOSE, 0.78], [WC - 0.6, 0.95], [-WC - ARCH_R, 0.95], [TAIL, 0.9]],
+    [[NOSE, 0.72], [1.936, 0.87], [TAIL, 0.86]],
+  ],
+  y: [ // the centre line arcs from the windshield over the roof down to the deck
+    [[NOSE, 0.515], [WSZ, 0.74], [DOOR_F, 0.955], [0.65, 1.065], [ROOF_F, 1.12], [0, 1.14], [DOOR_R, 1.13], [ROOF_R, 1.105], [WIN_R, 1.03], [-1.6, 1.0], [DECK, 0.975], [TAIL, 0.965]],
+    [[NOSE, 0.515], [WSZ, 0.74], [APZ, 0.86], [DOOR_F, 0.93], [0.65, 1.04], [ROOF_F, 1.095], [0, 1.115], [DOOR_R, 1.105], [ROOF_R, 1.08], [WIN_R, 1.0], [-1.6, 0.975], [DECK, 0.965], [TAIL, 0.955]],
+    [[NOSE, 0.6], [1.936, 0.615], [1.6, 0.74], [WC, 0.77], [WSZ, 0.775], [APZ, 0.85], [DOOR_F, 0.91], [0.65, 1.02], [ROOF_F, 1.075], [0, 1.095], [DOOR_R, 1.085], [ROOF_R, 1.06], [WIN_R, 0.98], [-1.6, 0.975], [DECK, 0.98], [TAIL, 0.97]],
+    [[NOSE, 0.615], [WSZ, 0.81], [APZ, 0.825], [ROOF_F, 0.85], [DOOR_R, 0.88], [ROOF_R, 0.92], [WIN_R, 0.975], [-1.6, 0.98], [DECK, 0.985], [TAIL, 0.965]],
+    [[NOSE, 0.46], [1.5, 0.83], [WSZ, 0.835], [APZ, 0.81], [ROOF_F, 0.75], [DOOR_R, 0.78], [ROOF_R, 0.83], [WIN_R, 0.9], [DECK, 0.95], [TAIL, 0.94]],
+    [[NOSE, 0.36], [WC, 0.5], [0, 0.54], [-WC, 0.58], [TAIL, 0.65]],
+    [[NOSE, 0.24], [WC - 0.6, 0.24], [-WC + 0.6, 0.27], [-WC - 0.45, 0.33], [TAIL, 0.4]],
+    [[NOSE, 0.15], [WC - 0.6, 0.15], [-WC + 0.6, 0.16], [TAIL, 0.22]],
+  ],
 };
-// per-vertex z offsets at the two ends: the fender tips and the tail fins reach out, the lower nose / tail tuck in
-const DZ_NOSE = [0, 0, 0.05, 0.02, -0.02, -0.12, -0.16, -0.16], DZ_TAIL = [0, 0, -0.06, -0.03, 0.02, 0.18, 0.22, 0.22];
-// station z (nose -> tail); the arch stations sit at +-0.4 / +-0.25 m around each wheel centre
-const STATIONS = [NOSE, 2.15, WC + 0.5, WC + 0.4, WC + 0.25, WC - 0.25, WC - 0.4, WC - 0.5, WSZ, 0.55, 0.25, -0.2, -0.65, CABIN_END,
-  -WC + 0.5, -WC + 0.4, -WC + 0.25, -WC - 0.25, -WC - 0.4, -WC - 0.5, GLASS_END, -2.18, TAIL];
+// per-point z offsets at the two ends (the pod front faces are laid on their own plane in the build); at the tail the
+// corners reach out and the panel under the light bar leans in toward its foot
+const DZ_NOSE = [0, 0, -0.2, 0, 0, 0, 0, -0.14, -0.14], DZ_TAIL = [0, 0, -0.01, -0.02, -0.02, 0.14, 0.2, 0.22, 0.22];
+// stations (nose -> tail): the key lines plus each wheel arch (an outside and an inside station at its ends, so the arch
+// edge drops straight down)
+const archZ = (c) => [c + ARCH_R + 0.006, c + ARCH_R - 0.001, c + 0.36, c + 0.25, c + 0.12, c, c - 0.12, c - 0.25, c - 0.36, c - ARCH_R + 0.001, c - ARCH_R - 0.006];
+const STATIONS = (() => {
+  const key = [WSZ, APZ, DOOR_F, 0.65, ROOF_F, 0, DOOR_R, DOOR_R - 0.04, ROOF_R, WIN_R, -1.6, DECK, -2.1];
+  const arch = [...archZ(WC), ...archZ(-WC)], z = [...arch];
+  for (const k of key) if (arch.every((a) => Math.abs(a - k) > 0.015)) z.push(k);
+  return [NOSE, ...z.sort((a, b) => b - a), TAIL];
+})();
 const archD = (z) => Math.min(Math.abs(z - WC), Math.abs(z + WC));
-// half section at z: 8 points [x, y, z] from the top centre round the left side to the bottom centre
-function section(z, i) {
-  const y0 = lin(T.y0, z);
-  const P = [
-    [0, y0], [lin(T.x1, z), y0 - lin(T.d1, z)], [lin(T.x2, z), lin(T.y2, z)], [lin(T.x3, z), lin(T.y3, z)],
-    [lin(T.x4, z), lin(T.y4, z)], [lin(T.x5, z), lin(T.y5, z)], [lin(T.x6, z), lin(T.y6, z)], [0, lin(T.y6, z)],
-  ];
-  const d = archD(z);
-  if (d < 0.45) { // a wheel arch: the waist point rises to the arch top, the lower points tuck in behind the tyre
-    const ha = d <= 0.3 ? ARCH_Y : 0.68;
-    P[4] = [P[4][0], ha]; P[5] = [0.64, ha]; P[6] = [0.62, P[6][1]]; P[7] = [0, P[6][1]];
+// half section at station i: { P: 9 points [x, y, z], tuck: points tucked in behind a tyre (the arch liner) }
+function section(i) {
+  const z = STATIONS[i];
+  const P = [[0, lin(T.y[0], z)]];
+  for (let k = 1; k <= 7; k++) P.push([lin(T.x[k], z), lin(T.y[k], z)]);
+  if (z >= WSZ) P[1][1] = P[0][1];                     // the bonnet is flat across
+  P.push([0, P[7][1]]);
+  const tuck = P.map(() => false), d = archD(z);
+  if (d < ARCH_R) { // a wheel arch: the first point under the arch line becomes the arch edge, the rest tuck in
+    const ya = Math.min(WHEEL_Y + Math.sqrt(ARCH_R * ARCH_R - d * d), P[4][1] - 0.025);
+    let k = 5; while (k < 7 && P[k][1] >= ya) k++;
+    const a = P[k - 1], b = P[k], t = clamp((a[1] - ya) / Math.max(1e-6, a[1] - b[1]), 0, 1);
+    P[k] = [lerp(a[0], b[0], t), ya];
+    const yl = Math.min(ya, P[1][1] - 0.03, P[2][1] - 0.03); // the liner stays under the bonnet and the pod top
+    for (let m = k + 1; m <= 7; m++) { P[m] = [ARCH_IN, yl]; tuck[m] = true; }
   }
   const dz = i === 0 ? DZ_NOSE : i === STATIONS.length - 1 ? DZ_TAIL : null;
-  return P.map(([x, y], k) => [x, y, z + (dz ? dz[k] : 0)]);
+  return { P: P.map(([x, y], k) => [x, y, z + (dz ? dz[k] : 0)]), tuck };
 }
 
 // which material a strip (j: between section points j and j+1) takes over the span centred at zm
-function stripMat(j, zm, arch) {
-  if (j === 0) return zm > WSZ ? 'paint' : zm > 0.1 ? 'glass' : zm > GLASS_END ? 'dark' : 'paint'; // the roof: black glass
-  if (j === 1) return zm > WSZ || zm < CABIN_END ? 'paint' : 'glass';
-  if (j === 4) return arch ? 'black' : 'paint';
-  if (j === 5) return arch ? 'black' : (zm < 1.0 && zm > -1.0) || zm < -2.0 ? 'carbon' : 'paint';
-  if (j === 6) return 'black';
+function stripMat(j, zm, liner) {
+  if (liner) return 'black';
+  if (j === 0) return zm > WSZ ? 'paint' : zm > ROOF_R ? 'glass' : zm > DECK ? 'dark' : 'paint';
+  if (j === 1) return zm < WSZ && zm > APZ ? 'glass' : 'paint';
+  if (j === 2) return zm > APZ || zm < WIN_R ? 'paint' : zm < DOOR_R && zm > DOOR_R - 0.04 ? 'black' : 'glass';
+  if (j >= 6) return 'black';
   return 'paint';
 }
 
@@ -246,9 +290,9 @@ export function buildRoadsterModel() {
   const body = new THREE.Group(); root.add(body);
   const M = {
     paint: new THREE.MeshStandardMaterial({ name: 'RdSteel', ...STEEL, side: THREE.DoubleSide }), // the Cybertruck's stainless
-    black: new THREE.MeshStandardMaterial({ name: 'RdBlack', color: 0x101113, metalness: 0.2, roughness: 0.7 }),
-    carbon: new THREE.MeshStandardMaterial({ name: 'RdCarbon', color: 0x1b1d20, metalness: 0.35, roughness: 0.38 }),
-    glass: new THREE.MeshPhysicalMaterial({ name: 'RdGlass', color: 0x020305, metalness: 0.2, roughness: 0.04, transparent: true, opacity: 0.92, envMapIntensity: 0.6, side: THREE.DoubleSide, depthWrite: false, clearcoat: 1 }),
+    black: new THREE.MeshStandardMaterial({ name: 'RdBlack', color: 0x101113, metalness: 0.2, roughness: 0.7, side: THREE.DoubleSide }),
+    carbon: new THREE.MeshStandardMaterial({ name: 'RdCarbon', color: 0x1b1d20, metalness: 0.35, roughness: 0.38, side: THREE.DoubleSide }),
+    glass: new THREE.MeshPhysicalMaterial({ name: 'RdGlass', color: 0x020305, metalness: 0.2, roughness: 0.04, transparent: true, opacity: 0.95, envMapIntensity: 0.35, side: THREE.DoubleSide, depthWrite: false, clearcoat: 0.6 }),
     dark: new THREE.MeshPhysicalMaterial({ name: 'RdDarkGlass', color: 0x050608, metalness: 0.3, roughness: 0.06, clearcoat: 1, clearcoatRoughness: 0.03 }),
     tire: new THREE.MeshStandardMaterial({ name: 'RdTire', color: 0x141415, roughness: 0.95 }),
     rim: new THREE.MeshStandardMaterial({ name: 'RdRim', color: 0x2a2c30, metalness: 0.7, roughness: 0.35 }),
@@ -256,6 +300,8 @@ export function buildRoadsterModel() {
     bronze: new THREE.MeshStandardMaterial({ name: 'RdBronze', color: 0x9a7444, metalness: 0.9, roughness: 0.3 }),
     head: new THREE.MeshStandardMaterial({ name: 'RdHead', color: 0xffffff, emissive: 0xe8f2ff, emissiveIntensity: 2.4 }),
     tail: new THREE.MeshStandardMaterial({ name: 'RdTail', color: 0x400000, emissive: 0xff1010, emissiveIntensity: 1.4 }),
+    tailHi: new THREE.MeshStandardMaterial({ name: 'RdTailHi', color: 0x600000, emissive: 0xff2a20, emissiveIntensity: 2.6 }),
+    amber: new THREE.MeshStandardMaterial({ name: 'RdAmber', color: 0x803c00, emissive: 0xff8a1a, emissiveIntensity: 1.2 }),
     ambient: new THREE.MeshBasicMaterial({ name: 'RdAmbient', color: new THREE.Color(2.2, 0.12, 0.08), toneMapped: false }),
     dash: new THREE.MeshStandardMaterial({ name: 'RdDash', color: 0x1a1b1e, roughness: 0.85 }),
     trim: new THREE.MeshStandardMaterial({ name: 'RdTrim', color: 0x45484e, metalness: 0.5, roughness: 0.45 }),
@@ -271,30 +317,53 @@ export function buildRoadsterModel() {
   const box = (w, h, d, x, y, z, mat, parent = body, shadow = true) => { const m = add(new THREE.BoxGeometry(w, h, d), mat, parent, shadow); m.position.set(x, y, z); return m; };
 
   // ---- the hull: strips between consecutive sections, both sides; the door strips go to their own lists
-  const S = STATIONS.map((z, i) => section(z, i));
+  const S = STATIONS.map((z, i) => section(i));
+  // each pod's front face is one plane through the bonnet's front corner, canted POD_CANT outward
+  const podZ = (x) => NOSE - Math.tan(POD_CANT) * (x - S[0].P[1][0]);
+  for (const k of [3, 4, 5, 6]) S[0].P[k][2] = podZ(S[0].P[k][0]);
+  const LI = [S[0].P[1][0] - 0.06, 0.24, podZ(S[0].P[1][0] - 0.06)]; // the face's lower inner corner, by the fascia
   const lists = new Map(), list = (k) => lists.get(k) ?? lists.set(k, triList()).get(k);
   const mir = (p, s) => [p[0] * s, p[1], p[2]];
   for (let i = 0; i < S.length - 1; i++) {
-    const za = STATIONS[i], zb = STATIONS[i + 1], zm = (za + zb) / 2, arch = archD(za) < 0.45 || archD(zb) < 0.45;
-    for (let j = 0; j < 7; j++) {
-      const mat = stripMat(j, zm, arch), door = j >= 1 && j <= 5 && zm < WSZ && zm > CABIN_END;
+    const A = S[i], B = S[i + 1], zm = (STATIONS[i] + STATIONS[i + 1]) / 2;
+    for (let j = 0; j < 8; j++) {
+      const liner = A.tuck[j + 1] || B.tuck[j + 1], mat = stripMat(j, zm, liner), door = j >= 2 && j <= 5 && zm < DOOR_F && zm > DOOR_R;
       for (const s of [1, -1]) {
-        const a = mir(S[i][j], s), b = mir(S[i][j + 1], s), c = mir(S[i + 1][j + 1], s), d = mir(S[i + 1][j], s);
-        const cx = (a[0] + b[0] + c[0] + d[0]) / 4, cy = (a[1] + b[1] + c[1] + d[1]) / 4, out = [cx, cy - 0.55, 0];
-        const L = list(door ? `door${s}|${mat}` : mat);
-        L.quad(a, b, c, d, out);
+        const a = mir(A.P[j], s), b = mir(A.P[j + 1], s), c = mir(B.P[j + 1], s), d = mir(B.P[j], s);
+        const cx = (a[0] + b[0] + c[0] + d[0]) / 4, cy = (a[1] + b[1] + c[1] + d[1]) / 4;
+        list(door ? `door${s}|${mat}` : mat).quad(a, b, c, d, liner ? [cx, -1, 0] : [cx, cy - 0.55, 0]);
       }
     }
   }
-  // end caps: the fender tips / tail fins as their own triangles (the headlights sit on them), the rest fanned
-  function cap(sec, dir) {
-    const L = list('paint'), out = [0, 0, dir];
-    for (const s of [1, -1]) L.tri(mir(sec[1], s), mir(sec[2], s), mir(sec[3], s), out);
-    const ring = [sec[0], ...[1, 3, 4, 5, 6].map((k) => sec[k]), sec[7], ...[6, 5, 4, 3, 1].map((k) => mir(sec[k], -1))];
-    const c = ring.reduce((m, p) => [m[0] + p[0] / ring.length, m[1] + p[1] / ring.length, m[2] + p[2] / ring.length], [0, 0, 0]);
-    for (let k = 0; k < ring.length; k++) L.tri(c, ring[k], ring[(k + 1) % ring.length], out);
+  // a convex polygon as one facet (fanned from its centre)
+  const poly = (L, pts, out) => {
+    const c = pts.reduce((m, p) => [m[0] + p[0] / pts.length, m[1] + p[1] / pts.length, m[2] + p[2] / pts.length], [0, 0, 0]);
+    for (let k = 0; k < pts.length; k++) L.tri(c, pts[k], pts[(k + 1) % pts.length], out);
+  };
+  // the nose: each pod's front face (its top inner corner is the pod's peak, the headlight notch runs back from it
+  // along the bonnet edge) and a dark lower corner; between the pods the black fascia (a box, set in under the light line)
+  const n = S[0].P, LIb = [LI[0], n[7][1], NOSE - 0.06];
+  for (const s of [1, -1]) {
+    const m = (p) => mir(p, s);
+    poly(list('paint'), [n[1], n[3], n[4], n[5], n[6], LI].map(m), [0, 0, 1]);
+    list('carbon').quad(m(LI), m(n[6]), m(n[7]), m(LIb), [0, 0, 1]);
   }
-  cap(S[0], 1); cap(S[S.length - 1], -1);
+  // the tail: a flat Kamm panel down to the crease, the lower part tucks under
+  const t = S[S.length - 1].P;
+  poly(list('paint'), [t[0], t[1], t[2], t[3], t[4], ...[4, 3, 2, 1].map((k) => mir(t[k], -1))], [0, 0, -1]);
+  list('paint').quad(t[4], t[5], mir(t[5], -1), mir(t[4], -1), [0, -0.3, -1]);
+  poly(list('carbon'), [t[5], t[6], t[7], t[8], ...[7, 6, 5].map((k) => mir(t[k], -1))], [0, -0.3, -1]);
+  // shut lines: thin dark strips laid on the facets (the doors' front and rear edges, the bonnet's cross line)
+  const seam = (L, p, q, w, o) => { // segment p -> q, w wide along z, lifted by o (outward)
+    const a = [p[0] + o[0], p[1] + o[1], p[2] + o[2]], b = [q[0] + o[0], q[1] + o[1], q[2] + o[2]];
+    L.quad([a[0], a[1], a[2] + w], [b[0], b[1], b[2] + w], [b[0], b[1], b[2] - w], [a[0], a[1], a[2] - w], o);
+  };
+  for (const z of [DOOR_F, DOOR_R]) {
+    const P = section(STATIONS.indexOf(z)).P;
+    for (const s of [1, -1]) for (let k = 3; k < 6; k++) seam(list('black'), mir(P[k], s), mir(P[k + 1], s), 0.005, [s * 0.004, 0, 0]);
+  }
+  { const z = WSZ + 0.17, y = lin(T.y[0], z) + 0.003, x = lin(T.x[1], z) - 0.02;
+    seam(list('black'), [-x, y, z], [x, y, z], 0.006, [0, 0.002, 0]); }
   const MATS = { paint: M.paint, glass: M.glass, dark: M.dark, black: M.black, carbon: M.carbon };
   const doors = [];
   for (const [k, L] of lists) {
@@ -303,10 +372,10 @@ export function buildRoadsterModel() {
     const m = add(L.geometry(), MATS[mat], body, mat !== 'glass');
     if (mat === 'glass') { m.renderOrder = 2; m.userData.solo = true; m.receiveShadow = false; }
   }
-  // butterfly doors: hinged on the canopy edge (the top of the side glass), swinging up and out
+  // butterfly doors: hinged on the roof rail (the top of the side glass), swinging up and out
   for (const s of [1, -1]) {
-    const A = new THREE.Vector3(s * lin(T.x1, WSZ - 0.05), lin(T.y0, WSZ - 0.05) - lin(T.d1, WSZ - 0.05), WSZ - 0.05);
-    const B = new THREE.Vector3(s * lin(T.x1, -0.2), lin(T.y0, -0.2) - lin(T.d1, -0.2), -0.2);
+    const A = new THREE.Vector3(s * lin(T.x[2], DOOR_F), lin(T.y[2], DOOR_F), DOOR_F);
+    const B = new THREE.Vector3(s * lin(T.x[2], DOOR_R), lin(T.y[2], DOOR_R), DOOR_R);
     const axis = B.clone().sub(A).normalize();
     const hinge = new THREE.Group(); hinge.position.copy(A); hinge.userData.live = true; body.add(hinge);
     const leaf = new THREE.Group(); leaf.position.copy(A).negate(); hinge.add(leaf);
@@ -316,98 +385,112 @@ export function buildRoadsterModel() {
       if (mat === 'glass') { m.renderOrder = 2; m.userData.solo = true; m.receiveShadow = false; }
     }
     // door card: dark panel, a trim strip and the red ambient line, inside the glass
-    box(0.03, 0.34, 1.5, s * 0.9, 0.5, -0.05, M.dash, leaf, false);
-    box(0.012, 0.02, 1.4, s * 0.88, 0.66, -0.05, M.trim, leaf, false);
-    box(0.01, 0.008, 1.3, s * 0.875, 0.6, -0.05, M.ambient, leaf, false);
-    box(0.006, 0.42, 0.012, s * 0.995, 0.5, WSZ - 0.02, M.black, leaf, false);           // the door's shut lines
-    box(0.006, 0.4, 0.012, s * 1.0, 0.55, CABIN_END + 0.02, M.black, leaf, false);
+    const dz = (DOOR_F + DOOR_R) / 2, dl = DOOR_F - DOOR_R - 0.08;
+    box(0.03, 0.34, dl, s * 0.9, 0.5, dz, M.dash, leaf, false);
+    box(0.012, 0.02, dl - 0.1, s * 0.88, 0.66, dz, M.trim, leaf, false);
+    box(0.01, 0.008, dl - 0.2, s * 0.875, 0.6, dz, M.ambient, leaf, false);
     bakeStatic(leaf);
     // the sign that lifts the door's lower edge: the sill point must go up when turned by +a
-    const p = new THREE.Vector3(s * 0.95, 0.3, 0).sub(A).applyAxisAngle(axis, 0.3).add(A);
+    const p = new THREE.Vector3(s * 0.95, 0.3, dz).sub(A).applyAxisAngle(axis, 0.3).add(A);
     doors.push({ hinge, axis, sign: p.y > 0.3 ? 1 : -1, open: 0 });
   }
 
-  // ---- nose: light bar, intake, splitter, triangular headlights at the fender tips, corner reflectors
-  const n0 = S[0];
-  box(1.24, 0.026, 0.03, 0, 0.487, NOSE + 0.012, M.head, body, false);
-  box(1.3, 0.2, 0.1, 0, 0.37, NOSE - 0.08, M.carbon);                                  // the intake under the light bar, set in
-  box(0.9, 0.04, 0.02, 0, 0.31, NOSE - 0.025, M.black, body, false);                   // its lower slot
-  { // splitter: a carbon blade swept back at its corners
-    const sh = new THREE.Shape([[-0.86, -0.32], [-0.62, 0.02], [0.62, 0.02], [0.86, -0.32]].map(([x, z]) => new THREE.Vector2(x, z)));
-    const g = new THREE.ExtrudeGeometry(sh, { depth: 0.03, bevelEnabled: false }); g.rotateX(Math.PI / 2); g.translate(0, 0.13, NOSE - 0.08);
-    add(g, M.carbon);
+  // ---- nose: the light line along the bonnet's leading edge, the fascia, the splitter, the headlight notches
+  box(2 * n[1][0], 0.013, 0.02, 0, n[1][1] - 0.008, NOSE + 0.004, M.head, body, false);
+  { const top = n[1][1] - 0.005, bot = 0.22;
+    const mid = 0.31;                                                                              // the fascia, set in: an upper band
+    box(2 * n[1][0], top - mid, 0.36, 0, (top + mid) / 2, NOSE - 0.06 - 0.18, M.carbon);
+    box(2 * LI[0] - 0.08, mid - bot, 0.3, 0, (mid + bot) / 2, NOSE - 0.25 - 0.15, M.black);              // the lower intake, deeper in
+    box(0.85, 0.045, 0.02, 0, 0.245, NOSE - 0.245, M.dash, body, false);                           // its slot
+    box(0.07, 0.03, 0.02, 0, 0.36, NOSE - 0.052, M.trim, body, false); }                          // the radar eye
+  { // splitter: a black lip across the full width, swept back at its ends
+    const sh = new THREE.Shape([[-0.8, -0.56], [-0.66, -0.02], [0.66, -0.02], [0.8, -0.56]].map(([x, z]) => new THREE.Vector2(x, z)));
+    const g = new THREE.ExtrudeGeometry(sh, { depth: 0.022, bevelEnabled: false }); g.rotateX(Math.PI / 2); g.translate(0, 0.17, NOSE - 0.06);
+    add(g, M.black);
   }
-  for (const s of [1, -1]) {
-    const a = mir(n0[1], s), b = mir(n0[2], s), c = mir(n0[3], s);
-    const cen = [(a[0] * 2 + b[0] * 2 + c[0]) / 5, (a[1] * 2 + b[1] * 2 + c[1]) / 5, (a[2] * 2 + b[2] * 2 + c[2]) / 5]; // toward the inner edge
-    const sh = (p, k, o) => [cen[0] + (p[0] - cen[0]) * k, cen[1] + (p[1] - cen[1]) * k, cen[2] + (p[2] - cen[2]) * k + o];
-    const pocket = triList(); pocket.tri(sh(a, 0.66, 0.006), sh(b, 0.66, 0.006), sh(c, 0.66, 0.006), [0, 0, 1]);
-    add(pocket.geometry(), M.black, body, false);                                        // a dark pocket round the lamp
-    const L = triList(); L.tri(sh(a, 0.4, 0.012), sh(b, 0.4, 0.012), sh(c, 0.4, 0.012), [0, 0, 1]);
-    add(L.geometry(), M.head, body, false);
-    box(0.08, 0.03, 0.02, s * 0.9, 0.27, NOSE - 0.03, M.tail, body, false);
-    // camera "mirrors": small stalks at the A-pillar base
-    const mr = new THREE.Group(); mr.position.set(s * 0.86, 0.9, WSZ - 0.12); body.add(mr);
-    box(0.1, 0.022, 0.04, s * 0.05, 0, 0, M.black, mr); box(0.04, 0.07, 0.11, s * 0.11, 0.01, 0, M.black, mr);
+  { // headlights: the notch between the bonnet's front corner, the pod's peak and the pod top's front inner corner (an
+    // inverted triangle facing forward and in) is a black pocket; the lamp is the same triangle shrunk, lifted off it
+    const pocket = triList(), lamp = triList();
+    for (const s of [1, -1]) {
+      const Q = [n[1], n[2], n[3]].map((p) => new THREE.Vector3(...mir(p, s)));
+      const c = Q.reduce((m, p) => m.addScaledVector(p, 1 / 3), new THREE.Vector3());
+      const nrm = Q[1].clone().sub(Q[0]).cross(Q[2].clone().sub(Q[0])).normalize();
+      if (nrm.z < 0) nrm.negate();
+      const at = (p, k, o) => p.clone().sub(c).multiplyScalar(k).add(c).addScaledVector(nrm, o).toArray();
+      pocket.tri(...Q.map((p) => at(p, 1, 0)), nrm.toArray());
+      lamp.tri(...Q.map((p) => at(p, 0.86, 0.006)), nrm.toArray());
+      box(0.012, 0.024, 0.07, s * 1.004, 0.62, 1.0, M.amber, body, false);                     // the side marker behind the arch
+    }
+    add(pocket.geometry(), M.black, body, false); add(lamp.geometry(), M.head, body, false);
   }
 
-  // ---- tail: light bars, plate, diffuser with the four gas nozzles, fins
-  box(1.94, 0.11, 0.02, 0, 0.845, TAIL - 0.008, M.dark, body, false);
-  box(1.86, 0.028, 0.02, 0, 0.828, TAIL - 0.02, M.tail, body, false);
-  box(1.1, 0.012, 0.02, 0, 0.874, TAIL - 0.02, M.tail, body, false);
+  // ---- tail: the light bar (a full-width line, a brighter centre, a thin bar above), plate, diffuser, nozzles, fins.
+  // The panel under the deck lip leans in toward its foot: tailZ(y) is its surface, TILT its lean.
+  const t4 = S[S.length - 1].P[4], t5 = S[S.length - 1].P[5];
+  const tailZ = (y) => lerp(t4[2], t5[2], clamp((t4[1] - y) / (t4[1] - t5[1]), 0, 1)), TILT = Math.atan2(t5[2] - t4[2], t4[1] - t5[1]);
+  const tb = (w, h, d, y, o, mat) => { box(w, h, d, 0, y, tailZ(y) - o, mat, body, false).rotation.x = -TILT; };
+  tb(1.97, 0.06, 0.02, BAR_Y, 0.012, M.dark);
+  tb(1.92, 0.016, 0.02, BAR_Y - 0.008, 0.024, M.tail);
+  tb(0.82, 0.02, 0.02, BAR_Y - 0.008, 0.027, M.tailHi);
+  tb(1.0, 0.006, 0.02, BAR_Y + 0.018, 0.024, M.tail);
   {
     const tex = logoTexture('everlabs', { width: 1024, color: '#15161a', plate: { bg: '#f2f3ef', edge: '#202226' } }), w = 0.44, h = w * tex.userData.aspect;
     const m = add(new THREE.PlaneGeometry(w, h), new THREE.MeshStandardMaterial({ name: 'RdPlate', map: tex, roughness: 0.4, metalness: 0.1 }), body, false);
-    m.position.set(0, 0.64, TAIL - 0.012); m.rotation.y = Math.PI;
+    m.position.set(0, 0.72, tailZ(0.72) - 0.006); m.rotation.set(-TILT, Math.PI, 0);
   }
-  box(1.96, 0.035, 0.12, 0, 0.5, TAIL + 0.02, M.carbon);                              // the tail's lip over the diffuser
-  box(1.7, 0.32, 0.12, 0, 0.32, TAIL + 0.18, M.black);                                 // the diffuser face, set back
-  const NOZ = [-0.48, -0.16, 0.16, 0.48];
+  // the diffuser: a lip at the panel's foot, a floor block set in under it, deep fins between the four nozzles
+  box(1.9, 0.03, 0.1, 0, t5[1] - 0.015, t5[2] + 0.01, M.carbon);
+  box(1.5, 0.3, 0.25, 0, 0.39, DIF_Z + 0.175, M.black);
+  const NOZ = [-0.45, -0.15, 0.15, 0.45];
   {
-    const ring = new THREE.TorusGeometry(0.056, 0.016, 8, 20), cup = new THREE.CylinderGeometry(0.05, 0.044, 0.08, 16, 1, true); cup.rotateX(Math.PI / 2);
-    const disc = new THREE.CircleGeometry(0.046, 16);
+    const ring = new THREE.TorusGeometry(0.032, 0.008, 6, 16), cup = new THREE.CylinderGeometry(0.03, 0.027, 0.1, 14, 1, true); cup.rotateX(Math.PI / 2);
+    const disc = new THREE.CircleGeometry(0.028, 14);
     for (const x of NOZ) {
-      add(ring, M.bronze, body, false).position.set(x, 0.38, TAIL + 0.03);
-      add(cup, M.bronze, body, false).position.set(x, 0.38, TAIL + 0.07);
-      const d = add(disc, M.black, body, false); d.position.set(x, 0.38, TAIL + 0.1); d.rotation.y = Math.PI;
+      add(ring, M.bronze, body, false).position.set(x, NOZ_Y, NOZ_Z);
+      add(cup, M.bronze, body, false).position.set(x, NOZ_Y, NOZ_Z + 0.05);
+      const d = add(disc, M.black, body, false); d.position.set(x, NOZ_Y, NOZ_Z + 0.04); d.rotation.y = Math.PI;
     }
-    // fins under the outlets: deep at the bottom, tapering up into the face
-    { const sh = new THREE.Shape([[0, 0], [0.3, 0], [0.3, 0.05], [0, 0.14]].map(([z, y]) => new THREE.Vector2(z, y)));
-      const g = new THREE.ExtrudeGeometry(sh, { depth: 0.02, bevelEnabled: false }); g.rotateY(-Math.PI / 2); g.translate(0.01, 0.14, TAIL - 0.04);
-      for (const x of [-0.64, -0.32, 0, 0.32, 0.64]) add(g, M.carbon, body, false).position.x = x; }
+    { const sh = new THREE.Shape([[0, 0.03], [0.16, 0], [0.16, 0.19], [0, 0.12]].map(([z, y]) => new THREE.Vector2(z, y)));
+      const g = new THREE.ExtrudeGeometry(sh, { depth: 0.012, bevelEnabled: false }); g.rotateY(-Math.PI / 2); g.translate(0.006, 0.24, TAIL + 0.1);
+      for (const x of [-0.6, -0.3, 0, 0.3, 0.6]) add(g, M.carbon, body, false).position.x = x; }
   }
   // belly nozzles (the jump and hover jets), barely seen from outside
-  const BELLY = [[0.62, 1.0], [-0.62, 1.0], [0.62, -0.95], [-0.62, -0.95]];
-  { const g = new THREE.CircleGeometry(0.07, 12); g.rotateX(Math.PI / 2); for (const [x, z] of BELLY) add(g, M.bronze, body, false).position.set(x, 0.125, z); }
+  const BELLY = [[0.62, 0.95], [-0.62, 0.95], [0.62, -0.95], [-0.62, -0.95]];
+  { const g = new THREE.CircleGeometry(0.07, 12); g.rotateX(Math.PI / 2); for (const [x, z] of BELLY) add(g, M.bronze, body, false).position.set(x, 0.145, z); }
 
-  // ---- rear wing: rises from the deck on two stalks while airborne
-  const wing = new THREE.Group(); wing.position.set(0, 0.92, -2.0); wing.userData.live = true; body.add(wing);
+  // ---- rear wing: rises from the deck on two swan-neck stalks while driving, folds into it when stopped or flying
+  const DECK_Y = lin(T.y[0], -2.02);
+  const wing = new THREE.Group(); wing.name = 'RdWing'; wing.position.set(0, DECK_Y, -2.02); wing.userData.live = true; body.add(wing);
   {
-    for (const x of [-0.34, 0.34]) { const st = box(0.03, 0.4, 0.14, x, 0.18, 0.02, M.carbon, wing); st.rotation.x = -0.18; }
-    const blade = box(1.96, 0.035, 0.36, 0, 0.38, -0.02, M.paint, wing); blade.rotation.x = 0.1;
-    box(1.9, 0.012, 0.05, 0, 0.395, -0.2, M.carbon, wing, false);
-    for (const x of [-0.99, 0.99]) box(0.02, 0.16, 0.42, x, 0.36, -0.02, M.carbon, wing);
+    for (const x of [-0.34, 0.34]) { const st = box(0.03, 0.34, 0.14, x, 0.16, 0.02, M.carbon, wing); st.rotation.x = -0.2; }
+    const blade = box(1.96, 0.035, 0.36, 0, 0.33, -0.04, M.paint, wing); blade.rotation.x = 0.1;
+    box(1.9, 0.012, 0.05, 0, 0.345, -0.22, M.carbon, wing, false);
+    for (const x of [-0.99, 0.99]) box(0.02, 0.16, 0.42, x, 0.31, -0.04, M.carbon, wing);
     bakeStatic(wing);
     wing.visible = false;
   }
 
-  // ---- wheels: tyre, sidewalls, a dark rim face with ten twisted turbine blades
-  const R = RDIM.wheelR, TW = 0.28;
+  // ---- wheels: tyre, sidewalls, a dark aero face with six bright twisted blades and a bright lip
+  const R = RW, TW = 0.28;
   const tire = new THREE.CylinderGeometry(R - 0.01, R - 0.01, TW, 30); tire.rotateZ(Math.PI / 2);
-  const side = new THREE.TorusGeometry(R - 0.065, 0.06, 6, 30); side.rotateY(Math.PI / 2);
-  const face = new THREE.CylinderGeometry(0.265, 0.265, 0.03, 30); face.rotateZ(Math.PI / 2);
-  const hub = new THREE.CylinderGeometry(0.055, 0.055, 0.05, 14); hub.rotateZ(Math.PI / 2);
-  const bladeG = new THREE.BoxGeometry(0.022, 0.21, 0.07); bladeG.translate(0, 0.16, 0); // five pairs of broad turbine blades
+  const side = new THREE.TorusGeometry(R - 0.035, 0.03, 4, 30); side.rotateY(Math.PI / 2);
+  const face = new THREE.CylinderGeometry(0.31, 0.31, 0.03, 30); face.rotateZ(Math.PI / 2);
+  const lip = new THREE.RingGeometry(0.297, 0.314, 30, 1); lip.rotateY(Math.PI / 2);
+  const hub = new THREE.CylinderGeometry(0.042, 0.042, 0.05, 14); hub.rotateZ(Math.PI / 2);
+  // a swept aero blade: narrow at the hub, broad at the rim (shape in tangential x radial, extruded along the axle)
+  const bladeG = new THREE.ExtrudeGeometry(new THREE.Shape([[-0.03, 0.04], [0.03, 0.04], [0.19, 0.302], [-0.06, 0.302]].map(([t, r]) => new THREE.Vector2(t, r))), { depth: 0.014, bevelEnabled: false });
+  bladeG.rotateY(Math.PI / 2);
   function makeWheel(parent, sx, x = 0) {
     const h = new THREE.Group(); h.position.x = x; parent.add(h);
     add(tire, M.tire, h);
     for (const k of [1, -1]) add(side, M.tire, h, false).position.x = k * (TW / 2 - 0.03);
-    const o = sx * (TW / 2 - 0.015);
+    const o = sx * TW / 2;
     add(face, M.rim, h).position.x = o;
+    { const l = add(lip, M.blade, h, false); l.position.x = o + sx * 0.017; if (sx < 0) l.rotation.y = Math.PI; }
     add(hub, M.blade, h, false).position.x = o + sx * 0.01;
-    for (let k = 0; k < 10; k++) {
-      const b = add(bladeG, M.blade, h, false); b.position.x = o + sx * 0.02;
-      b.rotation.set((Math.floor(k / 2) / 5 + (k % 2 ? 0.035 : -0.035)) * Math.PI * 2, sx * 0.5, 0, 'XYZ');
+    for (let k = 0; k < 6; k++) { // six broad swept spokes
+      const b = add(bladeG, M.blade, h, false); b.position.x = o + sx * 0.012;
+      b.rotation.set(k / 6 * Math.PI * 2, sx * 0.4, 0, 'XYZ');
     }
   }
   const wheels = [[1, RDIM.wheelX], [-1, -RDIM.wheelX], [null, 0]].map(([sx, x]) => {
@@ -430,7 +513,7 @@ export function buildRoadsterModel() {
   {
     ib(1.5, 0.02, 1.95, 0, 0.2, -0.05, M.carpet);
     ib(1.5, 0.5, 0.04, 0, 0.45, 1.02, M.dash);                 // footwell front
-    ib(1.6, 0.86, 0.04, 0, 0.62, CABIN_END + 0.01, M.dash);   // the bulkhead behind the seats
+    ib(1.5, 0.76, 0.04, 0, 0.57, CABIN_END + 0.01, M.dash);   // the bulkhead behind the seats (under the rear glass)
     ib(1.5, 0.12, 0.42, 0, 0.68, 0.78, M.dash);               // the low dash under the windshield
     ib(1.46, 0.016, 0.01, 0, 0.66, 0.565, M.ambient);         // red ambient strip along its face
     ib(1.46, 0.012, 0.36, 0, 0.745, 0.8, M.carbon);           // dash top
@@ -518,14 +601,14 @@ export function buildRoadsterModel() {
   {
     const cone = new THREE.ConeGeometry(0.32, 1, 14, 1, true); cone.translate(0, -0.5, 0); // apex at the nozzle (y 0), opening down
     for (const [x, z] of BELLY) { const m = new THREE.Mesh(cone, jetMat); m.position.set(x, 0.12, z); m.userData.live = true; m.renderOrder = 10; m.visible = false; m.frustumCulled = false; body.add(m); jets.push({ m, down: true }); }
-    for (const x of NOZ) { const m = new THREE.Mesh(cone, jetMat); m.position.set(x, 0.38, TAIL + 0.05); m.rotation.x = Math.PI / 2; m.userData.live = true; m.renderOrder = 10; m.visible = false; m.frustumCulled = false; body.add(m); jets.push({ m, down: false }); }
+    for (const x of NOZ) { const m = new THREE.Mesh(cone, jetMat); m.position.set(x, NOZ_Y, NOZ_Z - 0.01); m.rotation.x = Math.PI / 2; m.userData.live = true; m.renderOrder = 10; m.visible = false; m.frustumCulled = false; body.add(m); jets.push({ m, down: false }); }
   }
 
   // ---------------------------------------------------------------- gas puffs
   const fx = createGasFx();
   const NZ = {
     belly: BELLY.map(([x, z]) => new THREE.Vector3(x, 0.14, z)),
-    rear: NOZ.map((x) => new THREE.Vector3(x, 0.38, TAIL - 0.02)),
+    rear: NOZ.map((x) => new THREE.Vector3(x, NOZ_Y, NOZ_Z - 0.02)),
     vent: [[0.98, 0.3, 0.95], [-0.98, 0.3, 0.95], [0.98, 0.32, -0.95], [-0.98, 0.32, -0.95]].map((p) => new THREE.Vector3(...p)),
   };
   const _w = new THREE.Vector3(), _dir = new THREE.Vector3(), _side = new THREE.Vector3();
@@ -575,7 +658,7 @@ export function buildRoadsterModel() {
   }
 
   // ---------------------------------------------------------------- per-frame pose
-  let time = 0, dispT = 0, glassIn = false, wingK = 0, doorK = 0, blastK = 0;
+  let time = 0, dispT = 0, glassIn = false, wingK = 0, wingUp = false, doorK = 0, blastK = 0;
   function set(st, dt) {
     time += dt;
     body.position.y = st.heave || 0;
@@ -584,10 +667,12 @@ export function buildRoadsterModel() {
     yoke.rotation.z = clamp(-st.steer * 4, -1.7, 1.7);
     if (interior.visible) poseArms();
     head.visible = !st.cockpit;
-    // rear wing: up while airborne, down on the road
-    wingK = clamp(wingK + dt * (st.air ? 2.2 : -1.4), 0, 1);
+    // rear wing: up while driving on the ground (over WING_UP, down again under WING_DOWN), folded when stopped or flying
+    const sp = Math.abs(st.speed || 0);
+    wingUp = !st.air && (wingUp ? sp > WING_DOWN : sp > WING_UP);
+    wingK = clamp(wingK + dt * (wingUp ? 1.4 : -1.1), 0, 1);
     wing.visible = wingK > 0.01;
-    if (wing.visible) { const k = smooth(wingK); wing.position.y = lerp(0.62, 0.92, k); wing.scale.set(1, lerp(0.3, 1, k), 1); }
+    if (wing.visible) { const k = smooth(wingK); wing.position.y = lerp(DECK_Y - 0.3, DECK_Y, k); wing.scale.set(1, lerp(0.15, 1, k), 1); }
     // butterfly doors: open while parked in the chase view
     doorK = clamp(doorK + dt * (st.parked && !st.cockpit ? 0.8 : -2.2), 0, 1);
     for (const d of doors) d.hinge.quaternion.setFromAxisAngle(d.axis, d.sign * 1.15 * smooth(doorK));
@@ -595,7 +680,7 @@ export function buildRoadsterModel() {
     M.head.emissiveIntensity = st.night ? 3.6 : 2.4;
     if (glassIn !== !!st.cockpit) {
       glassIn = !!st.cockpit;
-      Object.assign(M.glass, glassIn ? { opacity: 0.12, clearcoat: 0.12, envMapIntensity: 0.3 } : { opacity: 0.92, clearcoat: 1, envMapIntensity: 0.6 });
+      Object.assign(M.glass, glassIn ? { opacity: 0.12, clearcoat: 0.12, envMapIntensity: 0.3 } : { opacity: 0.95, clearcoat: 0.6, envMapIntensity: 0.35 });
     }
     dispT -= dt; if (dispT <= 0 && st.cockpit) { dispT = 1 / 15; screen.draw(st); }
     // jets: the belly cones by the lift thrust (a long flash on the jump), the rear ones by the forward thrust
@@ -616,5 +701,5 @@ export function buildRoadsterModel() {
       fx.update(dt, st.light ?? 1);
     }
   }
-  return { object: root, body, set, eye: EYE.clone(), interior, driver, materials: M, fx: fx.object, gas: fx };
+  return { object: root, body, set, eye: EYE.clone(), interior, driver, materials: M, fx: fx.object, gas: fx, get wing() { return wingK; } };
 }

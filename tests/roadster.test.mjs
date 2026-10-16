@@ -1,6 +1,6 @@
 // The Roadster (the second player car): unlock and choice (game/garage.js), the swap keeping the car's state, the gas
 // jump (a full charge clears ~48 m), the hover, the top speed (~1.5x the Cybertruck's limiter), the wedge ram that throws
-// struck cars up, and the model's budget. Run: node tests/roadster.test.mjs   (headless: canvas / storage stubs)
+// struck cars up, the rear wing (up while driving, folded when stopped or flying) and the model's budget. Run: node tests/roadster.test.mjs   (headless: canvas / storage stubs)
 import * as THREE from 'three';
 
 const ctx2d = new Proxy({}, { get: (t, k) => (k in t ? t[k] : k === 'createLinearGradient' || k === 'createRadialGradient' ? () => ({ addColorStop() {} }) : () => {}), set: (t, k, v) => { t[k] = v; return true; } });
@@ -12,7 +12,7 @@ const { createTestWorld } = await import('../src/game/testworld.js');
 const { createCar, CARS, jumpHeight } = await import('../src/game/car/car.js');
 const { createGarage, isUnlocked, CAR_KEY } = await import('../src/game/garage.js');
 const { createWrecks } = await import('../src/npc/wrecks.js');
-const { buildRoadsterModel } = await import('../src/game/car/roadster.js');
+const { buildRoadsterModel, WING_UP, WING_DOWN } = await import('../src/game/car/roadster.js');
 const { buildCarModel } = await import('../src/game/car/model.js');
 
 let fails = 0;
@@ -113,6 +113,26 @@ check('the wedge launches it up and over', wedge.w && wedge.w.v.y > 7 && wedge.w
 check('…tumbling end over end', wedge.w && Math.abs(wedge.w.w.z) > 1.5, `wz ${wedge.w?.w.z.toFixed(2)}`);
 check('…and it does not stop the Roadster like a wall (no push-out at once)', !wedge.pushed && flat.pushed);
 check('…and the Roadster keeps more of its speed', Math.abs(wedge.r.dv.x) < Math.abs(flat.r.dv.x), `${wedge.r.dv.x.toFixed(2)} vs ${flat.r.dv.x.toFixed(2)}`);
+
+// ---------------------------------------------------------------- the rear wing: up while driving, folded when stopped / flying
+{
+  const m = buildRoadsterModel(), feed = (speed, sec, air = false) => { for (let t = 0; t < sec; t += 1 / 60) m.set({ steer: 0, wheelAngle: 0, speed, air }, 1 / 60); return m.wing; };
+  check('the wing starts folded', m.wing === 0 && !m.object.getObjectByName('RdWing')?.visible);
+  const part = feed(WING_UP + 1, 0.35);
+  check('…deploys smoothly above ~15 km/h on the ground', part > 0.2 && part < 0.8 && feed(WING_UP + 1, 1) > 0.99, `${part.toFixed(2)} after 0.35 s`);
+  check('…stays up between the thresholds (no flicker)', feed((WING_UP + WING_DOWN) / 2, 2) > 0.99);
+  check('…folds when slowing to a stop', feed(WING_DOWN - 0.5, 1.5) < 0.01 && feed(0, 0.5) === 0);
+  check('…does not rise again between the thresholds', feed((WING_UP + WING_DOWN) / 2, 2) === 0);
+  feed(30, 2); check('…folds in flight, even fast', feed(30, 1.5, true) < 0.01);
+  input.set({ throttle: 0, sprint: false });
+  car.swap('roadster'); car.teleport(V(-1100, 0, -400), Math.PI / 2); input.set({ throttle: 1 }); run(3);
+  check('in the game: up while driving', S.grounded && hs() > WING_UP && car.model.wing > 0.99, `${(hs() * 3.6).toFixed(0)} km/h, wing ${car.model.wing.toFixed(2)}`);
+  input.set({ throttle: 0 }); S.v.set(0, 0, 0); run(2);
+  check('in the game: folded when parked', car.model.wing === 0);
+  input.set({ sprint: true }); run(3); input.set({ sprint: false, throttle: 1 }); run(2.5);
+  check('in the game: folded in flight', !S.grounded && hs() > WING_UP && car.model.wing < 0.01, `alt ${S.p.y.toFixed(0)} m, ${(hs() * 3.6).toFixed(0)} km/h, wing ${car.model.wing.toFixed(2)}`);
+  input.set({ throttle: 0 }); run(40, () => {});
+}
 
 // ---------------------------------------------------------------- model budget (the Cybertruck's range)
 const count = (m) => { let v = 0, d = 0; m.object.traverse((o) => { if (o.isMesh) { d++; v += o.geometry.attributes.position.count; } }); return { v, d }; };

@@ -398,10 +398,15 @@ See `ARCHITECTURE.md` for the module map. Where things live:
 - `src/game/` – gameplay:
   - `car/` – `car.js` (control, flight, camera; `CARS` holds the two player cars, `swap(kind)` changes car in place,
     keeping position, velocity and heading), `model.js` (the Cybertruck), `roadster.js` (the Roadster, after the Tesla
-    Roadster shown on 2026-10-16: a faceted hull lofted through ~20 cross-sections, fender peaks with triangular lamps, a
-    light bar, a dark canopy into a black glass deck, butterfly doors that open when parked, a Kamm tail with four
-    bronze cold-gas nozzles, a rear wing that rises in the air, turbine wheels, white sport seats, a yoke and a canvas
-    screen; the Cybertruck's stainless and Everlabs plate; ~30k vertices like the Cybertruck), `collide.js` (car
+    Roadster shown on 2026-10-16, rebuilt view by view against the reveal photos with Codex scoring: a faceted hull
+    lofted through ~30 cross-sections from z-keyed tables – a flat trapezoid bonnet between two angular fender pods,
+    inverted-triangle headlights notched into the pods' inner faces, a thin light line over a tall black recessed fascia
+    and a swept splitter, a wide windshield on thin A-pillars, one arched black glass canopy to the deck, side glass under
+    a white roof rail, a thin black sill; butterfly doors that open when parked; a sharp Kamm tail with the red light line
+    (brighter centre), the Everlabs plate, a diffuser with thin fins and four bronze cold-gas nozzles; six-blade aero
+    wheels; a rear wing that is up while driving on the ground (over `WING_UP`, ~15 km/h; down under `WING_DOWN`) and
+    folds when stopped or flying, easing both ways (`model.wing`); white sport seats, a yoke and a canvas screen; the
+    Cybertruck's stainless; ~27k vertices / 74 meshes, under the Cybertruck's 33.6k / 77), `collide.js` (car
     collider). The Roadster drives ~1.5x faster (87 m/s limiter) on more grip; it has no wings: Shift held on the ground
     charges a jump for up to 10 s (a gauge at the bottom; a full charge clears ~48 m), the release leaps straight up, and
     in the air the belly jets catch the fall into a glide, Shift hovers / climbs, W thrusts on the rear nozzles; gas puffs
