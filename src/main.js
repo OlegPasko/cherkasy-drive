@@ -5,10 +5,15 @@
 //             time, frame, quality, dt, adaptive (render/adaptive.js, fed real loop intervals; null unless asked),
 //             addSystem(sys, name?, { always }?) -> remove()   sys: function(dt, ctx) or { update(dt, ctx) }; runs in insertion order
 //             paused: while true only the `always` systems run and nothing renders (the canvas keeps its last frame)
+//             frozen: while true (the photo mode) only the `always` systems run and the clock, daylight and clouds stand
+//               still, but every frame still renders (sky, shadows, post) for the free camera; paused wins over it
+//             cycleTime(blendSec = 3): T's step morning -> midday -> evening (the photo mode jumps at once)
 //             setQuality('low' | 'medium' | 'high'), step(dt), start(), stop(), resize() }
 //   startGame({ container, overlay? }) -> Promise<ctx>   the game page: world (Cherkasy, or the test world with ?testworld
 //     or when src/world/cherkasy/city.js is absent), the car, HUD and missions as systems (car -> traffic player sync ->
-//     world.update(dt, camera) -> missions -> partners -> explore -> garage -> quests -> audio -> perf -> hud). ctx gains { world, car, hud, missions, partners, explore, garage, quests, audio, perf }.
+//     world.update(dt, camera) -> missions -> partners -> explore -> garage -> quests -> audio -> perf -> hud -> photo). ctx gains { world, car, hud, missions, partners, explore, garage, quests, audio, perf, photo }.
+//     P (or the HUD's camera chip) opens the photo mode (ui/photomode.js: ctx.frozen, a free camera, the HUD hidden,
+//     a watermarked PNG to save or share); not over the map, the quest book or the Roadster's news card.
 //     V switches the car (game/garage.js: the Roadster once every sight is found; ?roadster unlocks it in dev builds
 //     only); the Roadster's one-time news card (ui/roadsternews.js) follows the consent card. M opens the city map
 //     (hud.map) and K the quest book (game/quests.js); either pauses the game until it closes. The loading screen carries the consent card (ui/consent.js): the
@@ -48,6 +53,8 @@ import { worldXZ } from './ui/botlink.js';
 import { createTestWorld } from './game/testworld.js';
 import { createHud } from './ui/hud.js';
 import { createPerfHint } from './ui/perfhint.js';
+import { createPhotoMode } from './ui/photomode.js';
+import './ui/photomode.css'; // here, not in photomode.js: node tests import the module without a css loader
 import { createGameAudio } from './audio/game.js';
 import { showConsent } from './ui/consent.js';
 import { track } from './analytics.js';
@@ -81,7 +88,7 @@ export function createCore({ container = document.body, quality = savedQuality()
   const ctx = {
     renderer, scene, camera, events, input, daylight, sky, shadows, post, systems,
     groundAt: () => 0,
-    time: 0, frame: 0, dt: 0, quality, paused: false,
+    time: 0, frame: 0, dt: 0, quality, paused: false, frozen: false,
     addSystem(sys, name = sys?.name || `system${systems.length}`, { always = false } = {}) {
       const fn = typeof sys === 'function' ? sys : (dt, c) => sys.update(dt, c);
       const entry = { name, fn, always };
@@ -100,8 +107,15 @@ export function createCore({ container = document.body, quality = savedQuality()
       dt = Math.min(Math.max(dt || 0, 0), 0.1);   // tab suspension / breakpoints never produce huge steps
       ctx.frame++;
       input.update(dt);
-      if (ctx.paused) { // a full-screen overlay (the city map) is up: the world stands still, only the UI runs
+      if (ctx.paused || ctx.frozen) { // a full-screen overlay (the city map) is up, or the photo mode: the world stands still, only the UI runs
         for (const s of systems) if (s.always) { try { s.fn(dt, ctx); } catch (err) { console.error(`[main] system "${s.name}" failed`, err); } }
+        if (ctx.paused || !ctx.frozen) return; // under an overlay nothing renders; the photo mode's frame renders below
+        // no clock, but T may have jumped the light; the clouds keep their place (the sky's env refresh keeps its own clock)
+        setNightFactor(daylight.state.lamps);
+        setSkyColors(daylight.state.zenithColor, daylight.state.horizonColor);
+        const clouds = sky.uniforms.uTime.value;
+        render(dt);
+        sky.uniforms.uTime.value = clouds;
         return;
       }
       ctx.dt = dt; ctx.time += dt;
@@ -115,10 +129,11 @@ export function createCore({ container = document.body, quality = savedQuality()
         }
       }
       if (ctx.paused) return; // opened this frame: skip the render, the last frame stays under the overlay
-      sky.update(dt, camera);
-      const p = camera.position;
-      shadows.update(dt, camera, ctx.groundAt(p.x, p.z));
-      post.render(dt);
+      render(dt);
+    },
+    cycleTime(blendSec = 3) {
+      const i = TIME_CYCLE.indexOf(daylight.state.preset); // another preset (a demo's) steps to the first
+      daylight.setPreset(TIME_CYCLE[(i + 1) % TIME_CYCLE.length], blendSec);
     },
     start() {
       let last = performance.now();
@@ -141,6 +156,13 @@ export function createCore({ container = document.body, quality = savedQuality()
     },
   };
 
+  function render(dt) {
+    sky.update(dt, camera);
+    const p = camera.position;
+    shadows.update(dt, camera, ctx.groundAt(p.x, p.z));
+    post.render(dt);
+  }
+
   // weak machines: a softer image before stutter (full resolution again on every quality change, never saved)
   if (adaptive) {
     ctx.adaptive = createAdaptiveRes({
@@ -161,10 +183,7 @@ export function createCore({ container = document.body, quality = savedQuality()
   input.bind('timeOfDay', ['KeyT']);
   input.bind('quality', ['F9']);
   ctx.addSystem(() => {
-    if (input.pressed('timeOfDay')) {
-      const i = TIME_CYCLE.indexOf(daylight.state.preset); // another preset (a demo's) steps to the first
-      daylight.setPreset(TIME_CYCLE[(i + 1) % TIME_CYCLE.length], 3);
-    }
+    if (input.pressed('timeOfDay')) ctx.cycleTime(3);
     if (input.pressed('quality')) ctx.setQuality(QUALITY_LEVELS[(QUALITY_LEVELS.indexOf(ctx.quality) + 1) % 3]);
   }, 'renderKeys');
   return ctx;
@@ -293,6 +312,11 @@ export async function startGame({ container = document.getElementById('app') || 
   });
   ctx.perf = perf;
   ctx.events.on('quality', () => perf.restart()); // F9 too, not only G
+  // the photo mode (P): the world freezes, the HUD hides, a free camera; Esc / P back to the car's camera
+  const photo = createPhotoMode({ ctx, world, camera, input, renderer, post: ctx.post,
+    canOpen: () => !hud.map.isOpen && !quests.isOpen && !news?.isOpen });
+  ctx.photo = photo;
+  hud.onPhoto = () => photo.open();
   const sim = () => world.life?.traffic;
   let news = null; // the Roadster's one-time news card: the car stands still under it (keys held through the load, a gamepad)
   ctx.addSystem((dt) => car.update(dt, !!news?.isOpen), 'car');
@@ -309,10 +333,12 @@ export async function startGame({ container = document.getElementById('app') || 
   ctx.addSystem((dt) => quests.update(dt), 'quests');
   ctx.addSystem((dt) => audio.update(dt), 'audio');
   ctx.addSystem(() => { if (input.pressed('simpler')) perf.cycle(); perf.update(); }, 'perf');
+  let quiet = false;
   ctx.addSystem((dt) => {
-    if (input.pressed('quests') && !hud.map.isOpen) { quests.toggle(); if (quests.isOpen) input.unlock(); } // the quest book wants the mouse
-    if (input.pressed('map') && !quests.isOpen) { hud.map.toggle(); if (hud.map.isOpen) input.unlock(); } // the map wants the mouse
-    if (!hud.map.isOpen && !quests.isOpen) {
+    const shooting = photo.isOpen; // the photo mode has its own keys (photo.update, the next system)
+    if (input.pressed('quests') && !hud.map.isOpen && !shooting) { quests.toggle(); if (quests.isOpen) input.unlock(); } // the quest book wants the mouse
+    if (input.pressed('map') && !quests.isOpen && !shooting) { hud.map.toggle(); if (hud.map.isOpen) input.unlock(); } // the map wants the mouse
+    if (!hud.map.isOpen && !quests.isOpen && !shooting) {
       if (input.pressed('help')) hud.toggleHelp();
       if (input.pressed('hudToggle')) hud.setVisible(!hud.visible);
       if (input.pressed('home')) goHome();
@@ -320,11 +346,12 @@ export async function startGame({ container = document.getElementById('app') || 
       if (input.pressed('radio')) audio.radio.toggle();
       if (input.pressed('radioNext')) audio.radio.next();
     }
-    hud.update(dt);
+    if (!shooting) hud.update(dt); // hidden under the photo mode anyway
     const hold = hud.map.isOpen || quests.isOpen;
-    if (ctx.paused !== hold) audio.setPaused(hold); // the world falls silent under the map or the quest book
-    ctx.paused = hold; // Esc inside the map (or the book) closes it too; the game resumes on the next frame
+    if (quiet !== (hold || shooting)) audio.setPaused(quiet = hold || shooting); // the world falls silent under the map, the quest book or the photo mode
+    ctx.paused = hold || photo.previewing; // Esc inside the map (or the book) closes it too; the game resumes on the next frame
   }, 'hud', { always: true });
+  ctx.addSystem((dt) => photo.update(dt), 'photo', { always: true }); // P, the free camera, the shot
 
   setOverlay(overlay, 'Компілюємо шейдери…');
   ctx.sky.update(0, camera);

@@ -29,6 +29,10 @@
 //   textures, materials { facade, detail, ground }, cherkasy { map, ground, hf, B, sites, carParks (carparks.js), setCam([x,y,z,tx,ty,tz] | null) }
 //   bridgeLimit null, bridgeDeckY() null, propAnchors() / grabbables() [], grabProp() null, releaseProp()  (unused hooks)
 //   update(dt, camera)   everything per frame (water, trees, LOD, landmarks, traffic, people, debris)
+//   view(camera, relight?)   the photo mode's frame (ui/photomode.js): only what follows the camera (the river plane,
+//     building / tree LOD, the far culls and stand-ins, the cars' and people's draw lists), nothing advances – no clock, no
+//     sway, no traffic, no wall-clock movers. relight (after T): the sites' and landmarks' own updates run once with dt 0,
+//     so their lamps and lit windows follow the new light (the wall-clock movers – balloon, plane, yacht – catch up then)
 //   setQuality('low' | 'medium' | 'high')   what the graphics level draws (DETAIL below: tree / building / site / people /
 //     traffic draw and shadow distances, the river mirror, facade window detail); live, 'high' = the full picture
 //   stats() -> { loadMs, stages, solids, trees, traffic, people, ... }
@@ -36,6 +40,7 @@
 // called inside its own guard, so the city still builds if one is missing or throws. A site builder that reads `ground`
 // must be listed in GROUND_SITES: the others run while the ground workers do, with `ground` still null.
 import * as THREE from 'three';
+import { nightFactor } from '../../render/daylight.js';
 import { loadCityTextures } from '../../kit/textures.js';
 import { createFacadeMaterial } from '../facade.js';
 import { createDetailMaterial } from '../materials.js';
@@ -371,6 +376,17 @@ export async function buildCherkasy({ scene, renderer, onProgress = null, params
       farCull.update(camPos); proxies?.update(camPos);
       debris.update(dt); treeBreak.update(dt);
       try { traffic?.update(dt, camera); people?.update(dt, camera); } catch (e) { if (!lifeErr) { lifeErr = true; console.error('[cherkasy] life update failed', e); } }
+    },
+    view(camera, relight = false) {
+      water.update(0, camera);
+      camPos.copy(camera.position);
+      Bld.update(camPos); trees.update(0, camPos, camera); farCull.update(camPos); proxies?.update(camPos);
+      if (relight) {
+        landmarks.update?.(0, camera); hero.update?.(0, camera); yalynka.update?.(0, camera);
+        for (const s of sites) s.update?.(0, camera);
+        traffic?.models?.setNight?.(nightFactor()); // the cars' lamps (traffic.update does it while the game runs)
+      }
+      try { traffic?.sim?.redraw?.(camera); people?.redraw?.(camera); } catch (e) { if (!lifeErr) { lifeErr = true; console.error('[cherkasy] life redraw failed', e); } }
     },
     // the graphics level ('low' | 'medium' | 'high'), live: see DETAIL
     setQuality(q) {

@@ -474,6 +474,17 @@ See `ARCHITECTURE.md` for the module map. Where things live:
     "Переміститись сюди?" and moves the car to the road beside it (`hud.onGo` in `main.js`, missions carry on; the
     site stays in its ring in the world); only paid placements are teleport targets – sights and improved objects are reached by driving.
     The game pauses while it is open (`ctx.paused`: only systems added with `{ always: true }` run, nothing renders).
+- `src/ui/photomode.js` and `photomode.css` – the photo mode (P, or the camera chip after "Бот"; not over the big map,
+  the quest book or the news card): `ctx.frozen` stops every system but the `always` ones and the clock (no daylight,
+  traffic, people, car, wrecks, movers, water or fountains; the clouds hold), yet the frame keeps rendering; the world
+  draws for the free camera through `world.view(camera)` (LOD and culls only). `body.photo-mode` hides every other page
+  layer; the camera is `core/flycam.js` (WASD / arrows, Space / Ctrl, Shift, wheel speed, drag-look via
+  `input.dragLook`), held out of solids (`pushSphere`), over the ground and the river and inside `map.region`; a field of
+  view slider, T jumps the time of day at once. Enter or «Зробити фото» renders one frame at up to 2x device pixels
+  (`post.setCaptureDpr`), stamps the driver.ck.ua / CHERKASY DRIVE mark with the favicon bottom right and shows the
+  preview: «Скасувати», «Зберегти» (`cherkasy-drive-YYYYMMDD-HHMMSS.png`), «Поділитися» (Web Share with the file, else
+  the clipboard with «Скопійовано»; hidden when neither). P / Esc go back to the car's camera, the HUD as it was (F2
+  kept). `track('photo', { action })`; `tests/photomode.test.mjs`.
 - `src/ui/consent.js` and `consent.css` – the consent card on the loading screen: the main keys and the terms (an
   entertainment game, toy people not modelled on real residents, toy crashes, open-data city with nothing military or
   live). Any key (browser shortcuts aside) or a click anywhere accepts it, a press during the load as soon as the game is
@@ -539,14 +550,14 @@ See `ARCHITECTURE.md` for the module map. Where things live:
   - `?nosound` – no sound at all (no AudioContext, nothing fetched, the radio muted); use it for every dev and test run;
   - `?mobile` / `?desktop` – force the phone map page or the game (`src/mapview.js`).
   - `?roadster` – dev builds only (`import.meta.env.DEV`): the Roadster counts as unlocked (V switches to it).
-- Handles: `window.__game` (ctx with `world`, `car`, `hud` (`hud.map`, `hud.painter`), `missions`, `garage`, `perf`), `window.__car`,
+- Handles: `window.__game` (ctx with `world`, `car`, `hud` (`hud.map`, `hud.painter`), `missions`, `garage`, `perf`, `photo`), `window.__car`,
   `window.__missions`, `window.__cherkasyTraffic`, `window.__cherkasyPeds`.
 - `window.tick(n, dt)` pauses the loop, steps n frames deterministically and returns a snapshot.
   `__game.start()` resumes the loop. Use this for scripted checks.
 - In the game: M opens the city map (Esc or M closes it), H (or the always-visible H chip) shows the controls card –
   every key, grouped; add new keys to `HELP` in `hud.js` –, F2 hides the HUD, T jumps to a time of day (morning, midday, evening – the clock runs on from there, a day per hour, and skips the night; the evening has the lights on: windows, lamps, signs, car lights, from `daylight.state.lamps`),
   V switches between the Cybertruck and the Roadster (once every sight is found; `cherkasy.car` keeps the choice), Q turns the radio on / off and E skips a track, F honks the horn (people in a cone ahead dash off to the sides), G lowers the graphics quality one step (from the lowest back to the highest; besides the post chain a lower level draws
-  less: shorter tree / building / site / people / traffic draw and shadow distances, no river mirror at low), F9 cycles quality, B (or Home, or the "На старт" chip) takes a stuck car back to the start, N skips a mission call, J (or the «Місії» chip over the minimap) turns the missions off and on – just driving, no calls; kept as `cherkasy.missions` –, K opens the quest book, O opens a partner's site inside its ring, Enter retries after a failure, and Backspace abandons a mission.
+  less: shorter tree / building / site / people / traffic draw and shadow distances, no river mirror at low), F9 cycles quality, B (or Home, or the "На старт" chip) takes a stuck car back to the start, N skips a mission call, J (or the «Місії» chip over the minimap) turns the missions off and on – just driving, no calls; kept as `cherkasy.missions` –, K opens the quest book, O opens a partner's site inside its ring, P opens the photo mode (a frozen world, a free camera, Enter shoots, P / Esc back), Enter retries after a failure, and Backspace abandons a mission.
 - Chrome gives hidden tabs no animation frames, so a background tab looks frozen. Keep the tab in front, or use
   `tick()`.
 - Reversed depth buffer: use `decalBias()` from `render/renderer.js` for decals and road markings, never

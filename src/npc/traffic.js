@@ -5,6 +5,7 @@
 //     phase(t, axis) -> 2 go / 1 amber / 0 stop (default net.phase); hooks: { dress(car, link), route(car, link, move)
 //     -> weight, heightAt(x, z), obstacle(car) -> gap m | null }
 //   sim.update(dt, camera, time?)             camera: THREE camera (null = nothing happens); time: shared signal clock
+//   sim.redraw(camera)                        the draw lists for this camera only, nothing moves (the photo mode)
 //   sim.links, sim.nodes, sim.VTYPES, sim.cars() -> live car records (incl. parked), sim.wrecks
 //     car: { id, type, len, wid, h, color, x, y, z, ry (fx = cos ry, fz = -sin ry), pitch, gp, v, dead, parked, adSeed }
 //   sim.setDrawDistance(far = 700, k = 1): cars drawn within `far` m, LOD distances (45 / 170 m) times k; drawing only
@@ -539,6 +540,13 @@ export function createTrafficSimulation({ scene = null, net, models = null, phas
     ms.sim = t1 - t0; ms.wrecks = t2 - t1; ms.draw = t3 - t2;
   }
 
+  function redraw(camera) {
+    if (!camera) return;
+    camera.getWorldPosition(_cam); camera.updateMatrixWorld();
+    frustum.setFromProjectionMatrix(viewProj.copy(camera.projectionMatrix).multiply(camera.matrixWorldInverse));
+    draw(camera);
+  }
+
   const drawR = { far: 700, k: 1 }; // the graphics quality's draw reach and LOD distance factor (setDrawDistance)
   function draw(camera) {
     const cp = _cam;
@@ -593,7 +601,7 @@ export function createTrafficSimulation({ scene = null, net, models = null, phas
 
   const sim = {
     links, nodes, net, VTYPES, wrecks: W.list, ms,
-    update,
+    update, redraw,
     cars: () => live.concat(parkedCars),
     setDensity(k) { dens = Math.max(0, +k || 0); },
     setDrawDistance(far = 700, k = 1) {

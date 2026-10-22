@@ -9,7 +9,7 @@
 //       standY(x, z, onRoad) -> y, carNear(x, z, r) -> bool, area = true (false: walk every way of the map; else people
 //       stay in people/area.js's walk area: inside map.region, near buildings or in parks, never out in the fields) }
 //   api: { walkers[] (stable array: ambient walkers + actors; .x .z .road), statics[], actors[], lanes (paths),
-//     update(dt, camera), hitBox(q) -> people hit, alarm(pos, r), honk(q), spawnActor({ x, z, ry, clip, seed, kind }) -> actor,
+//     update(dt, camera), redraw(camera) (the draw lists for this camera only, nothing moves: the photo mode), hitBox(q) -> people hit, alarm(pos, r), honk(q), spawnActor({ x, z, ry, clip, seed, kind }) -> actor,
 //     removeActor(actor), pedOnRoad(x, z, r) -> bool, setTraffic(t), stats(), root, dispose(),
 //     setDrawDistance(view = 300, k = 1): the graphics quality's draw reach for ambient people (mission actors keep 300 m)
 //       and a factor on the LOD / blob-shadow distances; drawing only, the crowd and its simulation stay the same }
@@ -590,6 +590,12 @@ export function createPeople({ scene, map, ground, buildings = null, traffic = n
       compact();
       const ms = performance.now() - t0;
       prof.ms = prof.ms * 0.95 + ms * 0.05; if (frame > 60) prof.max = Math.max(prof.max * 0.998, ms);
+    },
+    redraw(camera) {
+      if (!camera) return;
+      camera.updateMatrixWorld();
+      frustum.setFromProjectionMatrix(pm.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse));
+      try { render(camera.position); } catch (e) { if (!api._err) { api._err = true; console.error('[people] redraw failed', e); } }
     },
     hitBox(q) {
       if (!q) return 0;
