@@ -2,7 +2,8 @@
 // screen, pinned to the left / right edge with an arrow and the distance when off screen or behind), the mission panel
 // (title, objective text, labelled condition bar with hit shake and "−N%" toasts, timer; centred at the top for 5 s on a
 // new mission or step, then docked on the right), banners, money with a flash, hint line), the controls card (every key the game knows, grouped; toggled by H or the always-visible "H" chip, which
-// stays on screen even with the HUD hidden; the "Бот" chip next to it opens the game's Telegram bot, the "B – На старт"
+// stays on screen even with the HUD hidden; the "Бот" chip next to it opens the game's Telegram bot, the camera chip
+// "P – Фото" after it calls hud.onPhoto (the photo mode, ui/photomode.js; it stays on screen under F2 too), the "B – На старт"
 // chip after it calls hud.onHome (a stuck car goes back to the start), the "V – Roadster" chip after that calls hud.onCar
 // (the car switch, game/garage.js; a lock while the Roadster is not yet earned), the "🔔 Оновлення" chip opens the bot's daily updates
 // subscription (t.me/…?start=sub), the "Q – Радіо" chip after that calls hud.onRadio and
@@ -37,6 +38,7 @@
 //                   banner(title, sub?, color?), setMoney(n), flashMoney(), setHint(text | null) }
 //   hud.map = { open(), close(), toggle(), isOpen }   the full-screen map (M in main.js; Esc closes it too)
 //   hud.onHome = fn                      set by main: the "На старт" chip calls it
+//   hud.onPhoto = fn                     set by main: the camera chip opens the photo mode
 //   hud.onCar = fn, hud.setGarage({ kind, unlocked, left, total, fresh? })   the car chip (game/garage.js): the car
 //                                        you would switch to, or a lock with the sights left; fresh pulses it
 //   hud.onGo = fn(place)                 set by main: the big map's "Переміститись сюди?" – move the car beside that place
@@ -51,6 +53,7 @@ import { enuToWorld } from '../render/daylight.js';
 import { createMapPainter, COL, LEVELS, layAlong } from './mapdraw.js';
 import { createBigMap } from './bigmap.js';
 import { botLink, BOT_NAME } from './botlink.js';
+import { CAMERA_ICON } from './photomode.js';
 import './hud.css';
 import './quests.css'; // the quest chip, card and book (game/quests.js builds them; node tests import it without css)
 
@@ -75,6 +78,8 @@ const HELP = [
   ['Квести', [['K', 'книга квестів: обрати квест, підказки, знайдені картки (гра на паузі)'], ['', 'сірі кола на мапі – десь там таємниця; зблизька вона ледь світиться сірим – заїдь у світло']]],
   ['Партнери', [['', 'рожеве коло біля будівлі – заїдь, щоб побачити пропозицію'], ['O', 'відкрити сайт партнера']]],
   ['Радіо', [['Q', 'увімкнути / вимкнути (за замовчуванням вимкнене)'], ['E', 'наступний трек']]],
+  ['Фото', [['P', 'фоторежим: світ завмирає, інтерфейс ховається, камера вільна'], ['W A S D / ←↑→↓', 'рух камери'], ['Space / Ctrl', 'вгору / вниз'],
+    ['Shift', 'швидше'], ['Колесо', 'швидкість камери'], ['Тягни мишею', 'огляд'], ['T', 'час доби'], ['Enter', 'зробити фото: зберегти чи поділитися'], ['P / Esc', 'назад до авто']]],
   ['Інше', [['H', 'ця довідка'], ['F2', 'сховати / показати інтерфейс'], ['T', 'час доби: ранок / день / вечір'], ['G', 'графіка простіша (з низької – знову висока)'], ['F9', 'якість графіки (по колу)']]],
   ['Геймпад', [['Лівий стік', 'кермо, газ'], ['Правий стік', 'огляд'], ['Курки', 'газ / гальмо'], ['A / B', 'ручник, вгору / пікірування'],
     ['RB', 'крила + тяга'], ['R3', 'сигнал'], ['X / Y', 'на дорогу / камера'], ['Start', 'довідка']]],
@@ -106,6 +111,7 @@ export function createHud({ player, world, camera, container = globalThis.docume
     <div class="hud-gas"><span class="l">ТИСК ГАЗУ</span><div class="g"><i></i></div><b>0 %</b><span class="h"></span></div>
     <button class="hud-helpkey" type="button" title="Керування (H)"><kbd>H</kbd><span>Керування</span></button>
     <a class="hud-botkey" href="${botLink()}" target="_blank" rel="noopener" title="Telegram-бот гри"><i>✈</i><span>Бот</span></a>
+    <button class="hud-photokey" type="button" title="Фото (P)"><kbd>P</kbd>${CAMERA_ICON}<span>Фото</span></button>
     <button class="hud-homekey" type="button" title="Повернутись на старт (B)"><kbd>B</kbd><span>На старт</span></button>
     <button class="hud-carkey locked" type="button" title="Пересісти в інше авто (V)"><kbd>V</kbd><span>🔒 Roadster</span></button>
     <a class="hud-botkey hud-newskey" href="${botLink('sub')}" target="_blank" rel="noopener" title="Раз на день, о 21:00, оновлення гри в Telegram – лише коли вони є"><i>🔔</i><span>Оновлення</span></a>
@@ -122,7 +128,7 @@ export function createHud({ player, world, camera, container = globalThis.docume
     compass: $('.hud-compass'), map: $('.hud-map'), pin: $('.hud-pin'), pinMk: $('.hud-pin .mk'), pinD: $('.hud-pin .d'),
     money: $('.hud-money'), moneyV: $('.hud-money span'), panel: $('.hud-panel'), ttl: $('.hud-panel .ttl'), obj: $('.hud-panel .obj'),
     bl: $('.hud-panel .bl'), bar: $('.hud-panel .bar'), barI: $('.hud-panel .bar i'), tm: $('.hud-panel .tm'),
-    toast: $('.hud-toast'), banner: $('.hud-banner'), hint: $('.hud-hint'), fly: $('.hud-fly:not(.hud-turbo)'), turbo: $('.hud-turbo'), help: $('.hud-help'), helpKey: $('.hud-helpkey'), botKey: $('.hud-botkey'), newsKey: $('.hud-newskey'), homeKey: $('.hud-homekey'), radioKey: $('.hud-radiokey'), radioT: $('.hud-radiokey span'), radioNext: $('.hud-radionext'), mapKey: $('.hud-mapkey:not(.hud-misskey)'), missKey: $('.hud-misskey'), missT: $('.hud-misskey span'),
+    toast: $('.hud-toast'), banner: $('.hud-banner'), hint: $('.hud-hint'), fly: $('.hud-fly:not(.hud-turbo)'), turbo: $('.hud-turbo'), help: $('.hud-help'), helpKey: $('.hud-helpkey'), botKey: $('.hud-botkey'), photoKey: $('.hud-photokey'), newsKey: $('.hud-newskey'), homeKey: $('.hud-homekey'), radioKey: $('.hud-radiokey'), radioT: $('.hud-radiokey span'), radioNext: $('.hud-radionext'), mapKey: $('.hud-mapkey:not(.hud-misskey)'), missKey: $('.hud-misskey'), missT: $('.hud-misskey span'),
     explore: $('.hud-explore'), exploreN: $('.hud-explore b'), exploreT: $('.hud-explore span'),
     carKey: $('.hud-carkey'), carT: $('.hud-carkey span'), gasFly: $('.hud-gasfly'), gas: $('.hud-gas'), gasI: $('.hud-gas i'), gasB: $('.hud-gas b'), gasH: $('.hud-gas .h'),
   };
@@ -155,7 +161,8 @@ export function createHud({ player, world, camera, container = globalThis.docume
     }
     mapAcc = 1;
     el.botKey.style.left = `${el.helpKey.offsetLeft + el.helpKey.offsetWidth + 8}px`; // right next to the H chip
-    el.homeKey.style.left = `${el.botKey.offsetLeft + el.botKey.offsetWidth + 8}px`;
+    el.photoKey.style.left = `${el.botKey.offsetLeft + el.botKey.offsetWidth + 8}px`;
+    el.homeKey.style.left = `${el.photoKey.offsetLeft + el.photoKey.offsetWidth + 8}px`;
     placeCar();
     placeRadio();
   }
@@ -471,6 +478,7 @@ export function createHud({ player, world, camera, container = globalThis.docume
   function applyHelp() { setClass(el.help, 'on', helpOn && visible); setClass(el.helpKey, 'act', helpOn && visible); }
   el.helpKey.addEventListener('click', (e) => { e.preventDefault(); el.helpKey.blur(); hud.toggleHelp(); });
   el.homeKey.addEventListener('click', (e) => { e.preventDefault(); el.homeKey.blur(); hud.onHome?.(); });
+  el.photoKey.addEventListener('click', (e) => { e.preventDefault(); el.photoKey.blur(); hud.onPhoto?.(); });
   el.carKey.addEventListener('click', (e) => { e.preventDefault(); el.carKey.blur(); hud.onCar?.(); });
   el.radioKey.addEventListener('click', (e) => { e.preventDefault(); el.radioKey.blur(); hud.onRadio?.(); });
   el.radioNext.addEventListener('click', (e) => { e.preventDefault(); el.radioNext.blur(); hud.onRadioNext?.(); });

@@ -1,0 +1,48 @@
+/* The photo mode (photomode.js): body.photo-mode hides every other layer the game put on the page (HUD, chips, cards,
+   pills); the canvas lives in #app and stays. visibility + an id in the selector beat the HUD's own !important rules. */
+body.photo-mode > :not(#app):not(.photo-ui),
+body.photo-mode > :not(#app):not(.photo-ui) * { visibility: hidden !important; pointer-events: none !important; }
+body.photo-mode #app canvas { cursor: grab; }
+body.photo-mode #app canvas:active { cursor: grabbing; }
+
+.photo-ui { position: fixed; inset: 0; z-index: 20; pointer-events: none; font: 600 13px system-ui, -apple-system, "Segoe UI", sans-serif; color: #e8eef7; }
+.photo-ui.off { display: none; }
+.photo-ui kbd { display: inline-block; min-width: 18px; padding: 1px 5px; box-sizing: border-box; border-radius: 5px; text-align: center;
+  font: 700 11px/1.35 system-ui, sans-serif; color: #fff; background: linear-gradient(180deg, #3a4660, #283247);
+  border: 1px solid rgba(255, 255, 255, .22); border-bottom-width: 2px; box-shadow: 0 1px 2px rgba(0, 0, 0, .4); }
+
+.pm-hint { position: absolute; top: 2.4vh; left: 50%; transform: translateX(-50%); display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 14px;
+  max-width: min(980px, 92vw); padding: 7px 14px; border-radius: 999px; background: rgba(12, 16, 26, .55); color: #c9d3e4; font-size: 12px; white-space: nowrap; }
+.pm-hint kbd { margin-right: 2px; }
+.photo-ui.previewing .pm-hint, .photo-ui.previewing .pm-bar { display: none; }
+
+.pm-bar { position: absolute; left: 50%; bottom: 3.2vh; transform: translateX(-50%); display: flex; align-items: center; gap: 10px; pointer-events: auto;
+  padding: 7px; border-radius: 14px; background: rgba(12, 16, 26, .72); border: 1px solid rgba(255, 255, 255, .12); box-shadow: 0 8px 28px rgba(0, 0, 0, .35); }
+.pm-bar button, .pm-actions button { display: flex; align-items: center; gap: 7px; padding: 8px 14px; border-radius: 10px; cursor: pointer;
+  border: 1px solid rgba(255, 255, 255, .16); background: rgba(255, 255, 255, .06); color: #e8eef7; font: inherit; letter-spacing: .02em;
+  transition: background .15s, border-color .15s; }
+.pm-bar button:hover, .pm-actions button:hover { background: rgba(255, 255, 255, .14); border-color: rgba(255, 255, 255, .32); }
+.pm-bar .pm-shot { background: #f2c14e; border-color: #f2c14e; color: #1a1f2b; font-weight: 700; }
+.pm-bar .pm-shot:hover { background: #ffd36a; border-color: #ffd36a; }
+.pm-fov { display: flex; align-items: center; gap: 8px; padding: 0 6px 0 8px; color: #aab4c4; font-size: 12px; }
+.pm-fov input { width: 120px; accent-color: #f2c14e; cursor: pointer; }
+.pm-fov b { min-width: 30px; color: #e8eef7; font-weight: 600; text-align: right; }
+
+.pm-flash { position: absolute; inset: 0; background: #fff; opacity: 0; }
+.pm-flash.go { animation: pmFlash .45s ease-out; }
+@keyframes pmFlash { from { opacity: .7; } to { opacity: 0; } }
+
+.pm-preview { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px;
+  padding: 4vh 4vw; box-sizing: border-box; background: rgba(6, 8, 13, .82); pointer-events: auto; }
+.pm-preview.off { display: none; }
+.pm-frame { min-height: 0; max-width: 100%; display: flex; justify-content: center; }
+.pm-frame img { display: block; max-width: 100%; max-height: calc(100vh - 8vh - 70px); object-fit: contain; border-radius: 6px;
+  box-shadow: 0 14px 50px rgba(0, 0, 0, .6); border: 1px solid rgba(255, 255, 255, .12); background: #0d1117; }
+.pm-actions { display: flex; gap: 10px; }
+.pm-actions .pm-save { background: #f2c14e; border-color: #f2c14e; color: #1a1f2b; font-weight: 700; }
+.pm-actions .pm-save:hover { background: #ffd36a; border-color: #ffd36a; }
+
+.pm-toast { position: absolute; left: 50%; bottom: calc(4vh + 64px); transform: translate(-50%, 0) scale(.96); padding: 10px 18px; border-radius: 999px;
+  background: rgba(12, 16, 26, .9); border: 1px solid rgba(242, 193, 78, .6); color: #f2c14e; font-weight: 700; opacity: 0;
+  transition: opacity .25s, transform .25s; pointer-events: none; }
+.pm-toast.on { opacity: 1; transform: translate(-50%, 0); }

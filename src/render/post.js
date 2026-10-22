@@ -8,6 +8,8 @@
 //     post.setAdaptive(f)        render at baseDpr * f (0.25..1, floored at 1 device px per CSS px unless the quality's
 //                                own base is lower); CSS size unchanged; post.adaptive, post.baseDpr (min(devicePixelRatio,
 //                                maxDpr) * scale), post.pixelRatio (effective). Driven by render/adaptive.js
+//     post.setCaptureDpr(dpr | null)   render at exactly this pixel ratio until cleared (the photo mode's one sharper
+//                                frame: src/ui/photomode.js); a size change clears the canvas, so render before the screen shows it
 //     post.setEffect('ao' | 'bloom' | 'aa', on), post.effects -> { ao, bloom, aa }
 //     post.setExposure(ev), post.exposure; post.setBloom({ intensity, threshold }); post.setAO({ radius, intensity })
 //     post.resetHistory()        after a camera cut / teleport / resize (the chain keeps no long history; AO
@@ -99,10 +101,10 @@ export function createPostProcessing({ renderer, scene, camera, quality = 'high'
 
   // adapt: the adaptive-resolution factor (render/adaptive.js); never below 1 device pixel per CSS pixel unless the
   // quality itself asks for less, back to 1 on every quality change, never saved
-  let adapt = 1;
+  let adapt = 1, capDpr = null;
   const baseDpr = () => Math.min(globalThis.devicePixelRatio || 1, Q.maxDpr) * Q.scale;
   function applySize() {
-    const base = baseDpr(), dpr = Math.max(base * adapt, Math.min(base, 1));
+    const base = baseDpr(), dpr = capDpr ?? Math.max(base * adapt, Math.min(base, 1));
     renderer.setPixelRatio(dpr);
     composer.setSize(cssW, cssH, true); // also sets the canvas CSS size
   }
@@ -148,6 +150,7 @@ export function createPostProcessing({ renderer, scene, camera, quality = 'high'
     get pixelRatio() { return renderer.getPixelRatio(); },
     get adaptive() { return adapt; },
     setAdaptive(f) { f = clamp(+f || 1, 0.25, 1); if (f !== adapt) { adapt = f; applySize(); } },
+    setCaptureDpr(d) { d = d > 0 ? clamp(d, 0.25, 4) : null; if (d !== capDpr) { capDpr = d; applySize(); } },
     hdr,
     get effects() { return { ...fx }; },
     setEffect(name, on) { if (name in fx) { fx[name] = !!on; relink(); } },

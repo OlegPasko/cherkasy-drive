@@ -133,6 +133,14 @@
 .hud-botkey i { font-style: normal; width: 20px; height: 20px; display: grid; place-items: center; border-radius: 50%; background: #229ed9; color: #fff; font-size: 11px; }
 .hud-botkey:hover { background: rgba(22, 30, 46, .85); border-color: rgba(80, 170, 235, .9); }
 .hud-newskey i { background: none; font-size: 13px; }
+/* the photo mode chip (P, ui/photomode.js): like H it stays on screen under F2 – a clean screen is when you want a photo */
+.hud-photokey { position: absolute; left: calc(2.2vw + 200px); top: 2.4vh; pointer-events: auto; cursor: pointer; display: flex; align-items: center; gap: 6px;
+  padding: 5px 11px 5px 5px; border-radius: 8px; border: 1px solid rgba(255, 255, 255, .16); background: rgba(12, 16, 26, .62);
+  color: #dfe6f0; font: 600 12px system-ui, sans-serif; letter-spacing: .06em; transition: background .15s, border-color .15s; }
+.hud-photokey svg { flex: none; }
+.hud-photokey:hover { background: rgba(22, 30, 46, .85); border-color: rgba(255, 255, 255, .32); }
+.hud.hidden .hud-photokey, .hud.hidden .hud-photokey * { visibility: visible !important; }
+.hud.hidden .hud-photokey { opacity: .55; }
 .hud-homekey { position: absolute; left: calc(2.2vw + 210px); top: 2.4vh; pointer-events: auto; cursor: pointer; display: flex; align-items: center; gap: 7px;
   padding: 5px 11px 5px 5px; border-radius: 8px; border: 1px solid rgba(255, 255, 255, .16); background: rgba(12, 16, 26, .62);
   color: #dfe6f0; font: 600 12px system-ui, sans-serif; letter-spacing: .06em; transition: background .15s, border-color .15s; }

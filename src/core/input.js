@@ -11,6 +11,8 @@
 //     input.axis('moveX' | 'moveY' | 'throttle' | 'pitch' | 'lookX' | 'lookY' | 'wheel')
 //     input.bind(action, codes[])  codes are KeyboardEvent.code values or 'Mouse0'..'Mouse4'
 //     input.locked, input.lock(), input.unlock(), input.gamepadId, input.dispose()
+//     input.dragLook = true: a click on the element no longer captures the pointer; the mouse looks while a button held
+//                             down on the element drags (the photo mode: its toolbar needs a free cursor)
 // Keys typed into form fields are ignored. Focus loss or a hidden tab releases everything (no stuck keys).
 
 export const DEFAULT_BINDINGS = {
@@ -46,7 +48,7 @@ export function createInput({ target = globalThis.window, element = null, lockOn
   const hitCodes = new Set();          // codes that went down since the last latch
   const upCodes = new Set();           // codes that went up since the last latch
   let mdx = 0, mdy = 0, wheelAcc = 0;
-  let locked = false, padId = null;
+  let locked = false, padId = null, dragLook = false, dragging = false;
   const padPrev = new Map();           // action -> held last frame (gamepad)
 
   const frame = {
@@ -70,7 +72,7 @@ export function createInput({ target = globalThis.window, element = null, lockOn
   // ------------------------------------------------------------------ DOM listeners
   const press = (code) => { if (!down.has(code)) { down.add(code); hitCodes.add(code); } };
   const lift = (code) => { if (down.delete(code)) upCodes.add(code); };
-  const releaseAll = () => { for (const c of down) upCodes.add(c); down.clear(); };
+  const releaseAll = () => { for (const c of down) upCodes.add(c); down.clear(); dragging = false; };
 
   function onKeyDown(e) {
     if (isTyping(e.target)) return;
@@ -81,11 +83,12 @@ export function createInput({ target = globalThis.window, element = null, lockOn
   function onMouseDown(e) {
     if (element && e.target !== element) return;
     press('Mouse' + e.button);
+    if (dragLook) { dragging = true; return; }
     if (lockOnClick && element && !locked) lock();
   }
-  const onMouseUp = (e) => lift('Mouse' + e.button);
+  const onMouseUp = (e) => { lift('Mouse' + e.button); if (!e.buttons) dragging = false; };
   function onMouseMove(e) {
-    if (!locked && !lookUnlocked) return;
+    if (!locked && !lookUnlocked && !(dragging && e.buttons)) return;
     mdx += e.movementX || 0; mdy += e.movementY || 0;
   }
   const onWheel = (e) => { if (!element || e.target === element) wheelAcc += Math.sign(e.deltaY); };
@@ -178,6 +181,8 @@ export function createInput({ target = globalThis.window, element = null, lockOn
     get locked() { return locked; },
     get gamepadId() { return padId; },
     lock, unlock,
+    get dragLook() { return dragLook; },
+    set dragLook(v) { dragLook = !!v; dragging = false; },
     // test / automation hooks: synthesize key and mouse input without DOM events
     inject: { down: press, up: lift, mouse(dx, dy) { mdx += dx; mdy += dy; } },
     dispose() { for (const [t, type, fn, opt] of listen) t.removeEventListener(type, fn, opt); releaseAll(); unlock(); },

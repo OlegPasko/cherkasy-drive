@@ -1,13 +1,15 @@
-// Free-fly debug camera driven by core/input.js (used by the bootstrap and the demos until the car owns the camera).
-//   createFlyCamera(camera, input, { speed = 25, groundAt = (x, z) => 0, clearance = 1.5 }) -> fly
+// Free-fly camera driven by core/input.js (the demos, and the game's photo mode: src/ui/photomode.js).
+//   createFlyCamera(camera, input, { speed = 25, groundAt = (x, z) => 0, clearance = 1.5, constrain? }) -> fly
+//     constrain(pos, from): optional, called after every move (after the ground floor) to keep the camera out of solids /
+//       inside bounds; it mutates pos (from: where this move started, for a swept test)
 //     fly.update(dt)                WASD / arrows move, Space / Ctrl up / down, Shift x6, wheel changes speed, mouse looks
 //     fly.setPose(pos, yaw, pitch)  yaw 0 looks toward -z; pitch + looks up (radians)
 //     fly.yaw, fly.pitch, fly.speed, fly.enabled
 import * as THREE from 'three';
 
-export function createFlyCamera(camera, input, { speed = 25, groundAt = () => 0, clearance = 1.5 } = {}) {
+export function createFlyCamera(camera, input, { speed = 25, groundAt = () => 0, clearance = 1.5, constrain = null } = {}) {
   let yaw = 0, pitch = -0.15;
-  const v = new THREE.Vector3(), fwd = new THREE.Vector3(), side = new THREE.Vector3(), euler = new THREE.Euler(0, 0, 0, 'YXZ');
+  const v = new THREE.Vector3(), from = new THREE.Vector3(), fwd = new THREE.Vector3(), side = new THREE.Vector3(), euler = new THREE.Euler(0, 0, 0, 'YXZ');
   const fly = {
     enabled: true,
     speed,
@@ -25,9 +27,11 @@ export function createFlyCamera(camera, input, { speed = 25, groundAt = () => 0,
       v.set(0, 0, 0).addScaledVector(fwd, I.move.y).addScaledVector(side, I.move.x);
       v.y += (I.jump ? 1 : 0) - (I.drop ? 1 : 0);
       if (v.lengthSq() > 1) v.normalize();
+      from.copy(camera.position);
       camera.position.addScaledVector(v, fly.speed * (I.sprint ? 6 : 1) * dt);
       const floor = groundAt(camera.position.x, camera.position.z) + clearance;
       if (camera.position.y < floor) camera.position.y = floor;
+      constrain?.(camera.position, from);
       apply();
     },
   };
