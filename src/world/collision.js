@@ -16,6 +16,8 @@
 //   Flags: OVERHANG (not a default support when a ground query has no height hint; rays / bodies still see it).
 //   disable(id) / enable(id) / isEnabled(id)  runtime switch (a snapped tree trunk); takes effect immediately
 //   finalize()   builds the grid; also done lazily by the first query after a registration
+//   compact()    trims the arrays grown by doubling to what is registered (call once the world is built; a later
+//                registration grows them again)
 //   Queries (all skip disabled solids):
 //     raycast(origin, dir, max = 1e4, out?, solidsOnly?) -> { distance, point{x,y,z}, normal{x,y,z}, id, kind } | null
 //         dir need not be normalized (it is normalized here; distance is in metres). A zero dir -> null. A ray that
@@ -84,6 +86,13 @@ export function createCollisionWorld({ cell = 24, terrain = null, hintTol = 0.05
     if (nv + k <= vcap) return;
     let c = vcap; while (c < nv + k) c *= 2;
     vx = grow(vx, c * 2); ed = grow(ed, c * 4); inner = grow(inner, c); vcap = c;
+  }
+  function compact() {
+    const fit = (a, len) => (a.length === len ? a : a.slice(0, len));
+    const c = Math.max(1, n), v = Math.max(1, nv);
+    type = fit(type, c); flag = fit(flag, c); kix = fit(kix, c); grp = fit(grp, c);
+    bb = fit(bb, c * 6); par = fit(par, c * 4); vref = fit(vref, c * 2); stamp = fit(stamp, c); gmark = fit(gmark, c); cap = c;
+    vx = fit(vx, v * 2); ed = fit(ed, v * 4); inner = fit(inner, v); vcap = v;
   }
   function kindId(k) {
     k = k == null ? 'solid' : String(k);
@@ -716,7 +725,7 @@ export function createCollisionWorld({ cell = 24, terrain = null, hintTol = 0.05
   }
 
   return {
-    box, obox, cyl, prism, disable, enable, finalize, setTerrain, terrainHeight,
+    box, obox, cyl, prism, disable, enable, finalize, compact, setTerrain, terrainHeight,
     isEnabled: (id) => id >= 0 && id < n && !(flag[id] & OFF),
     raycast, groundHeight, topAt, surfaceAt, ceilingAt, solidAt,
     inside: (x, y, z) => solidAt(x, y, z) >= 0,

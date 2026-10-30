@@ -11,6 +11,21 @@ const near = (a, b, e, msg) => ok(Math.abs(a - b) <= e, `${msg}: ${a} vs ${b}`);
 const V = (x, y, z) => ({ x, y, z });
 const area = (P) => { let a = 0; for (let i = 0; i < P.length; i += 2) { const j = (i + 2) % P.length; a += P[i] * P[j + 1] - P[j] * P[i + 1]; } return a / 2; };
 
+// ---------------------------------------------------------------- compact(): trimmed arrays answer the same, and grow again
+{
+  const w = createCollisionWorld();
+  for (let i = 0; i < 300; i++) w.box(i * 3, 0, 0, i * 3 + 2, 2 + (i % 5), 2, 'wall');
+  for (let i = 0; i < 40; i++) w.prism([i * 7, 10, i * 7 + 4, 10, i * 7 + 5, 14, i * 7 + 1, 15], 0, 3, 'house');
+  w.cyl(-10, -10, 0, 6, 0.5);
+  const probe = () => [w.groundHeight(1, 1, 20), w.groundHeight(i3(150), 1, 20), w.inside(2, 1, 13), w.raycast(V(-5, 1, 1), V(1, 0, 0), 50)?.distance, w.solidAt(-10, 3, -10)];
+  const i3 = (i) => i * 3 + 1;
+  const before = JSON.stringify(probe()), count = w.count;
+  w.compact();
+  ok(JSON.stringify(probe()) === before && w.count === count, 'compact() keeps every answer');
+  const id = w.box(2000, 0, 2000, 2002, 2, 2002, 'wall');
+  ok(id >= 0 && w.inside(2001, 1, 2001) && JSON.stringify(probe()) === before, 'registering after compact() grows the arrays again');
+}
+
 // ---------------------------------------------------------------- registration
 {
   const w = createCollisionWorld();

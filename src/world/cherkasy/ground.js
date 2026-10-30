@@ -24,7 +24,7 @@ import * as THREE from 'three';
 import { WATER_Y } from '../water.js';
 import { patchMaterial } from '../materials.js';
 import { decalBias } from '../../render/renderer.js';
-import { mergeGeometries } from '../../kit/batch.js';
+import { mergeGeometries, releaseOnUpload } from '../../kit/batch.js';
 import { ringPts, triangulate, area2, bboxOf, BitRaster, packGeometry, unpackGeometry, inWorker } from './geo.js';
 
 // layer offsets above the terrain (m): 1.5 - 2.5 cm apart, the drape agrees to ~1 cm between layers
@@ -465,7 +465,9 @@ function assemble(data, { scene, T, hf, strip, renderer }) {
   const mat = createGroundMaterial(T, strip);
   const root = Object.assign(new THREE.Group(), { name: 'ground' });
   const put = (geo, m, name) => {
-    const mesh = new THREE.Mesh(geo, m);
+    // the queries read the rasters, not the meshes; a site that re-lays ground triangles (railcut.js) does it while the city
+    // builds, before the first upload, so the CPU copy can go once the GPU has it
+    const mesh = new THREE.Mesh(releaseOnUpload(geo), m);
     Object.assign(mesh, { name, receiveShadow: true, matrixAutoUpdate: false });
     root.add(mesh);
   };

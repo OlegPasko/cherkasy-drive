@@ -22,6 +22,7 @@
 // heights at its ends. Nothing here collides: the bed is 0.3 m and a car simply rolls through it.
 import * as THREE from 'three';
 import { MB } from '../../kit/mesh.js';
+import { releaseOnUpload } from '../../kit/batch.js';
 import { canvasTex } from './sculpt.js';
 import { rng } from './geo.js';
 import { RAIL as DAM_RAIL } from './dam_data.js';
@@ -377,14 +378,14 @@ export function buildRails({ root, map, heightAt, ground, solids, geo, railLevel
     if (!g) continue;
     nV += st.n;
     const mat = k[0] === 'r' ? mats.rail : k[1] === 'y' ? mats.yard : mats.open;
-    const mesh = Object.assign(new THREE.Mesh(g, mat), { name: `rails-${k}`, receiveShadow: true, castShadow: false, matrixAutoUpdate: false });
+    const mesh = Object.assign(new THREE.Mesh(releaseOnUpload(g), mat), { name: `rails-${k}`, receiveShadow: true, castShadow: false, matrixAutoUpdate: false });
     mesh.updateMatrix(); group.add(mesh);
   }
   for (const [B, mat, name, shadow] of [[panels, mats.det, 'crossings', false], [signs, mats.det, 'crossing-signs', true],
     [decks, mats.det, 'rail-bridges', true], [cat, mats.det, 'catenary', true]]) {
     if (!B.v) continue;
     nV += B.v;
-    group.add(Object.assign(new THREE.Mesh(B.build(), mat), { name, castShadow: shadow, receiveShadow: true }));
+    group.add(Object.assign(new THREE.Mesh(releaseOnUpload(B.build()), mat), { name, castShadow: shadow, receiveShadow: true }));
   }
   if (wire.length) {
     const wg = new THREE.BufferGeometry().setAttribute('position', new THREE.BufferAttribute(Float32Array.from(wire), 3));

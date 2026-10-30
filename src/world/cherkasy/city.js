@@ -308,6 +308,7 @@ export async function buildCherkasy({ scene, renderer, onProgress = null, params
   if (globalThis.window && people) window.__cherkasyPeds = people;
   const treeBreak = createTreeBreaker({ scene: root, trees, collision, trunks, debris });
   collision.finalize();
+  collision.compact(); // the city is built: the arrays grown by doubling shrink to what is used
   const geoDebug = createCollisionDebug(root, collision);
   geoDebug.enabled = params.has('coll');
   stage('life', 0.96, 'Шейдери…');
