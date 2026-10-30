@@ -145,6 +145,7 @@ export function finish(root, name, B, M, shadow) {
     mesh.name = `${name}-${key}`; mesh.castShadow = shadow.includes(key); mesh.receiveShadow = true;
     group.add(mesh);
     st.verts += D.v; st.tris += (geo.index ? geo.index.count : D.v) / 3; st.meshes++;
+    D.free(); // the site's closures may still hold B
   }
   st.tris = Math.round(st.tris);
   return st;

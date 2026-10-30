@@ -112,6 +112,7 @@ export function finish(root, name, B, M, { shade = [] } = {}) {
     const geo = D.build();
     out.verts += D.v; out.tris += geo.index.count / 3; out.meshes++;
     group.add(Object.assign(new Mesh(geo, M[k]), { name: `${name}-${k}`, castShadow: shade.includes(k), receiveShadow: true }));
+    D.free(); // the site's closures may still hold B
   }
   return out;
 }
