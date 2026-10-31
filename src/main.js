@@ -355,7 +355,9 @@ export async function startGame({ container = document.getElementById('app') || 
 
   setOverlay(overlay, 'Компілюємо шейдери…');
   ctx.sky.update(0, camera);
-  await warmupShaders(ctx.renderer, scene, camera);
+  // compile for the post chain's linear target, as the frames draw the scene: three keys a program by its output colour
+  // space, so a warm-up against the screen made sRGB variants and every program compiled again on frame one
+  await warmupShaders(ctx.renderer, scene, camera, undefined, { linear: true });
   track('game_ready', { load_ms: Math.round(performance.now()), quality: ctx.quality });
   consent.ready();
   consent.accepted.then(() => { // the loop starts only once the terms are accepted (at once for a returning player)

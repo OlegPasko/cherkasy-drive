@@ -4,7 +4,9 @@
 //     renderer.userData.caps = { reversedDepth, hdrTarget ('half' | 'float' | null), maxTexture, maxAniso, parallelCompile }
 //   isReversedDepth(renderer) -> bool
 //   decalBias(material, renderer, level = 1)  pull a coplanar overlay (road marking, puddle, crack) toward the camera.
-//   warmupShaders(renderer, scene, camera, timeoutMs = 6000) -> Promise<bool>   async program compile before frame one
+//   warmupShaders(renderer, scene, camera, timeoutMs = 6000, { linear = false }?) -> Promise<bool>   async program compile
+//     before frame one. linear: compile for a render target, as the post chain draws the scene (three keys a program by
+//     its output colour space: a warm-up against the screen makes sRGB variants that frame one then compiles again)
 //
 // Reversed depth (EXT_clip_control + 32-bit float depth in the post chain) keeps a 10 km city free of far z-fighting.
 // It breaks the usual decal recipe: three.js mirrors polygonOffsetFactor for a reversed buffer but passes
@@ -81,13 +83,19 @@ export function decalBias(material, renderer, level = 1) {
 
 // Compile every program the scene needs without blocking the main thread (KHR_parallel_shader_compile when present).
 // Resolves true when done, false on timeout or failure; the game starts either way.
-export async function warmupShaders(renderer, scene, camera, timeoutMs = 6000) {
+export async function warmupShaders(renderer, scene, camera, timeoutMs = 6000, { linear = false } = {}) {
   const timer = new Promise((res) => setTimeout(() => res(false), timeoutMs));
+  // compileAsync builds every program synchronously before it returns, so the target is only needed for that call
+  const prev = renderer.getRenderTarget(), rt = linear ? new THREE.WebGLRenderTarget(1, 1, { type: THREE.HalfFloatType }) : null;
   try {
+    if (rt) renderer.setRenderTarget(rt);
     const job = renderer.compileAsync(scene, camera).then(() => true);
+    if (rt) renderer.setRenderTarget(prev);
     return await Promise.race([job, timer]);
   } catch (err) {
     console.warn('[renderer] shader warm-up failed', err);
     return false;
+  } finally {
+    if (rt) { renderer.setRenderTarget(prev); rt.dispose(); }
   }
 }
