@@ -25,6 +25,8 @@
 //                           index Uint16/Uint32, bounds computed. Flat 'part' varyings read the provoking (last) vertex
 //                           of each triangle: for .quad that is c and d.
 //     .clear()
+//     .free()                drops the accumulated data once built (.v stays, for stats): a builder a closure still
+//                           holds would keep its arrays; emitting or building again throws until .clear()
 //   M4(x,y,z, ry=0, s=1) -> Matrix4 = translate * rotateY(ry) * uniformScale (local +x -> world (cos ry, 0, -sin ry))
 //   rotX(a), rotY(a), rotZ(a) -> Matrix4
 //   srgbToLinear(v), hexLin(c) -> [r,g,b] linear (c: number | '#rrggbb' | [r,g,b] sRGB 0..1)
@@ -89,6 +91,7 @@ export class MeshBuilder {
     return this;
   }
   get n() { return this.v; }
+  free() { this.buf = this.parts = this.tris = null; return this; }
 
   setColor(c) { this.rgb = Array.isArray(c) ? [c[0], c[1], c[2]] : hexLin(c); return this; }
   setPart(part) { this.pid = part & 255; return this; }

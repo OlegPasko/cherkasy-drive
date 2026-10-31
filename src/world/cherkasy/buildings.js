@@ -166,6 +166,9 @@ export async function buildCityBuildings({ root, map, hf, solids, zips, skip = n
   const detail = batchTiles(parts.map((t) => t.det), detailMat, 'roofs', opts, centres);
   const meshes = [...facade.meshes, ...detail.meshes];
   for (const m of meshes) root.add(m);
+  // the closures returned below share this scope: drop the per-tile pieces and merged parts, or they stay alive beside
+  // the batched meshes (~150 MB on a whole city)
+  tiles.clear(); parts = null;
   const ms = { build: Math.round(t1 - t0), meshes: Math.round(performance.now() - t1) };
 
   // per-tile LOD (the merged 512 m mesh follows its nearest tile), re-evaluated after the camera moved 20 m

@@ -11,6 +11,7 @@
 //              stats() -> { meshes, visible, triangles, vertices }, dispose() }
 //   mergeGeometries(list) -> BufferGeometry  same attribute layout required (e.g. all from one builder class)
 //   splitTiles(geometry, tileSize = 256) -> [{ geometry, cx, cz }]  cut one big geometry into tiles (triangle centroid)
+//   releaseOnUpload(geometry) -> geometry  drop its CPU arrays once the GPU has them (static meshes nothing reads back)
 import * as THREE from 'three';
 
 export function mergeGeometries(list) {
@@ -57,8 +58,7 @@ export function batchTiles(geoms, material, name = 'tiles', opts = {}, centers =
   for (const tiles of buckets.values()) {
     const geo = tiles.length === 1 ? geoms[tiles[0]] : mergeGeometries(tiles.map((i) => geoms[i]));
     if (tiles.length > 1) for (const i of tiles) geoms[i].dispose();
-    if (release) for (const a of Object.values(geo.attributes)) a.onUpload(dropArray);
-    if (release && geo.index) geo.index.onUpload(dropArray);
+    if (release) releaseOnUpload(geo);
     const m = new THREE.Mesh(geo, material);
     m.name = `${name}-${meshes.length}`;
     m.castShadow = castShadow; m.receiveShadow = receiveShadow; m.renderOrder = renderOrder;
@@ -66,6 +66,7 @@ export function batchTiles(geoms, material, name = 'tiles', opts = {}, centers =
     for (const i of tiles) meshOf[i] = meshes.length;
     meshes.push(m); members.push(tiles);
   }
+  geoms = centers = null; // the returned methods share this scope: let the input geometries go (the merged ones are copies)
   const vis = new Uint8Array(nT).fill(1), shd = new Uint8Array(nT).fill(castShadow ? 1 : 0);
   const refresh = (mi, flags, prop) => { meshes[mi][prop] = members[mi].some((i) => flags[i]); };
   return {
@@ -84,6 +85,11 @@ export function batchTiles(geoms, material, name = 'tiles', opts = {}, centers =
   };
 }
 function dropArray() { this.array = new this.array.constructor(0); }
+export function releaseOnUpload(geo) {
+  for (const a of Object.values(geo.attributes)) a.onUpload(dropArray);
+  geo.index?.onUpload(dropArray);
+  return geo;
+}
 
 export function splitTiles(geometry, tileSize = 256) {
   const pos = geometry.attributes.position, I = geometry.index ? geometry.index.array : null;

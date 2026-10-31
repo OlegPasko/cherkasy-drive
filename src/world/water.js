@@ -27,6 +27,7 @@
 //   obliqueNear(projection, planeInCameraSpace: Vector4, reversedDepth): oblique near plane (exported for tests).
 import { Box3, Color, Frustum, HalfFloatType, MathUtils, Matrix4, Mesh, MeshLambertMaterial, MeshStandardMaterial, PerspectiveCamera, Plane, Quaternion, ShapeUtils, Sphere, Vector2, Vector3, Vector4, WebGLRenderTarget } from 'three';
 import { meshData, tileTexture, patchShader, rng32 } from './nature/util.js';
+import { releaseOnUpload } from '../kit/batch.js';
 
 export const WATER_Y = -1.6;
 
@@ -317,7 +318,7 @@ export function buildWetBands({ scene, segs, y = WATER_Y, isWater = null, foam =
   const out = { mesh: null, foam: null, segments: used, update() {}, dispose() {} };
   if (!used) return out;
   const stainMat = new MeshStandardMaterial({ vertexColors: true, roughness: 0.5, metalness: 0, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -1 });
-  out.mesh = new Mesh(meshData({ position: [stain.position, 3], normal: [stain.normal, 3], color: [stain.color, 4] }), stainMat);
+  out.mesh = new Mesh(releaseOnUpload(meshData({ position: [stain.position, 3], normal: [stain.normal, 3], color: [stain.color, 4] })), stainMat);
   out.mesh.name = 'wet bands'; out.mesh.receiveShadow = true; out.mesh.renderOrder = 3;
   scene?.add?.(out.mesh);
   if (lap.position.length) {
@@ -334,7 +335,7 @@ export function buildWetBands({ scene, segs, y = WATER_Y, isWater = null, foam =
   diffuseColor.a *= (1.0 - smoothstep(wash * 0.6, wash, vOut)) * smoothstep(0.45, 0.75, fn + (1.0 - vOut) * 0.3) * 0.5; }`],
     ]);
     foamMat.customProgramCacheKey = () => 'shorefoam';
-    out.foam = new Mesh(meshData({ position: [lap.position, 3], normal: [lap.normal, 3], uv: [lap.uv, 2] }), foamMat);
+    out.foam = new Mesh(releaseOnUpload(meshData({ position: [lap.position, 3], normal: [lap.normal, 3], uv: [lap.uv, 2] })), foamMat);
     out.foam.name = 'shore foam'; out.foam.renderOrder = 3;
     scene?.add?.(out.foam);
   }

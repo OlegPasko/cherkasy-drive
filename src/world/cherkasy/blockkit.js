@@ -140,6 +140,7 @@ export function finish(root, name, B, M, shadow) {
     st.verts += B[k].v; st.tris += (geo.index?.count ?? geo.attributes.position.count) / 3; st.meshes += 1;
     Object.assign(mesh, { name: name + '-' + k, castShadow: shadow.includes(k), receiveShadow: true });
     st.group.add(mesh);
+    B[k].free(); // the site's closures may still hold B
   }
   root.add(st.group);
   return st;
