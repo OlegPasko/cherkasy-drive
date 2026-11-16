@@ -57,6 +57,8 @@ the Dnipro, +z south-east, origin at Soborna square).
         bigmap.js             full-screen city map (M): zoom / pan, street names, sights, partners, missions;
                               right click -> the Telegram bot at that point
         botlink.js            t.me links into @driver_game_bot (game x/z -> lat/lon for the /start payload)
+        perfhint.js           slow-frame watch: lowers the graphics level by itself (the game's pick) or offers G (the player's)
+        softwarewarn.js, .css the "no graphics card" card when the browser draws in software
         photomode.js, .css    photo mode (P): ctx.frozen world, free camera (core/flycam.js), watermarked PNG, save / share
         peek3d.js             the phone map's 3D peek: one hand-built site built on its own over the map (mapview.js only)
 

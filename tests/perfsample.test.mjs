@@ -1,7 +1,7 @@
 // node tests/perfsample.test.mjs – the device info for analytics (render/gpuinfo.js) and the frame-rate reports
 // (render/perfsample.js).
 import assert from 'node:assert/strict';
-import { gpuName, isSoftware, deviceInfo } from '../src/render/gpuinfo.js';
+import { gpuName, isSoftware, deviceInfo, suggestQuality } from '../src/render/gpuinfo.js';
 import { createPerfSample } from '../src/render/perfsample.js';
 
 // --- the card's name out of what browsers report
@@ -22,6 +22,18 @@ for (const [raw, name, soft] of NAMES) {
   assert.equal(isSoftware(raw), soft, raw);
 }
 assert.ok(gpuName('x'.repeat(300)).length <= 100, 'GA4 cuts a value at 100 characters');
+
+// --- the first start's graphics level from the card's name
+for (const [g, q] of [['Intel UHD Graphics 620', 'medium'], ['Intel HD Graphics 4000', 'medium'], ['Intel Iris Xe Graphics', 'medium'],
+  ['Mesa Intel Xe Graphics (TGL GT2)', 'medium'], ['Intel Arc A750 Graphics', 'high'], ['AMD Radeon Graphics', 'medium'],
+  ['AMD Radeon Vega 8 Graphics', 'medium'], ['AMD Radeon RX 6600 XT', 'high'], ['AMD Radeon Pro 5500M', 'high'],
+  ['NVIDIA GeForce RTX 3060', 'high'], ['NVIDIA GeForce GTX 1050 Ti', 'high'], ['NVIDIA GeForce MX150', 'medium'],
+  ['NVIDIA GeForce GT 730', 'medium'], ['NVIDIA GeForce 940MX', 'medium'], ['Apple M5 Pro', 'high'], ['Apple GPU', 'high'],
+  ['Mali-G78', 'medium'], ['unknown', 'high'], ['Microsoft Basic Render Driver', 'low'], ['Vulkan 1.3.0 (SwiftShader Device (Subzero))', 'low']]) {
+  assert.equal(suggestQuality({ gpu: g }), q, g);
+}
+assert.equal(suggestQuality({ gpu: 'NVIDIA GeForce RTX 3060', software: true }), 'low');
+assert.equal(suggestQuality(), 'high');
 
 // --- deviceInfo: the unmasked name where there is one, the screen in device pixels
 const gl = {

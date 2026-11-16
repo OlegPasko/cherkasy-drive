@@ -5,6 +5,10 @@
 //     'ANGLE (NVIDIA, NVIDIA GeForce RTX 3060 (0x00002503) Direct3D11 vs_5_0 ps_5_0, D3D11)' -> 'NVIDIA GeForce RTX 3060'
 //   isSoftware(raw) -> true for a CPU rasteriser (SwiftShader, llvmpipe, Microsoft Basic Render Driver, ...): the
 //     browser's graphics acceleration is off or the driver is blocked, and no graphics level will make the game smooth
+//   suggestQuality({ gpu, software }) -> 'low' | 'medium' | 'high': the graphics level a first start gets before any frame
+//     is measured – 'low' in software, 'medium' on integrated and small mobile cards (Intel HD / UHD / Iris / Xe, a Radeon that
+//     is not an RX / Pro, GeForce MX / GT / ...M, Mali, Adreno), else 'high'. Only a head start: the game then steps the
+//     level down by itself while it stays slow (ui/perfhint.js)
 //   deviceInfo(gl, win = globalThis) -> { gpu, software, screen: '2560x1440' (device pixels), view: '1280x720' (the
 //     window, CSS pixels), dpr (devicePixelRatio), cores, mem (GB, Chrome only; 0 when unknown) }
 // The name comes from WEBGL_debug_renderer_info where the browser still has it, else from gl.RENDERER (Firefox gives a
@@ -26,6 +30,13 @@ export function gpuName(raw) {
 }
 
 export const isSoftware = (raw) => SOFT.test(String(raw || ''));
+
+const MODEST = [/intel(?!.*\barc\b).*\b(u?hd|iris|xe|gma)\b/i, /radeon(?!.*\b(rx|pro)\b)/i, /geforce.*\b(mx ?\d+|gt ?\d+m?|[1-9]\d{2}mx?)\b/i,
+  /\b(mali|adreno|powervr|videocore)\b/i];
+export function suggestQuality({ gpu = '', software = false } = {}) {
+  if (software || isSoftware(gpu)) return 'low';
+  return MODEST.some((re) => re.test(gpu)) ? 'medium' : 'high';
+}
 
 export function deviceInfo(gl, win = globalThis) {
   let raw = '';

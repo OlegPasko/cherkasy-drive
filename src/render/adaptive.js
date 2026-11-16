@@ -2,8 +2,10 @@
 // coarse steps (a slightly softer image instead of stutter), and gives it back once there is room. A capable machine
 // never leaves full resolution. Pure logic: no DOM, no three.js, driven by real frame intervals.
 //
-//   createAdaptiveRes({ getBase, apply, onStep?, budget = 1/48 }) -> ares
+//   createAdaptiveRes({ getBase, getFloor?, apply, onStep?, budget = 1/48 }) -> ares
 //     getBase() -> the quality's own pixel ratio (post.baseDpr); apply(f): render at base * f (post.setAdaptive)
+//     getFloor() -> the lowest pixel ratio worth trying (post.minDpr: 1, less on a very large window and at the lowest
+//       graphics level); default 1. A new floor starts the watch over, like a new base
 //     onStep({ from, to, dpr, reason, ms }) after each change; reason 'slow' | 'headroom' | 'probe' | 'nogain'
 //     ares.update(dt, active, work?)  one real animation-frame interval in seconds (NOT the clamped sim dt, NOT tick()
 //                              steps); active = false while nothing renders (map open, hidden tab): the watch restarts;
@@ -14,7 +16,8 @@
 //     ares.level (0 = full), ares.factor, ares.dpr, ares.ladder, ares.locked, ares.cpuBound
 //     ares.atFloor             true when no lower step is left (floor, CPU-bound, or a step bought nothing): the G offer
 //                              may show
-//   ladder(base) -> effective pixel ratios, base first, ~0.2 apart, down to min(base, 1) (never below the quality's own base)
+//   ladder(base, floor = 1) -> effective pixel ratios, base first, ~0.2 apart, down to min(base, floor) (never above the
+//     quality's own base)
 //
 // Down: the mean interval over DOWN_WIN s (hitches over 3x the median left out) above the budget; shorter dips (a
 // district streaming in, a crash, another app) pass. Not the median: GPU-bound frames land on vsync ticks, so 43 fps on
@@ -30,8 +33,8 @@
 const GRACE = 10, SETTLE = 1, MAX_DT = 0.25, EVAL = 0.5, DOWN_WIN = 4, GAIN_WIN = 3, COOLDOWN = 3, MIN_GAIN = 0.08, STEP = 0.2, KEEP = 8;
 const CPU_K = 0.9, CPU_R = 0.8, UP_WIN = 8, UP_K = 0.85, UP_FIT = 0.8, UP_AFTER = 20, PROBE = 60, REV_WIN = 30, MAX_FAIL = 2;
 
-export function ladder(base) {
-  const floor = Math.min(base, 1);
+export function ladder(base, min = 1) {
+  const floor = Math.min(base, min);
   const n = base - floor < 0.05 ? 0 : Math.max(1, Math.round((base - floor) / STEP));
   return Array.from({ length: n + 1 }, (_, i) => (n ? +(base - (base - floor) * i / n).toFixed(4) : base));
 }
@@ -49,8 +52,8 @@ function stats(ts, ds, ws, since) {
   return { median, p90: q(0.9), mean: n ? s / n : 0, work: n ? w / n : 0 };
 }
 
-export function createAdaptiveRes({ getBase, apply, onStep = null, budget = 1 / 48 } = {}) {
-  let t = 0, grace = GRACE, base = getBase(), steps = ladder(base), level = 0;
+export function createAdaptiveRes({ getBase, getFloor = () => 1, apply, onStep = null, budget = 1 / 48 } = {}) {
+  let t = 0, grace = GRACE, base = getBase(), floor = getFloor(), steps = ladder(base, floor), level = 0;
   let ts = [], ds = [], ws = [], since = 0, lastEval = 0, lastStep = -1e9, lastDown = -1e9, lastUp = -1e9, fails = 0;
   let locked = false, deepest = Infinity, pending = null, cpuBound = false;
 
@@ -74,7 +77,7 @@ export function createAdaptiveRes({ getBase, apply, onStep = null, budget = 1 / 
       clear(SETTLE);
       return;
     }
-    if (Math.abs(getBase() - base) > 1e-3) { restart(SETTLE); return; } // another display: start over at full resolution
+    if (Math.abs(getBase() - base) > 1e-3 || Math.abs(getFloor() - floor) > 1e-3) { restart(SETTLE); return; } // another display or window: start over at full resolution
     if (grace > 0) { grace -= dt; if (grace <= 0) since = t; return; }
     ts.push(t); ds.push(dt); ws.push(work);
     if (ts[0] < t - KEEP - 1) {
@@ -107,7 +110,7 @@ export function createAdaptiveRes({ getBase, apply, onStep = null, budget = 1 / 
   function settle() { pending = null; clear(SETTLE); } // the canvas was resized: the samples so far compare nothing
 
   function restart(g = GRACE) {
-    base = getBase(); steps = ladder(base);
+    base = getBase(); floor = getFloor(); steps = ladder(base, floor);
     if (level) { level = 0; apply(1); }
     lastStep = lastDown = lastUp = -1e9; fails = 0; locked = false; deepest = Infinity; pending = null; cpuBound = false;
     grace = 0; clear(g);

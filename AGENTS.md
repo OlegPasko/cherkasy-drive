@@ -27,14 +27,19 @@ See `ARCHITECTURE.md` for the module map. Where things live:
   - The post chain is N8AO → bloom + PBR Neutral tone mapping → SMAA.
   - `daylight.js` exports `nightFactor()` and `nightK`.
   - `adaptive.js` – adaptive resolution: when the real frame interval stays over 1/48 s and the CPU is not the limit, it
-    lowers the render pixel ratio in ~0.2 steps (1.6 → 1.4 → 1.2 → 1.0, never below 1 or the quality's own base) and
-    gives it back once there is room; reset on every quality change, never saved. `?noadapt` turns it off.
+    lowers the render pixel ratio in ~0.2 steps (1.6 → 1.4 → 1.2 → 1.0) down to `post.minDpr` – 1 on an ordinary window,
+    0.75 on one over 1300 CSS px high and 0.5 over 1900 (a 1440p / 4K monitor at 100 % scaling), 0.5 at the lowest
+    graphics level (0.75 → 0.5) – and gives it back once there is room; reset on every quality change, never saved.
+    `?noadapt` turns it off.
   - `gpuinfo.js` – what the game runs on (`renderer.userData.caps.device`, `ctx.device`): the graphics card's short name,
     whether the browser draws in software, the screen, cores. `perfsample.js` – the real frame rate after 60 s and 300 s of
     play. Both go to analytics (`game_ready`, `perf`), so slow machines can be told by their hardware; `tests/perfsample.test.mjs`.
   - Shadows use three's `SunLight` with 2 cascades.
-  - Graphics levels (`QUALITY_LEVELS` low / medium / high in `main.js`, saved as `cd.quality`; G steps down, F9 cycles,
-    both live, no reload). Each render module has its own table (`post.js`: AO, AA, render scale, max pixel ratio;
+  - Graphics levels (`QUALITY_LEVELS` low / medium / high in `main.js`; G steps down, F9 cycles, both live, no reload).
+    The player's own choice is saved as `cd.quality` and always wins. Without one the game picks (`ctx.qualityBy`
+    'auto'): a first start gets a guess from the graphics card's name (`gpuinfo.js suggestQuality`: software → low,
+    integrated and small mobile cards → medium), and while the game stays slow `ui/perfhint.js` steps the level down by
+    itself, never up; that pick is kept as `cd.quality.auto` for 30 days. Each render module has its own table (`post.js`: AO, AA, render scale, max pixel ratio;
     `shadows.js`: map size, reach, rate; `sky.js`: cloud octaves, env size), and `world.setQuality(q)` sets what the
     city draws (`DETAIL` in `city.js`): tree LOD bands and tree-shadow reach (`trees.setDetail`), roof-detail and
     building-shadow reach (`buildings.js setDetail`), the hand-built sites' draw-distance cull (`world/farcull.js`:
@@ -468,8 +473,9 @@ See `ARCHITECTURE.md` for the module map. Where things live:
     any building (the big map names them on hover), a sight not found yet is a grey footprint with a dashed gold outline
     and a nameless "?" badge («Невідома пам’ятка» on hover), and only visited sights light up gold with their emoji and
     name (`painter.refresh(place)` repaints the tiles under one when it is found). The phone page marks every place.
-  - `perfhint.js` – watches the real frame rate; after ~6 s under 40 fps it offers G (simpler graphics, one quality
-    step down) in a pill at the bottom, but only once the adaptive resolution has nothing lower left to try. G works any time and goes round (the lowest wraps to the highest); F9 cycles the levels upward.
+  - `perfhint.js` – watches the real frame rate, once the adaptive resolution has nothing lower left to try: while the
+    level is the game's own pick it lowers it one step by itself after ~10 s under 40 fps (~6 s under 25) and says so in
+    a pill at the bottom; after the player has chosen a level it only offers G there (after ~6 s under 40 fps). G works any time and goes round (the lowest wraps to the highest); F9 cycles the levels upward.
   - `bigmap.js` – the full-screen map on M: north up, wheel / drag / arrows or the + / − buttons, street names along the streets, sight and
     partner badges with hover notes, mission markers and the objective. A left click elsewhere plants the player's own mark (a yellow flag; a click on it
     clears it, driving within 25 m clears it too; `cherkasy.mark` in localStorage), which the minimap shows as a flag or a
@@ -488,6 +494,9 @@ See `ARCHITECTURE.md` for the module map. Where things live:
   preview: «Скасувати», «Зберегти» (`cherkasy-drive-YYYYMMDD-HHMMSS.png`), «Поділитися» (Web Share with the file, else
   the clipboard with «Скопійовано»; hidden when neither). P / Esc go back to the car's camera, the HUD as it was (F2
   kept). `track('photo', { action })`; `tests/photomode.test.mjs`.
+- `src/ui/softwarewarn.js` and `softwarewarn.css` – the «Гра йде без відеокарти» card at the start when the browser
+  draws in software (`ctx.device.software`): how to turn the graphics acceleration on, before the Roadster's news card;
+  Enter / Space / Esc or the button close it, at most once a day (`cherkasy.softwarn`); `tests/softwarewarn.test.mjs`.
 - `src/ui/consent.js` and `consent.css` – the consent card on the loading screen: the main keys and the terms (an
   entertainment game, toy people not modelled on real residents, toy crashes, open-data city with nothing military or
   live). Any key (browser shortcuts aside) or a click anywhere accepts it, a press during the load as soon as the game is
@@ -553,6 +562,7 @@ See `ARCHITECTURE.md` for the module map. Where things live:
   - `?nosound` – no sound at all (no AudioContext, nothing fetched, the radio muted); use it for every dev and test run;
   - `?mobile` / `?desktop` – force the phone map page or the game (`src/mapview.js`).
   - `?roadster` – dev builds only (`import.meta.env.DEV`): the Roadster counts as unlocked (V switches to it).
+  - `?softwarn` – dev builds only: shows the software-rendering card (`ui/softwarewarn.js`).
 - Handles: `window.__game` (ctx with `world`, `car`, `hud` (`hud.map`, `hud.painter`), `missions`, `garage`, `perf`, `photo`), `window.__car`,
   `window.__missions`, `window.__cherkasyTraffic`, `window.__cherkasyPeds`.
 - `window.tick(n, dt)` pauses the loop, steps n frames deterministically and returns a snapshot.

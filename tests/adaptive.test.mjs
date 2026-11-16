@@ -43,7 +43,10 @@ function machine({ base: base0 = 1.6, hz = 60, cpu = 0.004, gpu = 0.006, jitter 
   ok(eq(ladder(1.25), [1.25, 1.0]), `retina medium: 1.25 1.0 (got ${ladder(1.25)})`);
   ok(eq(ladder(1.5), [1.5, 1.3333, 1.1667, 1.0]), `150% display: even steps to 1 (got ${ladder(1.5)})`);
   ok(eq(ladder(1), [1]), 'DPR 1: nothing to lower');
-  ok(eq(ladder(0.75), [0.75]), 'low quality (0.75): never above or below its own base');
+  ok(eq(ladder(0.75), [0.75]), 'a base under the floor: never above or below its own base');
+  ok(eq(ladder(0.75, 0.5), [0.75, 0.5]), `low quality: one step down to its 0.5 floor (got ${ladder(0.75, 0.5)})`);
+  ok(eq(ladder(1, 0.5), [1, 0.8333, 0.6667, 0.5]), `a 4K window at pixel ratio 1: steps to 0.5 (got ${ladder(1, 0.5)})`);
+  ok(eq(ladder(1, 0.75), [1, 0.75]), `a 1440p window at pixel ratio 1: one step (got ${ladder(1, 0.75)})`);
 }
 
 // ---------------------------------------------------------------- a capable machine never leaves full resolution
@@ -180,7 +183,45 @@ const fmt = (log) => log.map((s) => `${s.t.toFixed(0)}s:${s.dpr}/${s.reason}`).j
   ok(p2.shown === 'offer', 'slow again: offered');
   p2.restart();
   ok(!p2.shown, 'a quality change takes a standing offer away');
+  // the level is still the game's own pick: the watch steps it down itself, and never past the lowest
+  const by = [];
+  let aq = 'high', mine = false;
+  const p3 = createPerfHint({ container, getQuality: () => aq, setQuality: (x, who) => { aq = x; by.push(who); }, auto: () => !mine });
+  run(p3, 15, 55);
+  ok(aq === 'high' && !p3.shown, 'fast enough: nothing changes');
+  run(p3, 9, 30);
+  ok(aq === 'high', '8 s under 40 fps: not yet');
+  run(p3, 2.5, 30);
+  ok(aq === 'medium' && by.at(-1) === 'auto' && p3.shown === 'info', `10 s under 40 fps: one step down by itself, with a note (${aq}, ${by})`);
+  run(p3, 5 + 5, 15);
+  ok(aq === 'medium', 'a fresh grace after the step');
+  run(p3, 2.5, 15);
+  ok(aq === 'low' && by.length === 2, `under 25 fps: the next step after 6 s (${aq})`);
+  run(p3, 60, 15);
+  ok(aq === 'low' && by.length === 2, 'the lowest level: nothing further');
+  // the player's own level: only the offer
+  aq = 'high'; mine = true;
+  p3.restart();
+  run(p3, 5 + 7, 30);
+  ok(aq === 'high' && p3.shown === 'offer', 'a level chosen by hand is never lowered unasked: G is offered');
+  p3.cycle();
+  ok(aq === 'medium' && by.at(-1) === 'user', 'G steps down as the player');
+  // a slow machine whose resolution can still drop: the adaptive resolution goes first, even in auto
+  let aq2 = 'high';
+  const p4 = createPerfHint({ container, getQuality: () => aq2, setQuality: (x) => { aq2 = x; }, auto: () => true, canAdapt: () => true });
+  run(p4, 40, 20);
+  ok(aq2 === 'high', 'auto waits for the adaptive floor');
   performance.now = realNow;
+}
+
+// ---------------------------------------------------------------- a new floor (the window grew past 1900 px) starts over
+{
+  let floor = 1, f = 1;
+  const a = createAdaptiveRes({ getBase: () => 1, getFloor: () => floor, apply: (k) => { f = k; } });
+  ok(a.ladder.join() === '1' && a.atFloor, 'pixel ratio 1, an ordinary window: nothing to lower');
+  floor = 0.5;
+  a.update(1 / 60, true, 0.002);
+  ok(a.ladder.join() === '1,0.8333,0.6667,0.5' && !a.atFloor && f === 1, `a 4K window: a new ladder (${a.ladder})`);
 }
 
 if (process.env.VERBOSE) for (const [k, cfg] of Object.entries({ gpu30: { gpu: 0.030 }, gpu22: { cpu: 0.002, gpu: 0.022 }, cpu30: { cpu: 0.03, gpu: 0.004 }, cap30: { hz: 30, gpu: 0.012 } })) {

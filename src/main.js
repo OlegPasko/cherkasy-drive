@@ -10,7 +10,11 @@
 //             frozen: while true (the photo mode) only the `always` systems run and the clock, daylight and clouds stand
 //               still, but every frame still renders (sky, shadows, post) for the free camera; paused wins over it
 //             cycleTime(blendSec = 3): T's step morning -> midday -> evening (the photo mode jumps at once)
-//             setQuality('low' | 'medium' | 'high'), step(dt), start(), stop(), resize() }
+//             setQuality('low' | 'medium' | 'high', by = 'user' | 'auto'), qualityBy, step(dt), start(), stop(), resize() }
+//     The graphics level: the player's own choice (G, F9: saved as cd.quality) always wins. Without one the game picks:
+//     the level it lowered itself to on this machine before (cd.quality.auto, forgotten after AUTO_TTL so a fixed machine
+//     gets the full picture back), else a guess from the graphics card's name (render/gpuinfo.js suggestQuality); and
+//     while the pick is the game's (qualityBy 'auto') ui/perfhint.js steps it down by itself when the game stays slow.
 //   startGame({ container, overlay? }) -> Promise<ctx>   the game page: world (Cherkasy, or the test world with ?testworld
 //     or when src/world/cherkasy/city.js is absent), the car, HUD and missions as systems (car -> traffic player sync ->
 //     world.update(dt, camera) -> missions -> partners -> explore -> garage -> quests -> audio -> perf -> hud -> photo). ctx gains { world, car, hud, missions, partners, explore, garage, quests, audio, perf, photo }.
@@ -35,6 +39,7 @@
 // occasional environment capture so that capture cannot swallow the flag.
 import * as THREE from 'three';
 import { createRenderer, warmupShaders } from './render/renderer.js';
+import { suggestQuality } from './render/gpuinfo.js';
 import { createPostProcessing } from './render/post.js';
 import { createAdaptiveRes } from './render/adaptive.js';
 import { createPerfSample } from './render/perfsample.js';
@@ -50,6 +55,8 @@ import { createPartners } from './game/partners.js';
 import { createExplore } from './game/explore.js';
 import { createGarage } from './game/garage.js';
 import { showRoadsterNews } from './ui/roadsternews.js';
+import { showSoftwareWarning } from './ui/softwarewarn.js';
+import './ui/softwarewarn.css'; // here, not in softwarewarn.js: node tests import the module without a css loader
 import { createQuests } from './game/quests.js';
 import { roadSpotNear } from './game/placeat.js';
 import { worldXZ } from './ui/botlink.js';
@@ -64,7 +71,7 @@ import { track } from './analytics.js';
 
 // graphics levels: each render module has its table (post, shadows, sky), the world its DETAIL (city.js world.setQuality)
 export const QUALITY_LEVELS = ['low', 'medium', 'high'];
-const QUALITY_KEY = 'cd.quality';
+const QUALITY_KEY = 'cd.quality', AUTO_KEY = 'cd.quality.auto', AUTO_TTL = 30 * 864e5; // the player's level; the game's own pick { q, t }
 const TIME_CYCLE = ['morning', 'day', 'sunset']; // T: morning, midday, evening
 const POS_KEY = 'cherkasy.pos', POS_EVERY = 10; // saved car spot: { x, y, z, yaw }
 
@@ -72,8 +79,17 @@ function savedQuality() {
   try { const q = localStorage.getItem(QUALITY_KEY); return QUALITY_LEVELS.includes(q) ? q : null; } catch { return null; }
 }
 
-export function createCore({ container = document.body, quality = savedQuality() || 'high', preset = 'day', far = 24000, adaptive = false } = {}) {
+function savedAuto() {
+  try {
+    const r = JSON.parse(localStorage.getItem(AUTO_KEY) || 'null');
+    return r && QUALITY_LEVELS.includes(r.q) && Date.now() - r.t < AUTO_TTL ? r.q : null;
+  } catch { return null; }
+}
+
+export function createCore({ container = document.body, quality = savedQuality(), preset = 'day', far = 24000, adaptive = false } = {}) {
   const renderer = createRenderer({ container });
+  const qualityBy = quality ? 'user' : 'auto'; // a level passed in or saved by the player is theirs; else the game picks
+  quality ||= savedAuto() || suggestQuality(renderer.userData.caps.device);
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(62, 1, 0.3, far);
   camera.position.set(0, 40, 120);
@@ -91,19 +107,23 @@ export function createCore({ container = document.body, quality = savedQuality()
   const ctx = {
     renderer, scene, camera, events, input, daylight, sky, shadows, post, systems,
     groundAt: () => 0,
-    time: 0, frame: 0, dt: 0, quality, paused: false, frozen: false, device: renderer.userData.caps.device,
+    time: 0, frame: 0, dt: 0, quality, qualityBy, paused: false, frozen: false, device: renderer.userData.caps.device,
     addSystem(sys, name = sys?.name || `system${systems.length}`, { always = false } = {}) {
       const fn = typeof sys === 'function' ? sys : (dt, c) => sys.update(dt, c);
       const entry = { name, fn, always };
       systems.push(entry);
       return () => { const i = systems.indexOf(entry); if (i >= 0) systems.splice(i, 1); };
     },
-    setQuality(q) {
+    setQuality(q, by = 'user') {
       if (!QUALITY_LEVELS.includes(q)) return;
-      ctx.quality = q;
+      ctx.quality = q; ctx.qualityBy = by === 'auto' ? 'auto' : 'user';
       post.setQuality(q); sky.setQuality(q); shadows.setQuality(q);
       post.resetHistory();
-      try { localStorage.setItem(QUALITY_KEY, q); } catch { /* storage off */ }
+      try {
+        if (ctx.qualityBy === 'user') localStorage.setItem(QUALITY_KEY, q);
+        else localStorage.setItem(AUTO_KEY, JSON.stringify({ q, t: Date.now() }));
+      } catch { /* storage off */ }
+      track('quality', { quality: q, by: ctx.qualityBy });
       events.emit('quality', q);
     },
     step(dt) {
@@ -171,7 +191,7 @@ export function createCore({ container = document.body, quality = savedQuality()
   // weak machines: a softer image before stutter (full resolution again on every quality change, never saved)
   if (adaptive) {
     ctx.adaptive = createAdaptiveRes({
-      getBase: () => post.baseDpr, apply: (f) => { post.setAdaptive(f); post.resetHistory(); },
+      getBase: () => post.baseDpr, getFloor: () => post.minDpr, apply: (f) => { post.setAdaptive(f); post.resetHistory(); },
       onStep: (s) => {
         console.info(`[adaptive] render pixel ratio ${s.dpr} (${s.reason}, ${s.ms} ms)`);
         track('adaptive_res', { dpr: s.dpr, step: s.to, reason: s.reason, quality: ctx.quality });
@@ -312,19 +332,20 @@ export async function startGame({ container = document.getElementById('app') || 
   // a sustained low frame rate offers G (simpler graphics) at the bottom; G steps the quality down any time, the lowest wraps to the highest
   // while the adaptive resolution still has a lower step it corrects first, so the pill never doubles it
   const perf = createPerfHint({
-    container: hud.root, getQuality: () => ctx.quality, setQuality: (q) => ctx.setQuality(q), levels: QUALITY_LEVELS,
-    canAdapt: () => !!ctx.adaptive && !ctx.adaptive.atFloor,
+    container: hud.root, getQuality: () => ctx.quality, setQuality: (q, by) => ctx.setQuality(q, by), levels: QUALITY_LEVELS,
+    canAdapt: () => !!ctx.adaptive && !ctx.adaptive.atFloor, auto: () => ctx.qualityBy === 'auto',
   });
   ctx.perf = perf;
   ctx.events.on('quality', () => perf.restart()); // F9 too, not only G
   // the photo mode (P): the world freezes, the HUD hides, a free camera; Esc / P back to the car's camera
   const photo = createPhotoMode({ ctx, world, camera, input, renderer, post: ctx.post,
-    canOpen: () => !hud.map.isOpen && !quests.isOpen && !news?.isOpen });
+    canOpen: () => !hud.map.isOpen && !quests.isOpen && !news?.isOpen && !warn?.isOpen });
   ctx.photo = photo;
   hud.onPhoto = () => photo.open();
   const sim = () => world.life?.traffic;
   let news = null; // the Roadster's one-time news card: the car stands still under it (keys held through the load, a gamepad)
-  ctx.addSystem((dt) => car.update(dt, !!news?.isOpen), 'car');
+  let warn = null; // the "no graphics card" card (software rendering), before the news: the same hold
+  ctx.addSystem((dt) => car.update(dt, !!news?.isOpen || !!warn?.isOpen), 'car');
   ctx.addSystem(() => { // traffic yields to / collides with the player
     const s = sim(); if (!s?.setPlayer) return;
     const p = car.state.p;
@@ -363,7 +384,7 @@ export async function startGame({ container = document.getElementById('app') || 
   await warmupShaders(ctx.renderer, scene, camera);
   // what it runs on goes out with the load and with the two frame-rate reports, so slow machines can be told by their hardware
   const { gpu, software, screen: scr, view, dpr: dprDev, cores, mem } = ctx.device;
-  track('game_ready', { load_ms: Math.round(performance.now()), quality: ctx.quality, gpu, software, screen: scr, view, dpr_dev: dprDev, cores, mem });
+  track('game_ready', { load_ms: Math.round(performance.now()), quality: ctx.quality, quality_by: ctx.qualityBy, gpu, software, screen: scr, view, dpr_dev: dprDev, cores, mem });
   const sample = createPerfSample({
     onSample: (s) => track('perf', { ...s, quality: ctx.quality, dpr: +ctx.post.pixelRatio.toFixed(2), cpu_bound: !!ctx.adaptive?.cpuBound, gpu, software, screen: scr }),
   });
@@ -374,7 +395,13 @@ export async function startGame({ container = document.getElementById('app') || 
     overlay?.classList.add('done');
     setTimeout(() => overlay?.remove(), 700);
     // the Roadster's news, once (any key closes it; V there switches at once when it is earned)
-    news = showRoadsterNews({ visited: explore.visited, total: explore.total, unlocked: garage.unlocked, onSwitch: () => { if (garage.kind !== 'roadster') garage.toggle(); } });
+    const showNews = () => { news = showRoadsterNews({ visited: explore.visited, total: explore.total, unlocked: garage.unlocked, onSwitch: () => { if (garage.kind !== 'roadster') garage.toggle(); } }); };
+    // software rendering: say how to turn the graphics acceleration on first (?softwarn shows the card in dev builds)
+    if (software || (!!import.meta.env?.DEV && params.has('softwarn'))) {
+      warn = showSoftwareWarning({ gpu, lowered: ctx.quality === 'low', onClose: showNews });
+      if (warn) track('software_warn', { gpu });
+    }
+    if (!warn) showNews();
   });
   if (typeof window !== 'undefined') {
     window.__game = ctx;

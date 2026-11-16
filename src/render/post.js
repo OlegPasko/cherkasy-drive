@@ -5,9 +5,12 @@
 //     post.render(dt)            draw one frame (resets renderer.info first, so stats cover the whole frame)
 //     post.setSize(w, h)         CSS pixels; zero or hidden sizes are ignored until a real size arrives
 //     post.setQuality('low' | 'medium' | 'high')   AO on / resolution / glass-aware, AA kind, render scale; resets adaptive
-//     post.setAdaptive(f)        render at baseDpr * f (0.25..1, floored at 1 device px per CSS px unless the quality's
-//                                own base is lower); CSS size unchanged; post.adaptive, post.baseDpr (min(devicePixelRatio,
-//                                maxDpr) * scale), post.pixelRatio (effective). Driven by render/adaptive.js
+//     post.setAdaptive(f)        render at baseDpr * f (0.25..1, floored at post.minDpr unless the quality's own base is
+//                                lower); CSS size unchanged; post.adaptive, post.baseDpr (min(devicePixelRatio, maxDpr) *
+//                                scale), post.pixelRatio (effective). Driven by render/adaptive.js
+//     post.minDpr                the adaptive floor: 1 device pixel per CSS pixel on an ordinary window, 0.75 on one over
+//                                MID_H CSS pixels high and 0.5 over BIG_H (a 1440p / 4K monitor at 100 % scaling has
+//                                2-4x the pixels of 1080p at pixel ratio 1), and 0.5 at the lowest graphics level
 //     post.setCaptureDpr(dpr | null)   render at exactly this pixel ratio until cleared (the photo mode's one sharper
 //                                frame: src/ui/photomode.js); a size change clears the canvas, so render before the screen shows it
 //     post.setEffect('ao' | 'bloom' | 'aa', on), post.effects -> { ao, bloom, aa }
@@ -31,10 +34,11 @@ import { isReversedDepth } from './renderer.js';
 // aoGlass: n8ao's transparency mode (AO stays off glass and other see-through surfaces). It costs two extra renders of the
 // whole scene and four scene walks a frame, so only 'high' keeps it; below that AO may show through the car glass.
 const QUALITY = {
-  low: { ao: false, aoHalf: true, aoGlass: false, aa: 'fxaa', scale: 0.75, maxDpr: 1 },
+  low: { ao: false, aoHalf: true, aoGlass: false, aa: 'fxaa', scale: 0.75, maxDpr: 1, minDpr: 0.5 },
   medium: { ao: true, aoHalf: true, aoGlass: false, aa: 'smaa', smaa: SMAAPreset.MEDIUM, scale: 1, maxDpr: 1.25 },
   high: { ao: true, aoHalf: false, aoGlass: true, aa: 'smaa', smaa: SMAAPreset.HIGH, scale: 1, maxDpr: 1.6 },
 };
+const MID_H = 1300, BIG_H = 1900; // window heights (CSS px) from which the adaptive floor drops to 0.75 and 0.5
 const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
 
 export function createPostProcessing({ renderer, scene, camera, quality = 'high', daylight = null } = {}) {
@@ -103,8 +107,9 @@ export function createPostProcessing({ renderer, scene, camera, quality = 'high'
   // quality itself asks for less, back to 1 on every quality change, never saved
   let adapt = 1, capDpr = null;
   const baseDpr = () => Math.min(globalThis.devicePixelRatio || 1, Q.maxDpr) * Q.scale;
+  const minDpr = () => Q.minDpr ?? (cssH >= BIG_H ? 0.5 : cssH >= MID_H ? 0.75 : 1);
   function applySize() {
-    const base = baseDpr(), dpr = capDpr ?? Math.max(base * adapt, Math.min(base, 1));
+    const base = baseDpr(), dpr = capDpr ?? Math.max(base * adapt, Math.min(base, minDpr()));
     renderer.setPixelRatio(dpr);
     composer.setSize(cssW, cssH, true); // also sets the canvas CSS size
   }
@@ -147,6 +152,7 @@ export function createPostProcessing({ renderer, scene, camera, quality = 'high'
     get quality() { return qName; },
     get renderScale() { return Q.scale; },
     get baseDpr() { return baseDpr(); },
+    get minDpr() { return minDpr(); },
     get pixelRatio() { return renderer.getPixelRatio(); },
     get adaptive() { return adapt; },
     setAdaptive(f) { f = clamp(+f || 1, 0.25, 1); if (f !== adapt) { adapt = f; applySize(); } },

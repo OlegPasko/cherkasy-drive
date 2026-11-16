@@ -1,0 +1,21 @@
+/* the "no graphics card" card (softwarewarn.js): the Roadster news card's dark glass with a warning's orange */
+.sw-warn { position: fixed; inset: 0; z-index: 31; display: grid; place-items: center; padding: 16px; box-sizing: border-box;
+  background: rgba(6, 8, 13, .55); opacity: 0; transition: opacity .3s; }
+.sw-warn.on { opacity: 1; }
+.sw-card { width: min(600px, 100%); max-height: calc(100vh - 32px); overflow-y: auto; box-sizing: border-box; padding: 22px 26px 18px;
+  border-radius: 14px; border: 1px solid rgba(255, 138, 76, .6); background: rgba(12, 16, 26, .93); color: #e8eef7;
+  font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; box-shadow: 0 18px 60px rgba(0, 0, 0, .55);
+  transform: translateY(10px) scale(.98); transition: transform .3s; }
+.sw-warn.on .sw-card { transform: none; }
+.sw-tag { font: 700 11px system-ui, sans-serif; letter-spacing: .18em; color: #ff8a4c; }
+.sw-card h3 { margin: 2px 0 8px; font: 800 26px/1.15 system-ui, sans-serif; color: #fff; }
+.sw-lead { margin: 0 0 10px; color: #dfe6f0; }
+.sw-card ul { margin: 0 0 14px; padding-left: 18px; display: grid; gap: 7px; color: #c9d3e4; }
+.sw-card li b { color: #e8eef7; }
+.sw-card code { padding: 1px 6px; border-radius: 5px; background: rgba(255, 255, 255, .1); font: 13px ui-monospace, Menlo, Consolas, monospace; color: #fff; user-select: all; }
+.sw-now { padding: 10px 12px; border-radius: 10px; background: rgba(255, 138, 76, .13); color: #dfe6f0; }
+.sw-now b { color: #ffb48a; }
+.sw-card button { display: block; margin: 16px auto 0; padding: 10px 26px; border: 0; border-radius: 999px; cursor: pointer;
+  font: 700 15px system-ui, sans-serif; color: #0d1117; background: #f2c14e; transition: transform .15s; }
+.sw-card button:hover { transform: translateY(-1px); }
+.sw-foot { margin-top: 8px; text-align: center; font-size: 12px; color: #8b94a3; }
