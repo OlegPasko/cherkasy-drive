@@ -31,10 +31,14 @@ the Dnipro, +z south-east, origin at Soborna square).
         buildings.js          extruded OSM footprints -> walls + roofs using facade.js
         trees.js              procedural low-poly trees, instanced LODs, breakable items
         farcull.js            draw-distance cull of the hand-built sites on the lower graphics levels (layer 0 off)
+        drawdist.js           draw distances per class for chunked small detail (kerb faces, road paint, sleepers, rails,
+                              the shore's wet bands and foam); the ground owns the registry (ground.drawDist)
         water.js              river surface, reflections, wet shoreline bands
         collision.js          static collision world: grid of boxes / cylinders / prisms; ray, ground height,
                               capsule / box push-out
         cherkasy/             Oleg's Cherkasy modules: landmarks, ground, city assembly; proxies.js: far boxes for the hand-built buildings
+                              ground.js + groundfar.js: the ground in 1 km units, full tiles near the camera, one far sheet
+                              (a few thousand triangles + a map of surface ids) beyond the level's far distance
       npc/
         lanes.js              lane graph from OSM roads; junctions; traffic lights
         vehicles.js           loads public/assets/vehicles/*.glb; instanced bodies with LOD and paint colours

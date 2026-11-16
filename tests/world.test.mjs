@@ -67,7 +67,7 @@ let whole = null;
   const ms = performance.now() - t0;
   const parts = ['land', 'roads', 'cover'].map((p) => buildGroundData({ map, hf, parts: [p] }));
   ok(parts.reduce((s, p) => s + p.stats.tris, 0) === whole.stats.tris, 'ground parts add up');
-  ok(whole.stats.tris > 1e6 && whole.stats.kerbs > 1e4 && whole.wetSegs.length > 500 && whole.markings.index.count > 3e4, `ground sizes (${JSON.stringify(whole.stats)})`);
+  ok(whole.stats.tris > 1e6 && whole.stats.kerbs > 1e4 && whole.wetSegs.length > 500 && whole.markings.reduce((n, m) => n + m.geo.index.count, 0) > 3e4, `ground sizes (${JSON.stringify(whole.stats)})`);
   const g = buildGround({ scene: new THREE.Group(), T: createCityTextures({ size: 32 }), map, hf });
   ok(g.isWater(1500, 0) && !g.isWater(-800, 800), 'water: river / centre');
   const R = map.asphalt[0][0];

@@ -117,21 +117,28 @@ export function resurface(ground, box, pick) {
   }
   return n;
 }
-export function dropPaint(ground, test) {
-  const mk = ground?.root?.children?.find((m) => m.name === 'markings');
-  if (!mk?.geometry?.index) return 0;
-  const P = mk.geometry.attributes.position.array, I = mk.geometry.index.array;
+// the road paint is cut into chunks, each a mesh called 'markings' (ground.js); box [x0, z0, x1, z1] (optional) skips
+// the chunks away from it
+export function dropPaint(ground, test, box = null) {
   let n = 0;
-  for (let k = 0; k < I.length; k += 3) {
-    const a = I[k], b = I[k + 1], c = I[k + 2];
-    if (b === a && c === a) continue;
-    const x = (P[3 * a] + P[3 * b] + P[3 * c]) / 3, z = (P[3 * a + 2] + P[3 * b + 2] + P[3 * c + 2]) / 3;
-    let lx = 0, lz = 0; // the longest edge: a strip's direction
-    for (const [p, q] of [[a, b], [b, c], [c, a]]) { const ex = P[3 * q] - P[3 * p], ez = P[3 * q + 2] - P[3 * p + 2]; if (ex * ex + ez * ez > lx * lx + lz * lz) { lx = ex; lz = ez; } }
-    if (!test(x, z, lx, lz)) continue;
-    I[k + 1] = I[k + 2] = a; n++;
+  for (const mk of ground?.root?.children ?? []) {
+    if (mk.name !== 'markings' || !mk.geometry?.index) continue;
+    const bb = mk.geometry.boundingBox;
+    if (box && bb && (bb.max.x < box[0] || bb.min.x > box[2] || bb.max.z < box[1] || bb.min.z > box[3])) continue;
+    const P = mk.geometry.attributes.position.array, I = mk.geometry.index.array;
+    let hit = 0;
+    for (let k = 0; k < I.length; k += 3) {
+      const a = I[k], b = I[k + 1], c = I[k + 2];
+      if (b === a && c === a) continue;
+      const x = (P[3 * a] + P[3 * b] + P[3 * c]) / 3, z = (P[3 * a + 2] + P[3 * b + 2] + P[3 * c + 2]) / 3;
+      let lx = 0, lz = 0; // the longest edge: a strip's direction
+      for (const [p, q] of [[a, b], [b, c], [c, a]]) { const ex = P[3 * q] - P[3 * p], ez = P[3 * q + 2] - P[3 * p + 2]; if (ex * ex + ez * ez > lx * lx + lz * lz) { lx = ex; lz = ez; } }
+      if (!test(x, z, lx, lz)) continue;
+      I[k + 1] = I[k + 2] = a; hit++;
+    }
+    if (hit) mk.geometry.index.needsUpdate = true;
+    n += hit;
   }
-  if (n) mk.geometry.index.needsUpdate = true;
   return n;
 }
 

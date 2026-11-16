@@ -35,6 +35,8 @@
 //     so their lamps and lit windows follow the new light (the wall-clock movers – balloon, plane, yacht – catch up then)
 //   setQuality('low' | 'medium' | 'high')   what the graphics level draws (DETAIL below: tree / building / site / people /
 //     traffic draw and shadow distances, the river mirror, facade window detail); live, 'high' = the full picture
+//     (DETAIL.ground: the ground's far sheets and the draw distances of its small detail, ground.js setDetail; update
+//     and view keep both on the camera)
 //   stats() -> { loadMs, stages, solids, trees, traffic, people, ... }
 // Oleg's hand-built sites (landmarks.js, pagorb.js, rosevalley.js, ... facadekit.js, billboards.js) are optional: each is loaded and
 // called inside its own guard, so the city still builds if one is missing or throws. A site builder that reads `ground`
@@ -97,18 +99,24 @@ const nextFrame = () => new Promise((res) => (typeof requestAnimationFrame === '
 //   trees: LOD bands (trees.js setDetail); bld: roof-detail reach, roof / facade shadow reach (buildings.js);
 //   sites: farcull.js (ratio: hidden under ratio x distance, shadow: no shadow beyond); people / traffic: [draw reach m,
 //   LOD distance factor]; proxy: beyond it (m) a hand-built building is drawn as a plain box (proxies.js); water: the
-//   river mirror (on, hz, scale); facade: window-detail distance divisor (facade.js)
+//   river mirror (on, hz, scale); facade: window-detail distance divisor (facade.js);
+//   ground: draw distances in m (ground.js setDetail) – far: beyond it a 1 km unit of the ground is its far sheet
+//   (groundfar.js); kerbs, paint, sleepers, rails, wet (the shore's stain band), foam: the chunks of that detail are
+//   not drawn beyond it (drawdist.js). At 'high' they are far enough that the picture does not change.
 const DETAIL = {
-  high: { trees: {}, bld: {}, sites: {}, people: [300, 1], traffic: [700, 1], water: { on: true }, facade: 1 },
+  high: { trees: {}, bld: {}, sites: {}, people: [300, 1], traffic: [700, 1], water: { on: true }, facade: 1,
+    ground: { far: 2200, kerbs: 650, paint: 800, sleepers: 500, rails: 1500, wet: 2000, foam: 3000 } },
   medium: {
     trees: { nearOut: [55, 68], midOut: [220, 250], farOut: [1100, 1250], shadow: 110 },
     bld: { detailFar: 1800, detailShadow: 250, facadeShadow: 600 },
     sites: { ratio: 1 / 150, shadow: 450 }, proxy: 500, people: [220, 0.85], traffic: [500, 0.85], water: { on: true, hz: 8, scale: 0.3 }, facade: 1.4,
+    ground: { far: 1100, kerbs: 400, paint: 500, sleepers: 300, rails: 800, wet: 1000, foam: 1500 },
   },
   low: {
     trees: { nearOut: [40, 50], midOut: [150, 175], farOut: [900, 1050], shadow: 60 },
     bld: { detailFar: 1100, detailShadow: 150, facadeShadow: 300 },
     sites: { ratio: 1 / 60, shadow: 200 }, proxy: 250, people: [150, 0.7], traffic: [350, 0.7], water: { on: false }, facade: 2,
+    ground: { far: 500, kerbs: 250, paint: 320, sleepers: 180, rails: 450, wet: 500, foam: 800 },
   },
 };
 
@@ -267,7 +275,9 @@ export async function buildCherkasy({ scene, renderer, onProgress = null, params
 
   // water: the reservoir surface, wet bands along the embankments, ponds on the plateau
   const water = buildWater({ scene: root, T, renderer, shoreDist: ground.shoreDist, skirtWater: (dx) => dx > 0.15 });
-  const wet = buildWetBands({ scene: root, T, segs: ground.wetSegs, isWater: ground.isWater });
+  const wet = buildWetBands({ scene: root, T, segs: ground.wetSegs, isWater: ground.isWater, chunk: 1024 });
+  for (const m of wet.meshes) ground.drawDist.add(m, 'wet'); // the shore out of sight or far away is not drawn
+  for (const m of wet.foams) ground.drawDist.add(m, 'foam');
   const ponds = buildPonds({ scene: root, map, heightAt });
 
   // trees: generated spots + the sites' own plantings; trunks become switchable collision cylinders
@@ -369,6 +379,7 @@ export async function buildCherkasy({ scene, renderer, onProgress = null, params
       if (forced) { camera.position.fromArray(forced); camera.lookAt(...forced.slice(3, 6)); }
       camPos.copy(camera.position);
       Bld.update(camPos);
+      ground.update(dt, camera); // the ground's far sheets and the draw distances of its small detail
       trees.update(dt, camPos, camera); // the camera lets trees skip what cannot reach the image
       geoDebug.update(camera);
       landmarks.update?.(dt, camera); hero.update?.(dt, camera); yalynka.update?.(dt, camera);
@@ -381,6 +392,7 @@ export async function buildCherkasy({ scene, renderer, onProgress = null, params
       water.update(0, camera);
       camPos.copy(camera.position);
       Bld.update(camPos); trees.update(0, camPos, camera); farCull.update(camPos); proxies?.update(camPos);
+      ground.update(0, camera);
       if (relight) {
         landmarks.update?.(0, camera); hero.update?.(0, camera); yalynka.update?.(0, camera);
         for (const s of sites) s.update?.(0, camera);
@@ -394,6 +406,7 @@ export async function buildCherkasy({ scene, renderer, onProgress = null, params
       trees.setDetail(D.trees); Bld.setDetail(D.bld); farCull.set(D.sites); proxies?.set(D.proxy); facadeMat.setDetail(D.facade);
       people?.setDrawDistance(...D.people); traffic?.sim?.setDrawDistance(...D.traffic);
       water.setReflection(D.water.on, D.water);
+      ground.setDetail(D.ground);
     },
     stats: () => ({ loadMs: world.loadMs, stages, solids: collision.count, zips: zips.count, buildings: Bld.stats(), ground: ground.stats, trees: trees.stats(),
       spots: spots.stats, carParks: carParks?.stats() ?? null, farCull: farCull.stats(), proxies: proxies?.stats() ?? null, traffic: traffic?.stats() ?? null, people: people?.stats?.() ?? null, treeBreak: treeBreak.stats(), sites: sites.length, modules: Object.keys(S) }),

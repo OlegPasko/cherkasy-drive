@@ -52,7 +52,7 @@ function nearest(L, cum, x, z) {
 }
 
 export function shapeRailCut(hf, map, geo) {
-  if (hf?.latticeAt) { hf.heightAt = hf.latticeAt; delete hf.latticeAt; } // a re-run starts from the lattice
+  if (hf?.latticeAt) { hf.heightAt = hf.latticeAt; delete hf.latticeAt; delete hf.overlays; } // a re-run starts from the lattice
   shaped = null;
   if (!hf?.data || !geo || !map.rails) return null;
   const ends = ENDS.map(([la, lo]) => geo.toXZ(la, lo)), route = [];
@@ -176,6 +176,7 @@ export function shapeRailCut(hf, map, geo) {
     return (1 - t) * ((1 - s) * a + s * b) + t * ((1 - s) * c + s * d);
   };
   hf.latticeAt = L; // the ground mesh is built from the lattice alone (also without workers), then re-laid here
+  hf.overlays = [box]; // where heightAt leaves the lattice: the ground's far sheets go down there (groundfar.js farLattice)
   hf.heightAt = (x, z) => {
     const h = L(x, z);
     if (x < box[0] || x > box[2] || z < box[1] || z > box[3]) return h;

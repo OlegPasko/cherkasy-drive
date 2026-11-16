@@ -14,11 +14,13 @@
 //     world bounds miss – no visible change, its draw calls saved; water.setSkyAdd(rgb):
 //     extra sky radiance when the scene has no environment map; water.mesh; water.material; water.y; water.stats();
 //     water.dispose(). `shore` is accepted for the legacy call (shore treatment comes from buildWetBands).
-//   buildWetBands({ scene, T?, segs, y = WATER_Y, isWater?, foam = true }) -> { mesh, foam, update(dt), dispose() }
+//   buildWetBands({ scene, T?, segs, y = WATER_Y, isWater?, foam = true, chunk = 0 }) -> { mesh, foam, meshes, foams, update(dt), dispose() }
 //     segs: [{ ax, az, bx, bz, nx, nz }] wall / pier / embankment edges, (nx, nz) the horizontal normal facing the
-//     water. Builds one stain strip (ragged dark silt / algae band just proud of the wall) and one foam strip on the
+//     water. Builds a stain strip (ragged dark silt / algae band just proud of the wall) and a foam strip on the
 //     water. Malformed or zero-length segments are skipped; if isWater(x, z) is given, a segment whose normal does not
 //     point into water is skipped too. Empty input -> { mesh: null, foam: null } and nothing is added.
+//     chunk: 0 puts each strip in one mesh; a size in m cuts both into square chunks (meshes / foams: all of them,
+//     mesh / foam: the first), so the frustum and a draw distance (drawdist.js) cull the shore out of sight
 //   buildPonds({ scene, map, heightAt }) -> { mesh, update(dt), dispose() }: map.cover.pond polygons with the same
 //     animated material (no planar reflection), at the lowest bank height + 5 cm.
 // Overlays (stains, foam, ponds) are lifted geometrically (2 / 1.2 / 5 cm) and use only a slope polygon offset: a
@@ -286,8 +288,9 @@ const stainTop = (x, z) => 0.45 + 0.55 * noise1(x * 0.31 + z * 0.17) + 0.35 * no
 // stain rows bottom -> top: [height rule, rgba]; the third row sits 75 % of the way up to the ragged top
 const STAIN_ROWS = [['under', [0.022, 0.03, 0.016, 0.92]], ['line', [0.024, 0.032, 0.017, 0.9]], ['mid', [0.045, 0.043, 0.034, 0.78]], ['top', [0.06, 0.056, 0.047, 0]]];
 
-export function buildWetBands({ scene, segs, y = WATER_Y, isWater = null, foam = true } = {}) {
-  const stain = { position: [], normal: [], color: [] }, lap = { position: [], normal: [], uv: [] };
+export function buildWetBands({ scene, segs, y = WATER_Y, isWater = null, foam = true, chunk = 0 } = {}) {
+  const chunks = new Map(); // chunk key -> the two strips' vertex streams
+  let stain = null, lap = null;
   const rowY = (rule, top) => (rule === 'under' ? y - 0.5 : rule === 'line' ? y + 0.12 : rule === 'mid' ? y + 0.12 + (top - y - 0.12) * 0.75 : top);
   let used = 0;
   for (const sg of Array.isArray(segs) ? segs : []) {
@@ -298,6 +301,9 @@ export function buildWetBands({ scene, segs, y = WATER_Y, isWater = null, foam =
     const nx = vals[4] / nLen, nz = vals[5] / nLen;
     if (isWater) { let wet = true; try { wet = isWater((ax + bx) / 2 + nx * 3, (az + bz) / 2 + nz * 3); } catch { wet = true; } if (!wet) continue; }
     used += 1;
+    const ck = chunk ? Math.floor((ax + bx) / 2 / chunk) + ',' + Math.floor((az + bz) / 2 / chunk) : '';
+    if (!chunks.has(ck)) chunks.set(ck, { stain: { position: [], normal: [], color: [] }, lap: { position: [], normal: [], uv: [] } });
+    ({ stain, lap } = chunks.get(ck));
     const facing = dx * nz - dz * nx > 0, ccwUp = dz * nx - dx * nz > 0; // stain quads face the water, foam faces up
     const pieces = Math.max(1, Math.ceil(len / 1.5)), off = 0.02, reach = 3.5;
     const at = (f) => ({ x: ax + dx * f, z: az + dz * f, top: y + stainTop(ax + dx * f, az + dz * f) });
@@ -314,13 +320,17 @@ export function buildWetBands({ scene, segs, y = WATER_Y, isWater = null, foam =
       for (const k of ccwUp ? [0, 1, 2, 0, 2, 3] : [0, 2, 1, 0, 3, 2]) { lap.position.push(q[k][0], fy, q[k][1]); lap.uv.push(0, q[k][2]); lap.normal.push(0, 1, 0); }
     }
   }
-  const out = { mesh: null, foam: null, segments: used, update() {}, dispose() {} };
+  const out = { mesh: null, foam: null, meshes: [], foams: [], segments: used, update() {}, dispose() {} };
   if (!used) return out;
   const stainMat = new MeshStandardMaterial({ vertexColors: true, roughness: 0.5, metalness: 0, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -1 });
-  out.mesh = new Mesh(meshData({ position: [stain.position, 3], normal: [stain.normal, 3], color: [stain.color, 4] }), stainMat);
-  out.mesh.name = 'wet bands'; out.mesh.receiveShadow = true; out.mesh.renderOrder = 3;
-  scene?.add?.(out.mesh);
-  if (lap.position.length) {
+  for (const c of chunks.values()) {
+    const m = new Mesh(meshData({ position: [c.stain.position, 3], normal: [c.stain.normal, 3], color: [c.stain.color, 4] }), stainMat);
+    m.name = 'wet bands'; m.receiveShadow = true; m.renderOrder = 3;
+    scene?.add?.(m);
+    out.meshes.push(m);
+  }
+  out.mesh = out.meshes[0];
+  if ([...chunks.values()].some((c) => c.lap.position.length)) {
     const foamMat = new MeshLambertMaterial({ color: new Color(0.62, 0.66, 0.62), depthWrite: false, transparent: true, polygonOffset: true, polygonOffsetFactor: -2 });
     foamMat.onBeforeCompile = (shader) => patchShader(shader, { tRipple: { value: waterNormalTexture() }, uTime: CLOCK.uTime }, [
       ['common', '#include <common>\nvarying vec3 vWPos; varying float vOut;'],
@@ -334,11 +344,16 @@ export function buildWetBands({ scene, segs, y = WATER_Y, isWater = null, foam =
   diffuseColor.a *= (1.0 - smoothstep(wash * 0.6, wash, vOut)) * smoothstep(0.45, 0.75, fn + (1.0 - vOut) * 0.3) * 0.5; }`],
     ]);
     foamMat.customProgramCacheKey = () => 'shorefoam';
-    out.foam = new Mesh(meshData({ position: [lap.position, 3], normal: [lap.normal, 3], uv: [lap.uv, 2] }), foamMat);
-    out.foam.name = 'shore foam'; out.foam.renderOrder = 3;
-    scene?.add?.(out.foam);
+    for (const c of chunks.values()) {
+      if (!c.lap.position.length) continue;
+      const m = new Mesh(meshData({ position: [c.lap.position, 3], normal: [c.lap.normal, 3], uv: [c.lap.uv, 2] }), foamMat);
+      m.name = 'shore foam'; m.renderOrder = 3;
+      scene?.add?.(m);
+      out.foams.push(m);
+    }
+    out.foam = out.foams[0];
   }
-  out.dispose = () => { for (const m of [out.mesh, out.foam]) if (m) { m.removeFromParent(); m.geometry.dispose(); m.material.dispose(); } };
+  out.dispose = () => { for (const m of [...out.meshes, ...out.foams]) { m.removeFromParent(); m.geometry.dispose(); m.material.dispose(); } };
   return out;
 }
 

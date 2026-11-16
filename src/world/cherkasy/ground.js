@@ -2,30 +2,55 @@
 // sidewalks and squares (map.walks), asphalt carriageways one kerb below the paving with granite kerb faces along every
 // carriageway edge, embankment walls where land meets open water, lane markings and zebra crossings. Every surface
 // is draped on one terrain (the DEM box-filtered to 16 m cells, bilinear per cell) and drawn by one shader keyed by a
-// per-vertex surface id, in world-space texture coordinates; the meshes are cut into 1 km tiles (8 km over the far fields).
+// per-vertex surface id, in world-space texture coordinates.
+// Level of detail (the "units" section below): the city is 1 km units, each four 512 m tiles of full geometry and,
+// beyond ground.setDetail's `far` distance, one far sheet (groundfar.js: a few thousand triangles and a map of surface
+// ids instead of 20-170 thousand; the units on the fringe, draped in 64 m cells, keep their tiles). Kerb faces and
+// road paint are 512 m chunks with their own draw distances (drawdist.js). Only what is drawn changes: heightAt,
+// terrainHeight, onAsphalt and isWater read the height field and the rasters, never a mesh.
 //
 //   createHeightField(map, dem: Int16Array) -> hf { heightAt(x, z), hMax, cell, x0, z0, x1, z1, pad(P, margin = 30, level?), data }
 //     (a site may overlay hf.heightAt and keep the lattice as hf.latticeAt: the ground meshes are built from that)
 //   heightFieldFrom(hf.data) -> the same field over the same grid (workers)
 //     pad(ring [[x,z]...], margin = 30, level?) levels the terrain under a hand-built site (call before buildGround) to
 //       `level`, or by default to the median of the lattice nodes in and near the ring; returns the level
-//   buildGround({ scene, T, map, hf, strip?, renderer? }) -> ground
+//   buildGround({ scene, T, map, hf, strip?, renderer?, far = false }) -> ground
 //     scene: parent Object3D; T: kit/textures.js bundle; strip: { A:[x,z], B:[x,z], y0, y1 } the sandy low shore strip
-//       (shore.js shoreStrip + STRIP) or null; renderer: for the decal bias of the markings
+//       (shore.js shoreStrip + STRIP) or null; renderer: for the decal bias of the markings; far: also build the far
+//       sheets, here and now (tests; the game gets them from buildGroundAsync's fourth worker)
 //     ground = { root, heightAt, terrainHeight(x, z) (what the rendered surface is: asphalt / land / river plane),
 //       isWater(x, z), onAsphalt(x, z), shoreDist(x, z) (m to open water, 20 m grid), wetSegs [{ax,az,bx,bz,nx,nz}]
-//       (embankment edges facing the water, n toward it), band { minY, maxY, slope }, stats, update() }
-//   createGroundMaterial(T, strip?) -> MeshStandardMaterial;  GY (layer heights), SURF (surface ids)
+//       (embankment edges facing the water, n toward it), band { minY, maxY, slope }, stats,
+//       update(dt, camera)   picks full tile or far sheet per unit and the chunks in reach, for that camera (it only
+//         works after the camera moved ~10 m, a setDetail, or while units are still switching: two new sheets and
+//         one unit back to full tiles a frame),
+//       setDetail({ far, kerbs, paint, ...classes })   distances in m, a missing one = always drawn / never far,
+//       drawDist   the drawdist.js registry: other modules add their own chunked detail to it (station_rails.js the
+//         sleepers and rails, city.js the shore's wet bands and foam) and name its class in setDetail,
+//       units: Map(key -> { i, j, x0, z0, near: [Mesh], tris, far, isFar }), farUnits(), attachFar(farData), lod(),
+//       meshes() -> every ground mesh, drawn or not }
+//     Every mesh is a direct child of ground.root: `ground <key>` (tiles), `kerbs <key>`, `ground bank` and the paint
+//     chunks, all called `markings`; the far sheets hang under the child group `ground far`. A mesh a site adds to the
+//     root in the ground material is cut by unit on the next update and follows its unit's tiles. From the first
+//     update on, a mesh that is not drawn (a far unit's tiles, a chunk out of reach) is also out of root.children
+//     (and back in when it is drawn; meshes() lists them all), so a site that edits the ground's meshes does it while
+//     it builds, before the first frame.
+//   createGroundMaterial(T, strip?, far?) -> MeshStandardMaterial;  GY (layer heights), SURF (surface ids)
 //   buildGroundAsync({ ...buildGround args, mapUrl }) -> Promise<ground>: three module workers (parts 'land' / 'roads' /
-//     'cover', each fetching map.json) build in parallel; falls back to buildGround on any worker failure
-//   buildGroundData({ map, hf, parts }) -> the CPU-only part (tile geometries, markings, rasters, bank segments, water
-//     distance) for the given parts; the worker entry point of this same file calls it
+//     'cover', each fetching map.json) build in parallel; falls back to buildGround on any worker failure. A fourth
+//     worker (part 'far') then builds the far sheets and is not waited for: until it replies every unit is drawn in full
+//   buildGroundData({ map, hf, parts }) -> the CPU-only part (tile geometries, markings [{ key, geo }], rasters, bank
+//     segments, water distance) for the given parts; the worker entry point of this same file calls it
+//   unitGrid(map, hf) -> { ox, oz, i0, i1, j0, j1, at(x, z) -> unit key | -1, fine(key) -> on the finely draped
+//     ground? };  farLayers(map) -> the draped layers in paint order for groundfar.js
 import * as THREE from 'three';
 import { WATER_Y } from '../water.js';
 import { patchMaterial } from '../materials.js';
 import { decalBias } from '../../render/renderer.js';
 import { mergeGeometries } from '../../kit/batch.js';
 import { ringPts, triangulate, area2, bboxOf, BitRaster, packGeometry, unpackGeometry, inWorker } from './geo.js';
+import { createDrawDistance } from '../drawdist.js';
+import { FAR, farLattice, buildFarData, decodeIds } from './groundfar.js';
 
 // layer offsets above the terrain (m): 1.5 - 2.5 cm apart, the drape agrees to ~1 cm between layers
 export const GY = { ROAD: 0, LAND: 0.15, COVER: 0.165, WALK: 0.19, WATER: WATER_Y };
@@ -40,33 +65,51 @@ const COVER = [['farm', SURF.FARM], ['industrial', SURF.CONCRETE], ['allot', SUR
 const GROUND_GLSL = /* glsl */ `
 uniform sampler2D gAsphalt, gNoise, gPaving, gGrass, gKerb;
 uniform vec2 gStripA, gStripB; uniform vec3 gStrip; // x on, y / z: full sand below y, none above z
-varying float vSurf; varying vec3 vGW;
+varying vec3 vGW;
 float gRough;
+// A far sheet (groundfar.js) takes its surface id per fragment from the unit's id map, so neighbouring fragments run
+// different surface branches: their texture lookups get explicit gradients (implicit ones are undefined there). The
+// full tiles keep the plain lookups: the id is constant over a triangle.
+// Every far sheet draws with one material (no uniform upload between two sheets): the id maps are the layers of two
+// array textures (1 m maps in gIds, 2 m ones in gIds2), and a sheet's vertices carry its unit's code in aSurf:
+// (layer, + 512 for gIds2) * 4096 + i * 64 + j, with (i, j) the unit's place in the grid.
+varying float vSurf;
+#ifdef GROUND_FAR
+uniform lowp sampler2DArray gIds, gIds2; uniform vec3 gFar; // the unit grid's corner (x, z) and 1 / the unit's size
+vec2 gDx, gDy;
+#define TX(t, uv, k) textureGrad(t, uv, gDx * (k), gDy * (k))
+#define TXR(t, uv, k) textureGrad(t, uv, vec2(gDx.y, -gDx.x) * (k), vec2(gDy.y, -gDy.x) * (k))
+#define GFW(p) (abs(gDx) + abs(gDy))
+#else
+#define TX(t, uv, k) texture(t, uv)
+#define TXR(t, uv, k) texture(t, uv)
+#define GFW(p) fwidth(p)
+#endif
 float gh(vec2 p) { return fract(sin(dot(p, vec2(41.37, 289.13))) * 24634.63); }
 vec3 lin3(float r, float g, float b) { return pow(vec3(r, g, b), vec3(2.2)); }
 vec3 sandTone(float a, float b) { return lin3(0.85, 0.79, 0.625) * (0.85 + 0.2 * a) * (0.92 + 0.16 * b); }
 vec3 surfAsphalt(vec2 p, vec4 m, vec4 n, bool lot) {
-  vec3 c = mix(texture(gAsphalt, p / 6.0).rgb, texture(gAsphalt, vec2(p.y, -p.x) / 7.3 + 0.37).rgb, 0.35) * 0.95;
+  vec3 c = mix(TX(gAsphalt, p / 6.0, 1.0 / 6.0).rgb, TXR(gAsphalt, vec2(p.y, -p.x) / 7.3 + 0.37, 1.0 / 7.3).rgb, 0.35) * 0.95;
   c *= (0.8 + 0.4 * m.r) * (0.9 + 0.2 * n.g);
   gRough = 0.88; return lot ? c * 1.12 : c;
 }
 vec3 surfPavers(vec2 p, vec4 m, vec4 n) {
   // the centre has concrete pavers (grey with terracotta patches), the outskirts patched asphalt
   float centre = 1.0 - smoothstep(1100.0, 1700.0, length(p - vec2(-150.0, 700.0)));
-  vec3 asph = texture(gAsphalt, p / 5.0).rgb * 1.1 * (0.85 + 0.3 * m.r);
+  vec3 asph = TX(gAsphalt, p / 5.0, 0.2).rgb * 1.1 * (0.85 + 0.3 * m.r);
   vec2 q = p / vec2(0.2, 0.1); q.x += 0.5 * mod(floor(q.y), 2.0);
   vec2 f = fract(q);
   float joint = smoothstep(0.0, 0.08, f.x) * smoothstep(1.0, 0.92, f.x) * smoothstep(0.0, 0.14, f.y) * smoothstep(1.0, 0.86, f.y);
   vec3 red = lin3(0.60, 0.38, 0.33), grey = lin3(0.60, 0.59, 0.56);
   vec3 pav = mix(grey, red, step(0.62, gh(floor(p / 6.0)))) * (0.9 + 0.2 * gh(floor(q)));
-  pav *= texture(gPaving, p / 4.0).rgb * 1.5;
-  vec2 fw = fwidth(p); float far = clamp(max(fw.x, fw.y) * 10.0, 0.0, 1.0);
+  pav *= TX(gPaving, p / 4.0, 0.25).rgb * 1.5;
+  vec2 fw = GFW(p); float far = clamp(max(fw.x, fw.y) * 10.0, 0.0, 1.0);
   pav *= mix(0.78 + 0.22 * joint, 0.9, far);
   pav = mix(pav, mix(grey, red, 0.35) * 0.9, far); // distant: the mean tone, no moire
   gRough = 0.82; return mix(asph, pav, centre) * (0.88 + 0.2 * n.r);
 }
 vec3 surfLawn(vec2 p, vec4 n, int s) {
-  vec3 c = mix(texture(gGrass, p / 4.0).rgb, texture(gGrass, p / 17.0 + 0.3).rgb, 0.4);
+  vec3 c = mix(TX(gGrass, p / 4.0, 0.25).rgb, TX(gGrass, p / 17.0 + 0.3, 1.0 / 17.0).rgb, 0.4);
   c *= (0.78 + 0.35 * n.r) * (0.85 + 0.25 * n.g) * vec3(0.9, 1.0, 0.82);
   c = mix(c, c * vec3(1.15, 1.05, 0.7), smoothstep(0.55, 0.8, n.g) * 0.6);
   if (s == 11) { vec2 cl = floor(p * 3.0); vec3 fl = mix(lin3(0.85, 0.2, 0.25), lin3(0.95, 0.8, 0.2), gh(cl + 7.0)); c = mix(c, fl, step(0.62, gh(cl)) * 0.8); }
@@ -74,8 +117,8 @@ vec3 surfLawn(vec2 p, vec4 n, int s) {
   gRough = 0.95; return c;
 }
 vec3 surfYard(vec2 p, vec4 m, vec4 n, bool plots) {
-  vec3 g = texture(gGrass, p / 5.0).rgb * (0.72 + 0.3 * n.r) * vec3(0.85, 0.95, 0.78);
-  g = mix(g, texture(gGrass, p / 23.0 + 0.5).rgb * vec3(0.95, 0.9, 0.7) * 0.8, smoothstep(0.4, 0.7, n.g));
+  vec3 g = TX(gGrass, p / 5.0, 0.2).rgb * (0.72 + 0.3 * n.r) * vec3(0.85, 0.95, 0.78);
+  g = mix(g, TX(gGrass, p / 23.0 + 0.5, 1.0 / 23.0).rgb * vec3(0.95, 0.9, 0.7) * 0.8, smoothstep(0.4, 0.7, n.g));
   vec3 e = lin3(0.47, 0.42, 0.35) * (0.8 + 0.3 * n.b);
   vec3 c = mix(g, e, 0.8 * smoothstep(0.42, 0.72, n.r * 0.6 + n.b * 0.4 + (m.g - 0.5) * 0.5));
   if (plots) c = mix(c, e * 0.9, step(0.5, fract(p.x / 1.6)) * 0.5);
@@ -87,8 +130,17 @@ vec3 surfFields(vec2 p, vec4 n) {
   gRough = 0.97; return c * (0.85 + 0.25 * n.r);
 }
 vec3 groundColour() {
-  int s = int(vSurf + 0.5);
   vec2 p = vGW.xz;
+#ifdef GROUND_FAR
+  gDx = dFdx(p); gDy = dFdy(p);
+  int code = int(vSurf + 0.5), layer = code >> 12;
+  vec2 uv = clamp((p - gFar.xy) * gFar.z - vec2(float((code >> 6) & 63), float(code & 63)), 0.0, 1.0);
+  float id = layer < 512 ? textureLod(gIds, vec3(uv, float(layer)), 0.0).r : textureLod(gIds2, vec3(uv, float(layer - 512)), 0.0).r;
+  int s = int(id * 255.0 + 0.5) - 1; // the map holds id + 1
+  if (s < 0) s = 3;
+#else
+  int s = int(vSurf + 0.5);
+#endif
   vec4 n = vec4(texture(gNoise, p / 37.0).r, texture(gNoise, p / 211.0).g, texture(gNoise, p / 9.0).b, 0.0);
   vec4 m = texture(gNoise, p / 64.0 + 0.21);
   if (s == 0 || s == 15) return surfAsphalt(p, m, n, s == 15);
@@ -99,40 +151,48 @@ vec3 groundColour() {
     vec2 e = gStripB - gStripA; float t = dot(p - gStripA, e) / dot(e, e);
     float k = smoothstep(-0.08, -0.02, t) * (1.0 - smoothstep(1.0, 1.06, t)) * (1.0 - smoothstep(gStrip.y, gStrip.z, vGW.y));
     k *= smoothstep(0.3, 0.52, n.r * 0.55 + n.b * 0.3 + n.g * 0.15 + 0.1);
-    if (k > 0.01) { gRough = 0.97; return mix(texture(gGrass, p / 5.0).rgb * vec3(0.9, 0.95, 0.7) * (0.75 + 0.3 * n.r), sandTone(n.b, n.r), k); }
+    if (k > 0.01) { gRough = 0.97; return mix(TX(gGrass, p / 5.0, 0.2).rgb * vec3(0.9, 0.95, 0.7) * (0.75 + 0.3 * n.r), sandTone(n.b, n.r), k); }
   }
   if (s == 3 || s == 14) return surfYard(p, m, n, s == 14);
   if (s == 4) { gRough = 0.98; return sandTone(n.b, n.r); }
   if (s == 5) { // pine forest floor: needles on pale sand
     vec3 c = mix(lin3(0.54, 0.42, 0.28), lin3(0.78, 0.72, 0.56), smoothstep(0.35, 0.75, n.b * 0.6 + n.r * 0.4));
-    c = mix(c, texture(gGrass, p / 6.0).rgb * 0.8, smoothstep(0.6, 0.85, n.g) * 0.6);
+    c = mix(c, TX(gGrass, p / 6.0, 1.0 / 6.0).rgb * 0.8, smoothstep(0.6, 0.85, n.g) * 0.6);
     gRough = 0.97; return c * (0.85 + 0.2 * n.r);
   }
-  if (s == 6) { gRough = 0.9; return texture(gPaving, p / 8.0).rgb * vec3(0.9, 0.9, 0.88) * (0.8 + 0.3 * n.r); }
+  if (s == 6) { gRough = 0.9; return TX(gPaving, p / 8.0, 0.125).rgb * vec3(0.9, 0.9, 0.88) * (0.8 + 0.3 * n.r); }
+#ifndef GROUND_FAR
   if (s == 7) { gRough = 0.8; return texture(gKerb, vec2(p.x + p.y, vGW.y) * vec2(0.4, 2.0)).rgb * 0.95; }
+#endif
   if (s == 8) { gRough = 0.9; return lin3(0.24, 0.47, 0.22) * (0.9 + 0.12 * step(0.5, fract(p.x / 5.0))); }
   if (s == 9) { gRough = 0.97; return lin3(0.50, 0.44, 0.35) * (0.8 + 0.3 * n.b) * (0.9 + 0.15 * n.r); }
   if (s == 10) { gRough = 0.85; return lin3(0.55, 0.54, 0.51) * (0.75 + 0.35 * n.b) * mix(0.55, 1.0, smoothstep(${(WATER_Y - 0.4).toFixed(2)}, ${(WATER_Y + 1.2).toFixed(2)}, vGW.y)); }
   if (s == 12) { gRough = 0.9; return lin3(0.62, 0.28, 0.22) * (0.9 + 0.1 * n.b); }
   if (s == 17) { gRough = 0.9; return mix(lin3(0.78, 0.7, 0.52), lin3(0.35, 0.45, 0.62), step(0.7, n.g)) * (0.9 + 0.15 * n.b); }
-  if (s == 18) { gRough = 0.9; return texture(gGrass, p / 5.0).rgb * vec3(0.7, 0.8, 0.65) * (0.8 + 0.3 * n.r); }
+  if (s == 18) { gRough = 0.9; return TX(gGrass, p / 5.0, 0.2).rgb * vec3(0.7, 0.8, 0.65) * (0.8 + 0.3 * n.r); }
   return surfFields(p, n);
 }
 `;
 
-export function createGroundMaterial(T, strip = null) {
+// far: null for the full tiles; for the far sheets { ids, ids2: { value: DataArrayTexture } (the uniforms themselves:
+// assemble swaps the textures in when the far data arrives), x, z (the unit grid's corner), size (a unit's) }
+export function createGroundMaterial(T, strip = null, far = null) {
   const mat = new THREE.MeshStandardMaterial();
-  mat.name = 'cherkasy-ground'; mat.roughness = 0.9; mat.metalness = 0;
+  mat.name = far ? 'cherkasy-ground-far' : 'cherkasy-ground'; mat.roughness = 0.9; mat.metalness = 0;
   const U = {
     gAsphalt: { value: T.asphalt }, gNoise: { value: T.noise }, gPaving: { value: T.pavement }, gGrass: { value: T.grass },
     gKerb: { value: T.concrete ?? T.pavement },
     gStripA: { value: new THREE.Vector2(...(strip?.A ?? [0, 0])) }, gStripB: { value: new THREE.Vector2(...(strip?.B ?? [0, 0])) },
     gStrip: { value: new THREE.Vector3(strip ? 1 : 0, strip?.y0 ?? 4.5, strip?.y1 ?? 7) },
   };
-  return patchMaterial(mat, 'cherkasy-ground-v2', (sh) => {
+  if (far) {
+    mat.defines = { ...mat.defines, GROUND_FAR: '' };
+    U.gIds = far.ids; U.gIds2 = far.ids2; U.gFar = { value: new THREE.Vector3(far.x, far.z, 1 / far.size) };
+  }
+  return patchMaterial(mat, far ? 'cherkasy-ground-far-v2' : 'cherkasy-ground-v2', (sh) => {
     for (const name in U) sh.uniforms[name] = U[name];
     sh.vertexShader = sh.vertexShader
-      .replace('#include <common>', '#include <common>\nattribute float aSurf;\nvarying float vSurf;\nvarying vec3 vGW;')
+      .replace('#include <common>', '#include <common>\nvarying vec3 vGW;\nattribute float aSurf;\nvarying float vSurf;')
       .replace('#include <begin_vertex>', '#include <begin_vertex>\nvSurf = aSurf;\nvGW = (modelMatrix * vec4(transformed, 1.0)).xyz;');
     sh.fragmentShader = sh.fragmentShader
       .replace('#include <common>', '#include <common>\n' + GROUND_GLSL)
@@ -236,8 +296,53 @@ function eachEdge(polys, fn) {
   return n;
 }
 
+// ------------------------------------------------------------------------------------------------ units
+// The city is cut into UNIT squares in the height field's own frame (their borders are lattice lines, so a draped piece
+// lies in exactly one): the units whose square touches the region + 1 km and lies inside the DEM. A unit is drawn in
+// full as four SUB tiles (the frustum culls the ones behind the camera), and beyond the `far` distance as one far
+// sheet (groundfar.js). Kerb faces and road paint are their own meshes per SUB square, with their own draw distances
+// (finer chunks cull better but every mesh is a draw call and a node the renderer walks: at 256 m the frame's CPU
+// cost grew more than the saved triangles were worth); the units' bank walls are one mesh, always drawn. Land outside
+// the units goes into 8 km field tiles.
+const UNIT = FAR.UNIT, SUB = UNIT / 2, FIELD = UNIT * 8;
+// a unit under FAR_MIN triangles stays as it is (its sheet would not be cheaper); under FAR_FINE its id map is 2 m
+const FAR_MIN = 3000, FAR_FINE = 12000;
+// Within FINE m of the region a triangle is draped on the 16 m lattice, farther out on every fourth line of it. A far
+// sheet stands on the 16 m lattice, so only a unit wholly inside that margin gets one: on the fringe a sheet would
+// lie metres off the coarsely draped tiles it replaces (those units are light anyway: 5-25 thousand triangles).
+const FINE = 900;
+const KEY = { FIELD: 1e8, KERB: 2e8, BANK: 3e8 }; // tile keys: SUB tiles below FIELD, then one range per kind
+export function unitGrid(map, hf) {
+  const R = map.region, ox = hf.x0, oz = hf.z0;
+  const i0 = Math.max(0, Math.floor((R.x0 - 1000 - ox) / UNIT)), i1 = Math.min(Math.floor((hf.x1 - ox) / UNIT) - 1, Math.floor((R.x1 + 1000 - ox) / UNIT));
+  const j0 = Math.max(0, Math.floor((R.z0 - 1000 - oz) / UNIT)), j1 = Math.min(Math.floor((hf.z1 - oz) / UNIT) - 1, Math.floor((R.z1 + 1000 - oz) / UNIT));
+  // the unit's key at a point, -1 outside the units
+  const at = (x, z) => { const i = Math.floor((x - ox) / UNIT), j = Math.floor((z - oz) / UNIT); return i >= i0 && i <= i1 && j >= j0 && j <= j1 ? i * 4096 + j : -1; };
+  // is unit `key` wholly on the finely draped ground (FINE below)? Only such a unit gets a far sheet
+  const fine = (key) => {
+    const x0 = ox + Math.floor(key / 4096) * UNIT, z0 = oz + (key % 4096) * UNIT;
+    return x0 >= R.x0 - FINE && x0 + UNIT <= R.x1 + FINE && z0 >= R.z0 - FINE && z0 + UNIT <= R.z1 + FINE;
+  };
+  return { ox, oz, i0, i1, j0, j1, at, fine };
+}
+// land inside the city is yard, outside it farmland
+const cityLand = (map) => {
+  const R = map.region;
+  return (rings) => {
+    const F = rings[0];
+    for (let k = 0; k < F.length; k += 2) if (F[k] > R.x0 - 300 && F[k] < R.x1 + 300 && F[k + 1] > R.z0 - 300 && F[k + 1] < R.z1 + 300) return SURF.YARD;
+    return SURF.FARM;
+  };
+};
+// every draped layer bottom to top with its surface, as the far id maps paint them (the higher layer wins, as it does
+// in the full tiles, where it lies above)
+export function farLayers(map) {
+  return [[map.asphalt, SURF.ASPHALT], [map.land, cityLand(map)], ...COVER.map(([key, surf]) => [map.cover[key], surf]),
+    [map.dirt, SURF.DIRT], [map.walks, SURF.PAVERS]];
+}
+
 // ------------------------------------------------------------------------------------------------ mesh store
-// one 512 m tile: flat vertex streams; draped vertices are shared per (layer, surface, 5 cm snapped position)
+// one tile: flat vertex streams; draped vertices are shared per (layer, surface, 5 cm snapped position)
 // plain arrays -> indexed geometry: streams is { name: [array, itemSize] }, the index type follows the vertex count
 function toGeometry(streams, index, count) {
   if (!index.length) return null;
@@ -280,12 +385,15 @@ function clipHalf(P, axis, v, sign) {
 export function buildGroundData({ map, hf, parts = ['land', 'roads', 'cover'] }) {
   const t0 = performance.now();
   // the lattice alone (hf.latticeAt when a site overlays heightAt, railcut.js): the same field the workers build from
-  const R = map.region, H = hf.latticeAt ?? hf.heightAt, TILE = 1024;
+  const R = map.region, H = hf.latticeAt ?? hf.heightAt, G = unitGrid(map, hf);
   const tiles = new Map();
-  // 1 km tiles over the city, 8 km ones over the far fields (few draw calls toward the horizon)
-  const tileAt = (x, z) => {
-    const city = x > R.x0 - 1000 && x < R.x1 + 1000 && z > R.z0 - 1000 && z < R.z1 + 1000, S = city ? TILE : TILE * 8;
-    const key = (city ? 0 : 1e8) + Math.floor(x / S) * 4096 + Math.floor(z / S);
+  // the tile of a point: its SUB tile (kind 0; a unit on the fringe, which never turns far, is one tile under its
+  // first SUB key: light, and one draw call instead of four), the units' bank walls (KEY.BANK) or its kerb chunk
+  // (KEY.KERB); outside the units an 8 km field tile holds everything (few draw calls toward the horizon)
+  const tileAt = (x, z, kind = 0) => {
+    const u = G.at(x, z), S = kind === 0 && u >= 0 && !G.fine(u) ? UNIT : SUB, f = S / SUB;
+    const key = u < 0 ? KEY.FIELD + Math.floor((x - G.ox) / FIELD) * 4096 + Math.floor((z - G.oz) / FIELD)
+      : kind === KEY.BANK ? kind : kind + Math.floor((x - G.ox) / S) * f * 4096 + Math.floor((z - G.oz) / S) * f;
     let t = tiles.get(key);
     if (!t) tiles.set(key, t = new Tile());
     return t;
@@ -325,7 +433,7 @@ export function buildGroundData({ map, hf, parts = ['land', 'roads', 'cover'] })
   const drapeTri = (A, B, C, off, surf) => {
     const lo = [Math.min(A[0], B[0], C[0]), Math.min(A[1], B[1], C[1])], hi = [Math.max(A[0], B[0], C[0]), Math.max(A[1], B[1], C[1])];
     if (hi[0] < hf.x0 || lo[0] > hf.x1 || hi[1] < hf.z0 || lo[1] > hf.z1) return fan([A, B, C], off, surf);
-    const nearCity = hi[0] > R.x0 - 900 && lo[0] < R.x1 + 900 && hi[1] > R.z0 - 900 && lo[1] < R.z1 + 900;
+    const nearCity = hi[0] > R.x0 - FINE && lo[0] < R.x1 + FINE && hi[1] > R.z0 - FINE && lo[1] < R.z1 + FINE;
     const c = nearCity ? hf.cell : hf.cell * 4;
     const i0 = Math.floor((lo[0] - hf.x0) / c), i1 = Math.floor((hi[0] - hf.x0) / c);
     const j0 = Math.floor((lo[1] - hf.z0) / c), j1 = Math.floor((hi[1] - hf.z0) / c);
@@ -351,15 +459,16 @@ export function buildGroundData({ map, hf, parts = ['land', 'roads', 'cover'] })
       if (raster) raster.tri(pts[a][0], pts[a][1], pts[b][0], pts[b][1], pts[c][0], pts[c][1]);
     }
   };
-  // vertical band along a->b from yLo(x, z) to yHi(x, z), split every ~6 m to follow the terrain; faces (nx, nz)
-  const band = (ax, az, bx, bz, yLo, yHi, nx, nz, surf) => {
-    const ex = bx - ax, ez = bz - az, L = Math.hypot(ex, ez), n = Math.max(1, Math.ceil(L / 6));
+  // vertical band along a->b from yLo(x, z) to yHi(x, z), split every ~6 m to follow the terrain (every 24 m outside
+  // the units, where the land is draped in 64 m cells); faces (nx, nz); kind: the tile it goes to (tileAt)
+  const band = (ax, az, bx, bz, yLo, yHi, nx, nz, surf, kind) => {
+    const ex = bx - ax, ez = bz - az, L = Math.hypot(ex, ez), n = Math.max(1, Math.ceil(L / (G.at((ax + bx) / 2, (az + bz) / 2) < 0 ? 24 : 6)));
     const flip = ex * nz - ez * nx <= 0;
     let t = null, lo = 0;
     const post = (x, z) => { const i = t.add(x, yLo(x, z), z, nx, 0, nz, surf); t.add(x, yHi(x, z), z, nx, 0, nz, surf); return i; };
     let px = ax, pz = az;
     for (let k = 1; k <= n; k++) {
-      const qx = ax + ex * (k / n), qz = az + ez * (k / n), tt = tileAt((px + qx) * 0.5, (pz + qz) * 0.5);
+      const qx = ax + ex * (k / n), qz = az + ez * (k / n), tt = tileAt((px + qx) * 0.5, (pz + qz) * 0.5, kind);
       if (tt !== t) { t = tt; lo = post(px, pz); }
       const nlo = post(qx, qz); // posts are (bottom, top) pairs, so top = bottom + 1
       const quad = flip ? [lo, nlo + 1, nlo, lo, lo + 1, nlo + 1] : [lo, nlo, nlo + 1, lo, nlo + 1, lo + 1];
@@ -375,16 +484,12 @@ export function buildGroundData({ map, hf, parts = ['land', 'roads', 'cover'] })
   const wat = want.has('land') ? new BitRaster(R.x0 - 2000, R.z0 - 2000, R.x1 + 2000, R.z1 + 2000, 2) : null;
   const land = want.has('land') ? new BitRaster(LE.x0, LE.z0, LE.x1, LE.z1, 32) : null;
   const isWater = (x, z) => { const w = wat.get(x, z); return w >= 0 ? w === 1 : land.get(x, z) === 0; };
-  let nKerb = 0, markings = null, dist = null;
+  let nKerb = 0, markings = [], dist = null;
   const wetSegs = [];
 
   if (want.has('land')) {
-    for (const rings of map.land) {
-      let inCity = false;
-      const F = rings[0];
-      for (let k = 0; k < F.length && !inCity; k += 2) inCity = F[k] > R.x0 - 300 && F[k] < R.x1 + 300 && F[k + 1] > R.z0 - 300 && F[k + 1] < R.z1 + 300;
-      drapePoly(rings, GY.LAND, inCity ? SURF.YARD : SURF.FARM, land);
-    }
+    const landSurf = cityLand(map);
+    for (const rings of map.land) drapePoly(rings, GY.LAND, landSurf(rings), land);
     for (const rings of map.water) drapePoly(rings, null, 0, wat);
     // embankments: land edges with open water outside drop to below the river plane
     const yTop = (x, z) => H(x, z) + GY.LAND, yFoot = () => GY.WATER - 2.5;
@@ -394,7 +499,7 @@ export function buildGroundData({ map, hf, parts = ['land', 'roads', 'cover'] })
       const nx = (bz - az) / L, nz = (ax - bx) / L, cx = 0.5 * (ax + bx), cz = 0.5 * (az + bz);
       if (Math.max(Math.abs(cx), Math.abs(cz)) > 40000) return;
       if (!(isWater(cx + nx, cz + nz) || isWater(cx + 3 * nx, cz + 3 * nz))) return;
-      band(ax, az, bx, bz, yFoot, yTop, nx, nz, SURF.BANK);
+      band(ax, az, bx, bz, yFoot, yTop, nx, nz, SURF.BANK, KEY.BANK);
       if (nearCity(cx, cz, 2000)) wetSegs.push({ ax, az, bx, bz, nx, nz });
     });
     dist = waterDistance(wat);
@@ -403,8 +508,8 @@ export function buildGroundData({ map, hf, parts = ['land', 'roads', 'cover'] })
     for (const rings of map.asphalt) drapePoly(rings, GY.ROAD, SURF.ASPHALT, asph);
     // kerb faces along every asphalt ring edge, facing the carriageway
     const yRoad = (x, z) => H(x, z) + GY.ROAD, yWalk = (x, z) => H(x, z) + GY.WALK;
-    nKerb += eachEdge(map.asphalt, (ax, az, bx, bz, L) => band(ax, az, bx, bz, yRoad, yWalk, (az - bz) / L, (bx - ax) / L, SURF.CURB));
-    markings = buildMarkings({ map, onAsphalt: (x, z) => asph.get(x, z) === 1, H });
+    nKerb += eachEdge(map.asphalt, (ax, az, bx, bz, L) => band(ax, az, bx, bz, yRoad, yWalk, (az - bz) / L, (bx - ax) / L, SURF.CURB, KEY.KERB));
+    markings = buildMarkings({ map, onAsphalt: (x, z) => asph.get(x, z) === 1, H, chunkAt: (x, z) => Math.floor((x - G.ox) / SUB) * 4096 + Math.floor((z - G.oz) / SUB) });
   }
   if (want.has('cover')) {
     COVER.forEach(([key, surf], order) => { for (const rings of map.cover[key] ?? []) drapePoly(rings, GY.COVER + order * 0.0006, surf); });
@@ -444,10 +549,11 @@ function waterDistance(wat) {
 
 // several partial results (one per worker) -> one: tiles with the same key merged, rasters / segments from their owner
 function combine(list) {
-  const byKey = new Map(), out = { tileGeos: [], markings: null, asph: null, wat: null, land: null, wetSegs: [], dist: null, stats: { tris: 0, kerbs: 0, bankSegs: 0, meshes: 0, ms: 0 } };
+  const byKey = new Map(), out = { tileGeos: [], markings: [], asph: null, wat: null, land: null, wetSegs: [], dist: null, stats: { tris: 0, kerbs: 0, bankSegs: 0, meshes: 0, ms: 0 } };
   for (const d of list) {
     for (const { key, geo } of d.tileGeos) (byKey.get(key) ?? byKey.set(key, []).get(key)).push(geo);
-    for (const k of ['markings', 'asph', 'wat', 'land', 'dist']) out[k] ??= d[k];
+    for (const k of ['asph', 'wat', 'land', 'dist']) out[k] ??= d[k];
+    if (d.markings?.length) out.markings = d.markings;
     out.wetSegs.push(...d.wetSegs);
     for (const k of ['tris', 'kerbs', 'bankSegs']) out.stats[k] += d.stats[k];
     out.stats.ms = Math.max(out.stats.ms, d.stats.ms);
@@ -457,25 +563,194 @@ function combine(list) {
   return out;
 }
 
-// data (buildGroundData, or its unpacked worker copy) -> the ground object with meshes and queries
-function assemble(data, { scene, T, hf, strip, renderer }) {
+// the triangles of an indexed geometry by the unit of their centroid: Map(unit key | -1 -> geometry)
+function splitByUnit(geo, unitAt) {
+  const P = geo.attributes.position.array, I = geo.index.array, by = new Map();
+  for (let k = 0; k < I.length; k += 3) {
+    const a = I[k], b = I[k + 1], c = I[k + 2];
+    if (a === b || b === c || a === c) continue;
+    const key = unitAt((P[3 * a] + P[3 * b] + P[3 * c]) / 3, (P[3 * a + 2] + P[3 * b + 2] + P[3 * c + 2]) / 3);
+    (by.get(key) ?? by.set(key, []).get(key)).push(a, b, c);
+  }
+  const out = new Map();
+  for (const [key, idx] of by) {
+    const remap = new Map(), order = [];
+    const index = idx.map((v) => { let r = remap.get(v); if (r === undefined) { remap.set(v, r = order.length); order.push(v); } return r; });
+    const g = new THREE.BufferGeometry();
+    for (const [name, attr] of Object.entries(geo.attributes)) {
+      const n = attr.itemSize, src = attr.array, dst = new src.constructor(order.length * n);
+      for (let q = 0; q < order.length; q++) for (let c = 0; c < n; c++) dst[q * n + c] = src[order[q] * n + c];
+      g.setAttribute(name, new THREE.BufferAttribute(dst, n, attr.normalized));
+    }
+    g.setIndex(new THREE.BufferAttribute(order.length > 65535 ? new Uint32Array(index) : new Uint16Array(index), 1));
+    g.computeBoundingBox(); g.computeBoundingSphere();
+    out.set(key, g);
+  }
+  return out;
+}
+
+// data (buildGroundData, or its unpacked worker copy) -> the ground object with meshes, queries and the level of detail
+function assemble(data, { scene, T, map, hf, strip, renderer }) {
   const H = hf.heightAt, { asph, wat, land, dist: D } = data;
   const onAsphalt = (x, z) => asph.get(x, z) === 1;
   const isWater = (x, z) => { const w = wat.get(x, z); return w >= 0 ? w === 1 : land.get(x, z) === 0; };
   const mat = createGroundMaterial(T, strip);
   const root = Object.assign(new THREE.Group(), { name: 'ground' });
+  const dd = createDrawDistance(), G = unitGrid(map, hf), units = new Map();
+  // static and at the origin: no matrix work in the scene's per-frame update
+  const still = { receiveShadow: true, matrixAutoUpdate: false, matrixWorldAutoUpdate: false };
   const put = (geo, m, name) => {
-    const mesh = new THREE.Mesh(geo, m);
-    Object.assign(mesh, { name, receiveShadow: true, matrixAutoUpdate: false });
+    const mesh = Object.assign(new THREE.Mesh(geo, m), still, { name });
     root.add(mesh);
+    return mesh;
   };
-  for (const tg of data.tileGeos) put(tg.geo, mat, `ground ${tg.key}`);
-  if (data.markings) {
+  // every mesh is a direct child of the root in the ground material: the sites that re-lay or resurface the ground
+  // (railcut.js, bridgekit.js resurface) find them there, kerbs and banks included
+  for (const { key, geo } of data.tileGeos) {
+    if (key >= KEY.BANK) put(geo, mat, 'ground bank');
+    else if (key >= KEY.KERB) dd.add(put(geo, mat, `kerbs ${key - KEY.KERB}`), 'kerbs');
+    else {
+      const mesh = put(geo, mat, `ground ${key}`);
+      if (key >= KEY.FIELD / 2) continue;
+      if (!geo.boundingBox) geo.computeBoundingBox();
+      const i = Math.floor(key / 4096) >> 1, j = (key % 4096) >> 1, uk = i * 4096 + j, bb = geo.boundingBox;
+      const u = units.get(uk) ?? units.set(uk, { key: uk, i, j, x0: G.ox + i * UNIT, z0: G.oz + j * UNIT, y0: Infinity, y1: -Infinity, near: [], tris: 0, far: null, isFar: false }).get(uk);
+      u.near.push(mesh); u.tris += geo.index.count / 3; u.y0 = Math.min(u.y0, bb.min.y); u.y1 = Math.max(u.y1, bb.max.y);
+    }
+  }
+  if (data.markings.length) {
     const paint = new THREE.MeshStandardMaterial({ roughness: 0.7, name: 'road-markings' });
     paint.color.setRGB(0.78, 0.78, 0.74);
-    put(data.markings, decalBias(paint, renderer, 1), 'markings');
+    decalBias(paint, renderer, 1);
+    // every chunk is called 'markings': bridgekit.js dropPaint and the bridges' own paint find them by that name
+    for (const { geo } of data.markings) dd.add(put(geo, paint, 'markings'), 'paint');
   }
+
+  // ---- level of detail: a unit farther than detail.far is drawn as its far sheet (groundfar.js), once that is in
+  const farGroup = Object.assign(new THREE.Group(), still, { name: 'ground far' });
+  const detail = { far: Infinity }, last = new THREE.Vector3(Infinity, 0, 0), lod = { ready: false, far: 0, made: 0, build: null, maps: null };
+  const known = new Set(), all = [], farAll = [];
+  let dirty = true, pending = false, kids = -1;
+  // the id maps: one layer per far unit in two array textures (1 m and 2 m maps), allocated when the far data arrives
+  // and filled a layer at a time as units first turn far. No CPU copy stays: a layer is decoded from its run-length
+  // form into a scratch buffer for the upload.
+  const idArray = (side, depth) => {
+    const t = new THREE.DataArrayTexture(null, side, side, depth);
+    t.format = THREE.RedFormat; t.type = THREE.UnsignedByteType;
+    t.source.dataReady = false; // storage only: three allocates it, the layers come through copyTextureToTexture
+    t.needsUpdate = true;
+    return t;
+  };
+  const ids = { value: idArray(1, 1) }, ids2 = { value: idArray(1, 1) }, scratch = {}, at = new THREE.Vector3();
+  const farMat = createGroundMaterial(T, strip, { ids, ids2, x: G.ox, z: G.oz, size: UNIT });
+  // the far program compiles with the first frame (a zero-area triangle draws it), not when the first unit turns far
+  // in the middle of a drive
+  const warmGeo = new THREE.BufferGeometry();
+  warmGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(9), 3));
+  warmGeo.setAttribute('normal', new THREE.BufferAttribute(new Float32Array([0, 1, 0, 0, 1, 0, 0, 1, 0]), 3));
+  warmGeo.setAttribute('aSurf', new THREE.BufferAttribute(new Float32Array(3), 1));
+  const warm = Object.assign(new THREE.Mesh(warmGeo, farMat), still, { name: 'ground far warm-up', frustumCulled: false });
+  farGroup.add(warm); farAll.push(warm);
+  root.add(farGroup);
+  for (const m of root.children) { known.add(m); all.push(m); }
   scene.add(root);
+
+  // Only what is drawn hangs in the scene graph: three, the shadow passes and the post chain each walk the whole graph
+  // every frame, hidden objects included, and a thousand hidden tiles and chunks cost the frame more CPU time than
+  // their triangles cost the GPU. `all` / `farAll` keep every mesh; the children arrays are rebuilt when the pick changes.
+  const sync = () => {
+    const c = root.children, fc = farGroup.children;
+    c.length = 0; fc.length = 0;
+    for (const m of all) if (m.visible) c.push(m);
+    for (const m of farAll) if (m.visible) fc.push(m);
+    kids = c.length;
+  };
+  // a mesh a site added to the root in the ground material (railcut.js re-lays triangles into one) is cut by unit, so
+  // each part goes with its unit's full tile when that turns far
+  const adopt = () => {
+    for (const m of [...root.children]) {
+      if (known.has(m)) continue;
+      known.add(m);
+      if (!m.isMesh || m.material !== mat || !m.geometry?.index) { all.push(m); continue; }
+      const parts = splitByUnit(m.geometry, G.at);
+      if (parts.size === 1 && parts.has(-1)) { all.push(m); continue; }
+      for (const [key, geo] of parts) {
+        const part = put(geo, mat, m.name), u = units.get(key);
+        part.castShadow = m.castShadow;
+        known.add(part); all.push(part);
+        if (u) { u.near.push(part); part.visible = !u.isFar; }
+      }
+      root.remove(m); m.geometry.dispose();
+    }
+  };
+  const makeFar = (u) => {
+    const f = u.far.data, geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(f.position, 3));
+    geo.setAttribute('normal', new THREE.BufferAttribute(f.normal, 3));
+    geo.setAttribute('aSurf', new THREE.BufferAttribute(new Float32Array(f.position.length / 3).fill(u.far.code), 1));
+    geo.setIndex(new THREE.BufferAttribute(f.index, 1));
+    geo.computeBoundingBox(); geo.computeBoundingSphere();
+    u.far.mesh = Object.assign(new THREE.Mesh(geo, farMat), still, { name: `ground far ${u.key}`, visible: false });
+    farGroup.add(u.far.mesh); farAll.push(u.far.mesh); // (sync() takes it out of the children again while it is hidden)
+    lod.made++;
+  };
+  // the unit's id map into its layer (decoded for the upload only: the run-length copy is what stays)
+  const upload = (u) => {
+    u.far.up = true;
+    if (!renderer?.copyTextureToTexture) return; // headless
+    const f = u.far.data, small = f.size < UNIT, side = small ? UNIT / 2 : UNIT;
+    const src = scratch[side] ??= new THREE.DataTexture(new Uint8Array(side * side), side, side, THREE.RedFormat, THREE.UnsignedByteType);
+    if (f.size === side) decodeIds(f.rv, f.rl, side, src.image.data); else src.image.data.fill(f.rv[0]); // one surface all over
+    renderer.copyTextureToTexture(src, (small ? ids2 : ids).value, null, at.set(0, 0, u.far.layer));
+  };
+  // the far data of buildFarData (the worker's reply): from now on update() switches the units
+  function attachFar(fd) {
+    let n1 = 0, n2 = 0;
+    for (const f of fd.units) {
+      const u = units.get(f.i * 4096 + f.j);
+      if (!u) continue;
+      const small = f.size < UNIT, layer = small ? n2++ : n1++;
+      u.far = { data: f, mesh: null, up: false, layer, code: ((small ? 512 : 0) + layer) * 4096 + f.i * 64 + f.j };
+    }
+    for (const [U, side, n] of [[ids, UNIT, n1], [ids2, UNIT / 2, n2]]) if (n) { U.value.dispose(); U.value = idArray(side, n); }
+    warm.visible = false; // the program is compiled by now
+    lod.ready = true; lod.build = fd.stats; lod.maps = { m1: n1, m2: n2, MB: +((n1 * UNIT * UNIT + n2 * UNIT * UNIT / 4) / 1e6).toFixed(1) }; dirty = true;
+  }
+  // a restored GL context comes back with empty id maps: every far unit fills its layer again
+  renderer?.domElement?.addEventListener?.('webglcontextrestored', () => { for (const u of units.values()) if (u.far) u.far.up = false; dirty = true; });
+  function update(dt, camera) {
+    const p = camera?.position;
+    if (!p) return;
+    let changed = false;
+    if (root.children.length !== kids) { adopt(); changed = true; }
+    if (dd.update(p)) changed = true;
+    if (lod.ready && (dirty || pending || p.distanceToSquared(last) >= 144)) {
+      dirty = pending = false; last.copy(p);
+      let budget = 2; // id maps a frame: each is decoded and uploaded (up to 1 MB)
+      // full units back a frame: three uploads a returning unit's buffers (2-8 MB) on its first draw, and two heavy
+      // units in one frame showed as a ~10 ms spike. With the LOD switched off they all come back at once.
+      let back = detail.far < Infinity ? 1 : Infinity;
+      for (const u of units.values()) {
+        if (!u.far) continue;
+        const dx = Math.max(u.x0 - p.x, 0, p.x - u.x0 - UNIT), dy = Math.max(u.y0 - p.y, 0, p.y - u.y1), dz = Math.max(u.z0 - p.z, 0, p.z - u.z0 - UNIT);
+        const d = Math.sqrt(dx * dx + dy * dy + dz * dz);
+        const far = detail.far < Infinity && (u.isFar ? d > detail.far : d > detail.far * 1.06 + 16);
+        if (far && !u.far.up) {
+          if (budget-- <= 0) { pending = true; continue; }
+          if (!u.far.mesh) makeFar(u);
+          upload(u);
+        }
+        if (far === u.isFar) continue;
+        if (!far && back-- <= 0) { pending = true; continue; }
+        u.isFar = far; u.far.mesh.visible = far; changed = true;
+        // a unit that turned far gives its full tile's GPU buffers back (three uploads them again when it returns)
+        for (const m of u.near) { m.visible = !far; if (far) m.geometry.dispose(); }
+        lod.far += far ? 1 : -1;
+      }
+    }
+    if (changed) sync();
+  }
+
   // cells outside the distance grid count as shore (0)
   const shoreDist = (x, z) => {
     const u = Math.floor((x - D.x0) / D.DC), w = Math.floor((z - D.z0) / D.DC);
@@ -483,45 +758,70 @@ function assemble(data, { scene, T, hf, strip, renderer }) {
   };
   const terrainHeight = (x, z) => (onAsphalt(x, z) ? H(x, z) + GY.ROAD : isWater(x, z) ? GY.WATER : H(x, z) + GY.LAND);
   return { root, material: mat, terrainHeight, heightAt: H, isWater, onAsphalt, shoreDist, wetSegs: data.wetSegs, stats: data.stats,
-    band: { minY: GY.WATER - 3, maxY: hf.hMax + 1, slope: 1.2 }, update() {} };
+    band: { minY: GY.WATER - 3, maxY: hf.hMax + 1, slope: 1.2 }, update, attachFar, drawDist: dd, units,
+    meshes: () => [...all.filter((m) => m !== farGroup), ...farAll.filter((m) => m !== warm)],
+    // the units that get a far version: [[i, j, coarse map?]] (heavy enough, and wholly on the finely draped ground)
+    farUnits: () => [...units.values()].filter((u) => u.tris >= FAR_MIN && G.fine(u.key)).map((u) => [u.i, u.j, u.tris < FAR_FINE]),
+    setDetail({ far = Infinity, ...dist } = {}) { detail.far = far ?? Infinity; dd.set({ kerbs: Infinity, paint: Infinity, ...dist }); dirty = true; },
+    lod: () => ({ units: units.size, capable: [...units.values()].filter((u) => u.far).length, far: lod.far, made: lod.made, build: lod.build, maps: lod.maps, detail: { ...detail }, chunks: dd.stats(),
+      drawn: root.children.length - 1 + farGroup.children.length - (farGroup.children.includes(warm) ? 1 : 0), meshes: all.length - 1 + farAll.length - 1 }) };
 }
 
-export function buildGround({ scene, T, map, hf, strip = null, renderer = null }) {
-  return assemble(combine([buildGroundData({ map, hf })]), { scene, T, hf, strip, renderer });
+const farInput = (hf) => ({ meta: hf.data.meta, grid: farLattice(hf) });
+export function buildGround({ scene, T, map, hf, strip = null, renderer = null, far = false }) {
+  const ground = assemble(combine([buildGroundData({ map, hf })]), { scene, T, map, hf, strip, renderer });
+  if (far) ground.attachFar(buildFarData({ layers: farLayers(map), hf: farInput(hf), units: ground.farUnits() }));
+  return ground;
 }
 
-// The same in a module worker (it fetches map.json itself) while the main thread builds other things; falls back to
-// the synchronous build when workers are unavailable or fail.
+// The same in module workers (each fetches map.json itself) while the main thread builds other things; falls back to
+// the synchronous build when workers are unavailable or fail. The far versions are not waited for: once the three
+// parts are in, a fourth worker paints them while the rest of the city builds, and the units stay full until it replies
+// (without workers there is no far version: the ground draws as it always did).
 export async function buildGroundAsync({ scene, T, map, hf, strip = null, renderer = null, mapUrl }) {
   let data = null;
+  const run = (msg) => new Promise((res, rej) => {
+    const w = new Worker(new URL('./ground.js', import.meta.url), { type: 'module' });
+    w.onmessage = (e) => { w.terminate(); if (e.data.error) rej(new Error(e.data.error)); else res(e.data); };
+    w.onerror = (e) => { w.terminate(); rej(e.error || new Error(e.message || 'ground worker error')); };
+    w.postMessage(msg);
+  });
   if (typeof Worker !== 'undefined' && mapUrl) {
     try {
-      const run = (parts) => new Promise((res, rej) => {
-        const w = new Worker(new URL('./ground.js', import.meta.url), { type: 'module' });
-        w.onmessage = (e) => { w.terminate(); if (e.data.error) rej(new Error(e.data.error)); else res(e.data); };
-        w.onerror = (e) => { w.terminate(); rej(e.error || new Error(e.message || 'ground worker error')); };
-        w.postMessage({ mapUrl, hf: hf.data, parts });
-      });
-      const parts = await Promise.all([['land'], ['roads'], ['cover']].map(run));
+      const parts = await Promise.all([['land'], ['roads'], ['cover']].map((part) => run({ mapUrl, hf: hf.data, parts: part })));
       for (const d of parts) {
         for (const t of d.tileGeos) t.geo = unpackGeometry(t.geo);
-        d.markings = unpackGeometry(d.markings);
+        for (const t of d.markings) t.geo = unpackGeometry(t.geo);
         for (const k of ['asph', 'wat', 'land']) if (d[k]) d[k] = BitRaster.from(d[k]);
       }
       data = combine(parts);
       data.stats.workers = parts.map((d) => d.stats);
     } catch (e) { console.warn('[ground] workers failed, building on the main thread', e); data = null; }
   }
-  return assemble(data ?? combine([buildGroundData({ map, hf })]), { scene, T, hf, strip, renderer });
+  const ground = assemble(data ?? combine([buildGroundData({ map, hf })]), { scene, T, map, hf, strip, renderer });
+  if (data) {
+    const t0 = performance.now();
+    run({ mapUrl, hf: farInput(hf), parts: ['far'], units: ground.farUnits() })
+      .then((fd) => { fd.stats.wallMs = Math.round(performance.now() - t0); ground.attachFar(fd); })
+      .catch((e) => console.warn('[ground] no far versions: the far worker failed', e));
+  }
+  return ground;
 }
 if (inWorker()) {
   self.onmessage = async (e) => {
     try {
       const tf = performance.now(), map = await fetch(e.data.mapUrl).then((r) => r.json());
       const tb = performance.now();
+      if (e.data.parts[0] === 'far') {
+        const fd = buildFarData({ layers: farLayers(map), hf: e.data.hf, units: e.data.units });
+        fd.stats.fetchMs = Math.round(tb - tf);
+        self.postMessage(fd, fd.units.flatMap((u) => [u.position.buffer, u.normal.buffer, u.index.buffer, u.rv.buffer, u.rl.buffer]));
+        return;
+      }
       const d = buildGroundData({ map, hf: heightFieldFrom(e.data.hf), parts: e.data.parts });
       const transfer = [];
-      const out = { ...d, tileGeos: d.tileGeos.map(({ key, geo }) => ({ key, geo: packGeometry(geo, transfer) })), markings: packGeometry(d.markings, transfer) };
+      const pack = (list) => list.map(({ key, geo }) => ({ key, geo: packGeometry(geo, transfer) }));
+      const out = { ...d, tileGeos: pack(d.tileGeos), markings: pack(d.markings) };
       for (const k of ['asph', 'wat', 'land']) if (d[k]) { out[k] = { ...d[k] }; transfer.push(d[k].bits.buffer); }
       if (d.dist) transfer.push(d.dist.d.buffer);
       d.stats.fetchMs = Math.round(tb - tf); d.stats.startMs = Math.round(tf);
@@ -532,13 +832,15 @@ if (inWorker()) {
 
 // ------------------------------------------------------------------------------------------------ markings
 // Ukrainian road paint: a white centre line (solid on multi-lane main roads, dashed elsewhere), dashed lane lines,
-// zebra crossings where OSM maps a crossing footway; lines stop short of the junctions.
-function buildMarkings({ map, onAsphalt, H }) {
-  const P = [], I = [];
+// zebra crossings where OSM maps a crossing footway; lines stop short of the junctions. Returns [{ key, geo }], one
+// geometry per chunk (chunkAt(x, z) -> key): the paint has its own draw distance.
+function buildMarkings({ map, onAsphalt, H, chunkAt = () => 0 }) {
+  const chunks = new Map();
   const Y = 0.006;
   // quad from its four corners (any order around), wound to face up
   const quad = (...cs) => {
-    const base = P.length / 3;
+    const key = chunkAt(cs[0][0], cs[0][2]), ch = chunks.get(key) ?? chunks.set(key, { P: [], I: [] }).get(key);
+    const { P, I } = ch, base = P.length / 3;
     cs.forEach((c) => P.push(...c));
     // the x/z turn at corner 1 picks the index order that keeps the face pointing up
     const turn = (cs[1][0] - cs[0][0]) * (cs[2][2] - cs[0][2]) - (cs[1][2] - cs[0][2]) * (cs[2][0] - cs[0][0]);
@@ -608,9 +910,11 @@ function buildMarkings({ map, onAsphalt, H }) {
       }
     });
   }
-  const nv = P.length / 3, up = new Array(P.length);
-  for (let k = 0; k < up.length; k++) up[k] = k % 3 === 1 ? 1 : 0;
-  return toGeometry({ position: [P, 3], normal: [up, 3] }, I, nv);
+  return [...chunks].map(([key, { P, I }]) => {
+    const up = new Array(P.length);
+    for (let k = 0; k < up.length; k++) up[k] = k % 3 === 1 ? 1 : 0;
+    return { key, geo: toGeometry({ position: [P, 3], normal: [up, 3] }, I, P.length / 3) };
+  });
 }
 
 // consecutive legs of a flat polyline longer than minLen: fn(ax, az, unit dx, unit dz, length)
