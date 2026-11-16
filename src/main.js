@@ -3,6 +3,8 @@
 //   createCore({ container, quality?, preset?, far?, adaptive = false }) -> ctx   (no world; used by startGame and the demos)
 //     ctx = { renderer, scene, camera, events, input, daylight, sky, shadows, post, systems, groundAt(x, z),
 //             time, frame, quality, dt, adaptive (render/adaptive.js, fed real loop intervals; null unless asked),
+//             device (renderer.userData.caps.device: the graphics card's name, software rendering, the screen),
+//             onFrame?(dt, shown, work): called by the real loop with each raw interval (startGame's frame-rate reports),
 //             addSystem(sys, name?, { always }?) -> remove()   sys: function(dt, ctx) or { update(dt, ctx) }; runs in insertion order
 //             paused: while true only the `always` systems run and nothing renders (the canvas keeps its last frame)
 //             frozen: while true (the photo mode) only the `always` systems run and the clock, daylight and clouds stand
@@ -35,6 +37,7 @@ import * as THREE from 'three';
 import { createRenderer, warmupShaders } from './render/renderer.js';
 import { createPostProcessing } from './render/post.js';
 import { createAdaptiveRes } from './render/adaptive.js';
+import { createPerfSample } from './render/perfsample.js';
 import { createSky } from './render/sky.js';
 import { createDaylight } from './render/daylight.js';
 import { createShadows } from './render/shadows.js';
@@ -88,7 +91,7 @@ export function createCore({ container = document.body, quality = savedQuality()
   const ctx = {
     renderer, scene, camera, events, input, daylight, sky, shadows, post, systems,
     groundAt: () => 0,
-    time: 0, frame: 0, dt: 0, quality, paused: false, frozen: false,
+    time: 0, frame: 0, dt: 0, quality, paused: false, frozen: false, device: renderer.userData.caps.device,
     addSystem(sys, name = sys?.name || `system${systems.length}`, { always = false } = {}) {
       const fn = typeof sys === 'function' ? sys : (dt, c) => sys.update(dt, c);
       const entry = { name, fn, always };
@@ -143,7 +146,9 @@ export function createCore({ container = document.body, quality = savedQuality()
         // the raw interval and the last frame's JS time, only from the real loop (tick() stops it); nothing renders
         // under the map or in a hidden tab. Before the step: a new pixel ratio clears the canvas, so it must land
         // before a render, never between a render and the screen (a black frame)
-        ctx.adaptive?.update(dt, !ctx.paused && globalThis.document?.visibilityState !== 'hidden', work);
+        const shown = !ctx.paused && globalThis.document?.visibilityState !== 'hidden';
+        ctx.adaptive?.update(dt, shown, work);
+        ctx.onFrame?.(dt, shown, work);
         const t0 = performance.now();
         ctx.step(dt);
         work = (performance.now() - t0) / 1000;
@@ -356,7 +361,13 @@ export async function startGame({ container = document.getElementById('app') || 
   setOverlay(overlay, 'Компілюємо шейдери…');
   ctx.sky.update(0, camera);
   await warmupShaders(ctx.renderer, scene, camera);
-  track('game_ready', { load_ms: Math.round(performance.now()), quality: ctx.quality });
+  // what it runs on goes out with the load and with the two frame-rate reports, so slow machines can be told by their hardware
+  const { gpu, software, screen: scr, view, dpr: dprDev, cores, mem } = ctx.device;
+  track('game_ready', { load_ms: Math.round(performance.now()), quality: ctx.quality, gpu, software, screen: scr, view, dpr_dev: dprDev, cores, mem });
+  const sample = createPerfSample({
+    onSample: (s) => track('perf', { ...s, quality: ctx.quality, dpr: +ctx.post.pixelRatio.toFixed(2), cpu_bound: !!ctx.adaptive?.cpuBound, gpu, software, screen: scr }),
+  });
+  ctx.onFrame = (dt, shown, work) => sample.update(dt, shown && !ctx.frozen, work); // the photo mode's still world says nothing
   consent.ready();
   consent.accepted.then(() => { // the loop starts only once the terms are accepted (at once for a returning player)
     if (!params.has('paused')) ctx.start();

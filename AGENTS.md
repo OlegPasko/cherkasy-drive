@@ -29,6 +29,9 @@ See `ARCHITECTURE.md` for the module map. Where things live:
   - `adaptive.js` – adaptive resolution: when the real frame interval stays over 1/48 s and the CPU is not the limit, it
     lowers the render pixel ratio in ~0.2 steps (1.6 → 1.4 → 1.2 → 1.0, never below 1 or the quality's own base) and
     gives it back once there is room; reset on every quality change, never saved. `?noadapt` turns it off.
+  - `gpuinfo.js` – what the game runs on (`renderer.userData.caps.device`, `ctx.device`): the graphics card's short name,
+    whether the browser draws in software, the screen, cores. `perfsample.js` – the real frame rate after 60 s and 300 s of
+    play. Both go to analytics (`game_ready`, `perf`), so slow machines can be told by their hardware; `tests/perfsample.test.mjs`.
   - Shadows use three's `SunLight` with 2 cascades.
   - Graphics levels (`QUALITY_LEVELS` low / medium / high in `main.js`, saved as `cd.quality`; G steps down, F9 cycles,
     both live, no reload). Each render module has its own table (`post.js`: AO, AA, render scale, max pixel ratio;
@@ -493,7 +496,7 @@ See `ARCHITECTURE.md` for the module map. Where things live:
 - `src/ui/botlink.js` – links into the Telegram bot: the "Бот" chip next to H, the "🔔 Оновлення" chip (`?start=sub`), the H card line, the big-map button,
   the right-click menu (improve / advertise at that point) and the partner card line.
 - `src/analytics.js` – Google Analytics 4: loads only on `driver.ck.ua` (never in dev, demos or tests); `track(name, params)`
-  sends the game events listed in its header (missions, partner clicks, sights, load time).
+  sends the game events listed in its header (missions, partner clicks, sights, load time with the graphics card and screen, the frame rate after 1 and 5 min).
 - `src/mapview.js` and `ui/mapview.css` – the phone page: `index.html` sends touch-only devices and phone user agents here
   instead of the game (`?mobile` / `?desktop` force either). It loads only `map.json` + `map_buildings.json` and opens the
   big map with no car (`createBigMap({ player: null })`; one finger pans, two pinch (or the + / − buttons), a tap shows a badge's card and a

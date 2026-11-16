@@ -1,7 +1,8 @@
 // WebGLRenderer setup for the game: one canvas, linear HDR shading into the post chain, PCF sun shadows.
 //
 //   createRenderer({ canvas?, container?, reversedDepth = true, maxPixelRatio = 2 }) -> THREE.WebGLRenderer, with
-//     renderer.userData.caps = { reversedDepth, hdrTarget ('half' | 'float' | null), maxTexture, maxAniso, parallelCompile }
+//     renderer.userData.caps = { reversedDepth, hdrTarget ('half' | 'float' | null), maxTexture, maxAniso, parallelCompile,
+//       device: { gpu, software, screen, view, dpr, cores, mem } (render/gpuinfo.js) }
 //   isReversedDepth(renderer) -> bool
 //   decalBias(material, renderer, level = 1)  pull a coplanar overlay (road marking, puddle, crack) toward the camera.
 //   warmupShaders(renderer, scene, camera, timeoutMs = 6000) -> Promise<bool>   async program compile before frame one
@@ -12,6 +13,7 @@
 // float buffer a constant unit offset is meaningless anyway. decalBias() therefore keeps only the slope term and adds a
 // small depth-relative bias in the vertex shader, which suits the float buffer's precision curve.
 import * as THREE from 'three';
+import { deviceInfo } from './gpuinfo.js';
 
 export function createRenderer({ canvas = null, container = null, reversedDepth = true, maxPixelRatio = 2 } = {}) {
   const renderer = new THREE.WebGLRenderer({
@@ -38,6 +40,7 @@ export function createRenderer({ canvas = null, container = null, reversedDepth 
     maxTexture: renderer.capabilities.maxTextureSize,
     maxAniso: renderer.capabilities.getMaxAnisotropy(),
     parallelCompile: ext.has('KHR_parallel_shader_compile'),
+    device: deviceInfo(renderer.getContext()),
   };
   renderer.userData = { caps };
 

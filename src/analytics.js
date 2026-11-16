@@ -2,7 +2,10 @@
 // report; ?noga turns it off there too. Everything else calls track(), which stays a no-op until init has run.
 //   initAnalytics({ mode: 'game' | 'map' }) -> bool (loaded)   once, from index.html; mode goes out as the page's `mode`
 //   track(name, params?)                                          a GA4 event, e.g. track('mission_end', { mission_type, ok })
-// Events sent today: game_ready (load_ms, quality), mission_start / mission_end (mission_type, ok), partner_open
+// Events sent today: game_ready (load_ms, quality, and the machine: gpu – the graphics card's name –, software – the browser
+// draws without it –, screen in device pixels, view – the window –, dpr_dev, cores, mem; render/gpuinfo.js), perf (at: 60 | 300 s
+// of play, fps, low – the slowest tenth of frames –, js_ms, quality, dpr, cpu_bound, gpu, software, screen: how it really runs
+// there; render/perfsample.js), mission_start / mission_end (mission_type, ok), partner_open
 // (partner, via: key | card | map), sight_visited (sight), adaptive_res (dpr, step, reason, quality: the adaptive
 // resolution changed the render pixel ratio on a slow machine), teleport (place: the big map moved the car there), photo (action: capture | save | share: the photo mode, ui/photomode.js). Outbound link clicks (the Telegram bot) come from GA's own
 // enhanced measurement.

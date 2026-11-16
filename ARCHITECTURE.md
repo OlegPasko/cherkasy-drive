@@ -15,6 +15,8 @@ the Dnipro, +z south-east, origin at Soborna square).
         renderer.js           WebGLRenderer setup (reversed depth, shadows, colour space)
         post.js               post chain: SSAO (n8ao), bloom, tone mapping, AA (postprocessing lib)
         adaptive.js           adaptive render resolution: steps the pixel ratio down on a machine that misses 48 fps
+        gpuinfo.js            the graphics card's name, software rendering and the screen (analytics, renderer caps.device)
+        perfsample.js         the frame rate after 60 s and 300 s of play, sent to analytics as `perf`
         sky.js                sky dome, sun/moon, fog, environment map
         daylight.js           time of day; nightFactor() in [0..1] used by lamps and windows
         shadows.js            cascaded sun shadows (three's CSM addon)
