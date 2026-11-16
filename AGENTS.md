@@ -58,11 +58,28 @@ See `ARCHITECTURE.md` for the module map. Where things live:
     that the facade kit gives doors, canopies and party-wall ribs (`tests/townhouses.test.mjs`);
   - `trees.js` – procedural trees with LODs and breakable items;
   - `farcull.js` – the draw-distance cull of the hand-built sites on the lower graphics levels;
+  - `drawdist.js` – draw distances per class for small repeated detail cut into chunks (kerb faces, road paint, sleepers,
+    rails, the shore's wet bands and foam): a chunk beyond its class's distance is not drawn. The ground owns the
+    registry (`ground.drawDist`); the distances come from `DETAIL.ground` in `city.js`;
   - `water.js`;
   - `collision.js` – boxes, cylinders and prisms in a grid, with `walkSlope`.
 - `src/world/cherkasy/` – the city itself:
   - `city.js` – `buildCherkasy`, which returns the world; its API is documented in the file header;
   - `ground.js` – terrain, roads, markings, kerbs and shore, built in workers;
+    - Level of detail (`groundfar.js`; `tests/groundlod.test.mjs`): the city is 1 km units on the height field's own
+      frame. Near the camera a unit draws in full (four 512 m tiles, 20–170 thousand triangles); beyond the level's
+      `far` distance (`DETAIL.ground` in `city.js`: 2200 / 1100 / 500 m at high / medium / low, live through
+      `world.setQuality`, and for the photo mode's camera through `world.view`) it draws as one far sheet: a few
+      thousand triangles that never rise above the terrain, coloured by the same shader from a 1 m map of surface ids
+      (one layer per unit in two array textures, one material for every sheet). Only a unit wholly within 900 m of
+      the region gets one: farther out the tiles are draped in 64 m cells and a sheet would not match them. A fourth
+      worker builds the sheets after the ground is in (~0.7 s, not waited for; until then every unit is full). Kerb faces and road paint are
+      512 m chunks with their own draw distances. Only what is drawn hangs in the scene graph: a hidden tile or chunk
+      leaves `ground.root.children` (`ground.meshes()` lists all), because three and the post chain walk the graph
+      several times a frame. Nothing physical changes: `heightAt`, `terrainHeight`, `onAsphalt`, collision and the
+      lanes read the height field and rasters, never a mesh. A site that edits ground meshes (`resurface`,
+      `dropPaint`, the railway cutting) does it while it builds; a site's height overlay names its box in
+      `hf.overlays` so the far sheets stay under it.
   - `geo.js` – shared 2D helpers;
   - the hand-made landmarks: `landmarks`, `pagorb`, `rosevalley`, `restinn`, `embankment`, `dam`, `yachtclub`,
     `beaches`, `zhuzhoma`, `prystan`, `restaurants`, `yalynka`, `facadekit`, `khimikiv`, `druzhba` (Palace of Culture

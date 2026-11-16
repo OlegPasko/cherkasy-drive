@@ -18,6 +18,9 @@
 //     crossings: [{ x, z, main }] the level crossings (none where the road or the line is on a bridge)
 //     clear: true within 3.5 m of a track (no generated trees on the line)
 //     yard: the circle where sleepers are real geometry; skipMast: no catenary mast at that point (platforms, canopy)
+//     ground.drawDist (drawdist.js, when the ground has one): the yard's sleepers (instanced, one mesh per TIES m
+//     cell) and the steel rails (512 m tiles) register as 'sleepers' / 'rails', so they are not drawn from afar; the
+//     ballast bed is always drawn
 // Heights: the bed follows heightAt (the station yard is levelled by station.js); a bridge runs straight between the
 // heights at its ends. Nothing here collides: the bed is 0.3 m and a car simply rolls through it.
 import * as THREE from 'three';
@@ -27,7 +30,7 @@ import { rng } from './geo.js';
 import { RAIL as DAM_RAIL } from './dam_data.js';
 
 export const TRACK = { half: 0.76, bed: 0.3, foot: 0.13, top: 1.55, toe: 2.55, tie: 0.07, railH: 0.16, railW: 0.075 };
-const STEP = 8, TILE = 512, SIDES = [1, -1];
+const STEP = 8, TILE = 512, TIES = 128, SIDES = [1, -1];
 // the wired main tracks stop at the Dnipro approach; these two start the line to Hrebinka (construction:electrified)
 const NOT_WIRED = [[-2027.1, 820.8], [-3162.4, 915.3]];
 
@@ -379,6 +382,7 @@ export function buildRails({ root, map, heightAt, ground, solids, geo, railLevel
     const mat = k[0] === 'r' ? mats.rail : k[1] === 'y' ? mats.yard : mats.open;
     const mesh = Object.assign(new THREE.Mesh(g, mat), { name: `rails-${k}`, receiveShadow: true, castShadow: false, matrixAutoUpdate: false });
     mesh.updateMatrix(); group.add(mesh);
+    if (k[0] === 'r') ground?.drawDist?.add(mesh, 'rails');
   }
   for (const [B, mat, name, shadow] of [[panels, mats.det, 'crossings', false], [signs, mats.det, 'crossing-signs', true],
     [decks, mats.det, 'rail-bridges', true], [cat, mats.det, 'catenary', true]]) {
@@ -392,16 +396,28 @@ export function buildRails({ root, map, heightAt, ground, solids, geo, railLevel
   }
   const nTies = ties.length / 4;
   if (nTies) {
-    const tie = new THREE.InstancedMesh(new THREE.BoxGeometry(2.7, TRACK.tie + 0.04, 0.26), new THREE.MeshStandardMaterial({ color: 0x8e8a83, roughness: 0.9 }), nTies);
+    // one instanced mesh per TIES m cell: a cell out of sight or past the sleepers' draw distance is not drawn
+    // (25 thousand boxes in one mesh were 300 thousand triangles in every frame that saw the yard at all)
+    const tieGeo = new THREE.BoxGeometry(2.7, TRACK.tie + 0.04, 0.26), tieMat = new THREE.MeshStandardMaterial({ color: 0x8e8a83, roughness: 0.9 });
+    const byCell = new Map();
+    for (let o = 0; o < ties.length; o += 4) {
+      const c = key(Math.floor(ties[o] / TIES), Math.floor(ties[o + 2] / TIES));
+      if (!byCell.has(c)) byCell.set(c, []);
+      byCell.get(c).push(o);
+    }
     // box x across the track: a yaw turns its local z onto the heading
     const place = new THREE.Object3D();
-    for (let i = 0, o = 0; i < nTies; i++, o += 4) {
-      place.position.set(ties[o], ties[o + 1], ties[o + 2]); place.rotation.set(0, ties[o + 3], 0); place.updateMatrix();
-      tie.setMatrixAt(i, place.matrix);
+    for (const list of byCell.values()) {
+      const tie = new THREE.InstancedMesh(tieGeo, tieMat, list.length);
+      list.forEach((o, i) => {
+        place.position.set(ties[o], ties[o + 1], ties[o + 2]); place.rotation.set(0, ties[o + 3], 0); place.updateMatrix();
+        tie.setMatrixAt(i, place.matrix);
+      });
+      tie.name = 'sleepers'; tie.receiveShadow = true;
+      tie.computeBoundingSphere();
+      group.add(tie);
+      ground?.drawDist?.add(tie, 'sleepers');
     }
-    tie.name = 'sleepers'; tie.receiveShadow = true;
-    tie.computeBoundingSphere();
-    group.add(tie);
   }
   const km = lines.reduce((a, L) => a + L.len, 0) / 1000;
   console.log(`[cherkasy] railways: ${lines.length} lines, ${km.toFixed(1)} km, ${samples} sections, ${allCross.length} crossings (${done.length} signed), ${masts} masts, ${nTies} sleepers, ${(nV / 1000).toFixed(0)}k verts in ${(performance.now() - t0).toFixed(0)} ms`);
