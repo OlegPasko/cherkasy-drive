@@ -4,6 +4,7 @@
 //
 //   buildCherkasy({ scene, renderer, onProgress?(fraction 0..1, text), params? }) -> Promise<world>
 //     params: URLSearchParams (default location.search): notraffic, nopeds, blood (blood on pedestrian hits), coll (collision wireframe), cam=x,y,z,tx,ty,tz
+//       nostreet (no street furniture: the A/B switch for its cost)
 //
 // world (the shape legacy car.js and missions.js consume):
 //   raycast(origin, dir, max?) -> { distance, point, normal, id, kind } | null        (static solids + terrain)
@@ -37,6 +38,9 @@
 //     traffic draw and shadow distances, the river mirror, facade window detail); live, 'high' = the full picture
 //     (DETAIL.ground: the ground's far sheets and the draw distances of its small detail, ground.js setDetail; update
 //     and view keep both on the camera)
+//   street   the generated streets' furniture (street.js: lamps, utility poles and wires, bus stops, benches, bins,
+//     container sites, crossing signs from map_street.json; DETAIL.street gives its draw distances per level), null with
+//     ?nostreet or without the data file; stats().street has its counts
 //   stats() -> { loadMs, stages, solids, trees, traffic, people, ... }
 // Oleg's hand-built sites (landmarks.js, pagorb.js, rosevalley.js, ... facadekit.js, billboards.js) are optional: each is loaded and
 // called inside its own guard, so the city still builds if one is missing or throws. A site builder that reads `ground`
@@ -62,6 +66,7 @@ import { resolvePlaces } from './places.js';
 import { createFarCull } from '../farcull.js';
 import { createSiteProxies } from './proxies.js';
 import { buildCarParks } from './carparks.js';
+import { buildStreet } from './street.js';
 
 // Oleg's site modules, resolved at build time; a file that does not exist yet is simply absent
 const SITE_MODULES = import.meta.glob(['./landmarks.js', './frame.js', './restinn.js', './yalynka.js', './pagorb.js', './rosevalley.js',
@@ -120,6 +125,13 @@ const DETAIL = {
   },
 };
 
+// street furniture (street.js setDetail), m: near – full models of every prop, casting shadows; far – plain stand-ins of
+// the poles, shelters and container sites; wires / pools / glow – where the wires, the lamps' ground pools (0 = none)
+// and their glow sprites fade out
+DETAIL.high.street = { near: 120, far: 560, wires: 220, pools: 320, glow: 3500 };
+DETAIL.medium.street = { near: 90, far: 380, wires: 150, pools: 220, glow: 2200 };
+DETAIL.low.street = { near: 60, far: 240, wires: 100, pools: 0, glow: 1200 };
+
 // spawn: vul. Serzhanta Zhuzhomy, the far kerb across from tower No 4 (zhuzhoma.js), looking at it
 const SPAWN = [886, 506], SPAWN_LOOK = [831, 530], CAR_DIR = [-0.55, -0.83];
 
@@ -133,6 +145,10 @@ export async function buildCherkasy({ scene, renderer, onProgress = null, params
   onProgress?.(0.02, 'Завантажуємо карту Черкас…');
   if (!params.has('notraffic')) loadTrafficVehicles(); // the glb files download while the city builds (cached promise)
   const asset = (f) => fetch(`${import.meta.env?.BASE_URL ?? '/'}assets/cherkasy/${f}`);
+  // the street furniture's data downloads beside the map and is never waited for (?nostreet: none): streetData is
+  // undefined until it lands, then the parsed file, or null if there is none
+  let streetData;
+  const streetP = params.has('nostreet') ? null : asset('map_street.json').then((r) => (r.ok ? r.json() : null)).catch(() => null).then((d) => (streetData = d));
   const [T, map, buildingsJson, demBuf, S] = await Promise.all([
     loadCityTextures(renderer),
     asset('map.json').then((r) => r.json()),
@@ -291,6 +307,13 @@ export async function buildCherkasy({ scene, renderer, onProgress = null, params
   trees.addSolids((c) => { trunks.set(c.item, collision.cyl(c.x, c.z, c.y0, c.y1, c.r, c.r, 'tree')); });
   stage('trees', 0.78, 'Машини і люди…');
   await nextFrame();
+  // street furniture of the generated streets (street.js): lamps, utility poles and wires, bus stops, benches, bins –
+  // off the sites' own ground (their clear areas and decks), buildings and trunks; the poles join the collision world
+  // The file is a 25th of the map's size, so it is here by now; on a link where it is not, the game starts without it
+  // and the furniture is built when it lands (below; the collision grid rebuilds itself on the next query).
+  const mkStreet = (d) => (d ? guard('street furniture', () => buildStreet({ scene: root, data: d, map, heightAt, ground, solids: collision, occ, spots,
+    clear: [landmarks, ...sites].filter((s) => s.clear).map((s) => s.clear), decks: sites.filter((s) => s.deckAt).map((s) => s.deckAt), detailMat })) : null);
+  let street = mkStreet(streetData), streetDetail = null;
 
   // street life: traffic on the carriageways, people on the pavements, shared debris (each isolated)
   const debris = createGibs(root, (x, z, y) => collision.groundHeight(x, z, y ?? 1e4), { blood: params.has('blood') });
@@ -385,6 +408,7 @@ export async function buildCherkasy({ scene, renderer, onProgress = null, params
       landmarks.update?.(dt, camera); hero.update?.(dt, camera); yalynka.update?.(dt, camera);
       for (const s of sites) s.update?.(dt, camera);
       farCull.update(camPos); proxies?.update(camPos);
+      street?.update(dt, camera);
       debris.update(dt); treeBreak.update(dt);
       try { traffic?.update(dt, camera); people?.update(dt, camera); } catch (e) { if (!lifeErr) { lifeErr = true; console.error('[cherkasy] life update failed', e); } }
     },
@@ -393,6 +417,7 @@ export async function buildCherkasy({ scene, renderer, onProgress = null, params
       camPos.copy(camera.position);
       Bld.update(camPos); trees.update(0, camPos, camera); farCull.update(camPos); proxies?.update(camPos);
       ground.update(0, camera);
+      street?.view(camera);
       if (relight) {
         landmarks.update?.(0, camera); hero.update?.(0, camera); yalynka.update?.(0, camera);
         for (const s of sites) s.update?.(0, camera);
@@ -407,11 +432,15 @@ export async function buildCherkasy({ scene, renderer, onProgress = null, params
       people?.setDrawDistance(...D.people); traffic?.sim?.setDrawDistance(...D.traffic);
       water.setReflection(D.water.on, D.water);
       ground.setDetail(D.ground);
+      streetDetail = D.street; street?.setDetail(streetDetail);
     },
     stats: () => ({ loadMs: world.loadMs, stages, solids: collision.count, zips: zips.count, buildings: Bld.stats(), ground: ground.stats, trees: trees.stats(),
       spots: spots.stats, carParks: carParks?.stats() ?? null, farCull: farCull.stats(), proxies: proxies?.stats() ?? null, traffic: traffic?.stats() ?? null, people: people?.stats?.() ?? null, treeBreak: treeBreak.stats(), sites: sites.length, modules: Object.keys(S) }),
   };
   world.cherkasy.proxies = proxies = guard('proxies', () => createSiteProxies({ parent: root, roots: siteRoots, places: world.places, map, skip, heightAt, facadeMat, detailMat }));
+  world.street = street; // street.js api (stats, setDetail), null with ?nostreet
+  if (streetP && streetData === undefined) streetP.then((d) => { world.street = street = mkStreet(d); if (streetDetail) street?.setDetail(streetDetail); });
+  { const stats = world.stats; world.stats = () => Object.assign(stats(), { street: street?.stats() ?? null }); }
   world.loadMs = Math.round(performance.now() - t0);
   console.log(`[cherkasy] built in ${world.loadMs} ms: ${B.footprints.length} buildings, ${collision.count} solids, ${spots.length} trees, ${sites.length} sites | ${Object.entries(stages).map(([k, v]) => k + ' ' + v).join(', ')}`);
   return world;

@@ -397,6 +397,21 @@ See `ARCHITECTURE.md` for the module map. Where things live:
     streams the cars (`sim.addParkingLots`): lots within 0.6 x the traffic draw reach (420 / 300 / 210 m) hold cars,
     dropped 80 m past it, at most 900 / 600 / 360 live; the sites' `parked` spots stream the same way. Parked cars keep
     their lamps dark at night (`fleet.add(..., off)`). `tests/carparks.test.mjs`.
+  - `street.js` – the generated streets' furniture, city-wide (`tests/street.test.mjs`): street lamps at OSM's own
+    `highway=street_lamp` positions (a steel pole with one arm on the main roads, two on бульвар Шевченка, a shorter one
+    on residential streets, a square concrete post in the yards, a ball lantern on the footways), concrete utility poles
+    with four sagging wires along the private-sector streets (a mapped lamp there hangs on the pole), the trolleybus
+    contact wires with a span wire from each lamp pole, bus-stop shelters and signs, benches, bins, container sites
+    and crossing signs. The data is `public/assets/cherkasy/map_street.json` (236 KB), compiled by
+    `tools/cherkasy/build_street.mjs` from the raw OSM extracts (`fetch_osm.mjs street` adds the street nodes;
+    `build_map.mjs` and `map.json` are not involved); it downloads beside the map and is never waited for (if it lands
+    after the start, the furniture is built then). Everything is
+    world-space geometry merged per 48 m cell on first use and copied into five meshes (near models with shadows, far
+    stand-ins, wires, the lamps' ground pools, one glow sprite per head) when the camera changes cell – nothing per
+    frame; distances per level in `DETAIL.street`. Lamps glow by `nightFactor()` with no real lights. Poles, shelter
+    walls and container sites collide, the small props do not. No prop stands on a carriageway, in a building or on
+    water; a site's own ground (`clear`, `deckAt`) drops the props in it when the camera first comes within 640 m (the
+    ~120 `clear` functions are too slow to ask for 20 thousand props at the load). `?nostreet` turns it all off.
   - Requests #28–#30: `atb26` rebuilds the supermarket at Остафія Дашковича 26 with a charcoal shopfront beneath
     the three-storey tiled street block; `school7` builds both school №7 blocks at Добровольчих батальйонів 13 and
     the yellow-railed Odeska pedestrian bridge over the roads, garages and railway. Both schools and ATB are
@@ -576,6 +591,7 @@ See `ARCHITECTURE.md` for the module map. Where things live:
   - `?noga` – no Google Analytics on the production site;
   - `?noadapt` – no adaptive resolution (steady pixel ratio for perf measurements);
   - `?stilltime` – the clock stands still (the game runs a day per hour of play and skips the night, `startGame` in `main.js`);
+  - `?nostreet` – no street furniture (`street.js`): the A/B switch for its cost;
   - `?nosound` – no sound at all (no AudioContext, nothing fetched, the radio muted); use it for every dev and test run;
   - `?mobile` / `?desktop` – force the phone map page or the game (`src/mapview.js`).
   - `?roadster` – dev builds only (`import.meta.env.DEV`): the Roadster counts as unlocked (V switches to it).
