@@ -35,7 +35,9 @@
 //       come as boxes, everything else as convex pieces of the footprint (holes respected).
 //     zips: anchor sink, object with edge(ax, az, bx, bz, y, nx, nz, kind) or function({type:'edge', a:[x,z], b:[x,z],
 //       y, n:[nx,nz], kind}); roof edges >= 3 m of buildings taller than 5 m, 12 cm inboard, at the roof top
-//   result = { tiles: Map<key, {fac, det, near, cx, cz, i, j}>, footprints: [{poly:[[x,z]..], h, kind, name, id}],
+//   result = { tiles: Map<key, {fac, det, near, cx, cz, i, j}>, footprints: [{poly:[[x,z]..], h, kind, name, id, fronts?}],
+//              (fronts: the indices of the poly edges i -> i + 1 with a public face on the ground – a storefront
+//              ground floor (the map's main-street flag '2'), a public building's entrance wall; absent if none)
 //              boxes: [{min: Vector3, max: Vector3, id}], landmarks: [{name, x, z, h}], doors: [numbers], stats }
 //     tiles: fac.build() -> facade geometry | null, det.v ? det.build({part: true}) : skip  (kit/batch.js batchTiles);
 //     near: a second detail builder for what only reads up close (the kit's doors, steps, canopies, AC units): the
@@ -454,6 +456,10 @@ function* generate(o) {
     const facadeOf = Object.fromEntries(FACADE_KEYS.map((key) => [key, A[key]]));
     const wallP = (floorLine, top, extra = {}) => Object.assign({}, facadeOf, { seed, baseY: floorLine, topY: top }, extra);
     const shopKind = (b.k === 'apt' || b.k === 'public') && A.lv >= 2;
+    // the edges with a public face on the ground (footprints' `fronts`): a storefront ground floor, a public
+    // building's entrance wall – what grows by the walls keeps off them (cherkasy/shrubbery.js)
+    const fronts = [...new Set([...(shopKind && b.f ? [...b.f].flatMap((c, i) => (c === '2' ? [i] : [])) : []),
+      ...(b.k === 'public' && A.entr ? A.entr.map((q) => q.i) : [])])].filter((i) => i < outer.length);
     // entr (A.entr, the outer ring only): the edge is cut at each entrance, which gets a one-bay stair column
     const walls = (rings, y0, top, p, flagsStr, noShop, entr = null) => {
       const plain = -(A.plinth + A.floorH), shopH = Math.max(3.6, A.plinth + A.floorH);
@@ -475,7 +481,9 @@ function* generate(o) {
       }));
     };
     const summary = (top, y0 = yB) => {
-      footprints.push({ poly: outer, h: top - g0, kind: b.k, name: b.name, id: b.id });
+      const fp = { poly: outer, h: top - g0, kind: b.k, name: b.name, id: b.id };
+      if (fronts.length) fp.fronts = fronts;
+      footprints.push(fp);
       const bb = bboxOf(outer);
       boxes.push({ min: new THREE.Vector3(bb.x0, y0, bb.z0), max: new THREE.Vector3(bb.x1, top, bb.z1), id: b.id });
       if (b.name && (A.lv >= 3 || top - g0 > 14)) landmarks.push({ name: b.name, x: ix, z: iz, h: top - g0 });
@@ -500,6 +508,7 @@ function* generate(o) {
     if (b.parts?.length) {
       const parts = b.parts.map((pr) => ({ pr, R: orient(cleanRing(toPts(pr.p ?? [])), true) })).filter((q) => q.R.length >= 3);
       const cover = parts.reduce((s, q) => s + Math.abs(ringArea2(q.R)) / 2, 0) / Math.max(1, b.area);
+      if (cover >= 0.9) fronts.length = 0; // the parts stand for the parent's walls: no storefront is drawn on them
       let parentTop = g0;
       if (cover < 0.9) {
         parentTop = g0 + (b.h ?? A.plinth + A.lv * A.floorH + A.parapet);

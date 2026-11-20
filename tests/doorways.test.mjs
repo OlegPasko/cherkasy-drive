@@ -45,6 +45,7 @@ const log = console.log, quiet = (f) => { console.log = () => {}; try { return f
 // the building pass with the facade kit, as the city runs it: the entrances it hands out
 const S = { n: 0, prism() { this.n++; }, box() { this.n++; }, cyl() { this.n++; }, get count() { return this.n; } };
 let offWall = 0, inward = 0, kinds = {};
+const shopDoors = [], otherDoors = []; // a main-street shop unit's record: on an edge the map flags '2', 0.8 m (glazing) or 1.1 m (porch) half wide
 const res = buildBuildings({ map, solids: S, heightAt: hf.heightAt, plus: true, roadAt: roadIndex(roadSegs(map)), dress: (c) => {
   const n0 = c.doors.length; dressBuilding(c);
   for (let i = n0; i < c.doors.length; i += DOOR_STRIDE) {
@@ -56,6 +57,8 @@ const res = buildBuildings({ map, solids: S, heightAt: hf.heightAt, plus: true, 
       const a = c.outer[k], b = c.outer[(k + 1) % c.outer.length], dx = b[0] - a[0], dz = b[1] - a[1], L = Math.hypot(dx, dz) || 1, t = ((x - a[0]) * dx + (z - a[1]) * dz) / (L * L);
       if (t < 0 || t > 1 || Math.hypot(a[0] + dx * t - x, a[1] + dz * t - z) > 0.02) continue;
       hit = true; if (Math.abs(nx - dz / L) + Math.abs(nz + dx / L) > 1e-3) inward++;
+      const hw = c.doors[i + 4];
+      (c.b.f?.[k] === '2' && c.b.k !== 'house' && (hw === 1.1 || (hw <= 0.8 && L < 5) || hw === 0.8) ? shopDoors : otherDoors).push(...c.doors.slice(i, i + DOOR_STRIDE));
     }
     if (!hit) offWall++;
   }
@@ -63,6 +66,12 @@ const res = buildBuildings({ map, solids: S, heightAt: hf.heightAt, plus: true, 
 const doors = Float32Array.from(res.doors), nDoors = doors.length / DOOR_STRIDE, index = doorIndex(doors);
 ok(res.stats.dressErrors === 0 && nDoors > 15000 && nDoors < 40000, `the kit hands out its entrances: ${nDoors} (${JSON.stringify(kinds)})`);
 ok(kinds.apt > 3000 && kinds.public > 800 && kinds.indus > 800 && kinds.house > 5000, 'apartment entrances, public doors, industrial gates and doors, street-facing house doors');
+{ // only where the wall has its storefront floor (buildings.js: an apartment or public block of two storeys and up)
+  const lv = new Map(map.buildings.map((q) => [q.id, q])); let low = 0;
+  for (const f of res.footprints) if (f.fronts && f.kind === 'apt' && (lv.get(f.id)?.lv ?? 9) < 2) low++;
+  ok(low === 0, 'no public face on a one-storey block');
+}
+ok(shopDoors.length / DOOR_STRIDE > 3000 && shopDoors.length / DOOR_STRIDE < 6000, `one per main-street shop unit: ${shopDoors.length / DOOR_STRIDE} (its porch, else the middle of its glazing)`);
 ok(offWall === 0 && inward === 0, `every one lies on its building's wall and opens outward (${offWall} off the wall, ${inward} turned in)`);
 {
   let bad = 0, gates = 0;
@@ -125,6 +134,34 @@ ok(offWall === 0 && inward === 0, `every one lies on its building's wall and ope
   const before = T2.group.children.length;
   for (const job = T2.shrubJob({ data: small, kinds: all.kinds }); !job.next().done;);
   ok(T2.group.children.length === before && sh.uniforms.uGrow.value === 1, 'a new layer replaces the old one (two pools, no more); without fadeIn it is there at once');
+}
+
+// shrubs keep off the walls with a public face (footprints' `fronts`: a storefront ground floor, a public building's
+// entrance wall): no front garden, no formal row there; what is left in front of them comes from the other rules
+// (a park belt, a lawn group, a neighbour's garden), and the shop units' approaches clear most of that
+{
+  const fps = res.footprints, bare = fps.map((f) => ({ poly: f.poly, h: f.h, kind: f.kind, id: f.id }));
+  const edges = new Map(), key = (x, z) => Math.floor(x / 32) * 4096 + Math.floor(z / 32); let nFront = 0, nShop = 0;
+  for (const f of fps) for (const i of f.fronts ?? []) {
+    const a = f.poly[i], c = f.poly[(i + 1) % f.poly.length], dx = c[0] - a[0], dz = c[1] - a[1], L = Math.hypot(dx, dz);
+    if (L < 5) continue;
+    nFront++; if (f.kind === 'apt') nShop++;
+    const E = [a[0], a[1], dx / L, dz / L, L];
+    for (let t = 0; t <= L; t += 8) for (const o of [0, 5]) { const k = key(a[0] + dx / L * t + dz / L * o, a[1] + dz / L * t - dx / L * o); const B = edges.get(k); if (!B) edges.set(k, [E]); else if (!B.includes(E)) B.push(E); }
+  }
+  // a shrub within 4.5 m in front of such a wall, between its ends
+  const along = (D, keep = () => true) => {
+    let n = 0;
+    for (let i = 0; i < D.length; i += SHRUB_STRIDE) {
+      const x = D[i], z = D[i + 2], B = edges.get(key(x, z));
+      if (B && keep(i) && B.some(([ax, az, ux, uz, L]) => { const t = (x - ax) * ux + (z - az) * uz, o = (x - ax) * uz - (z - az) * ux; return t > 0 && t < L && o > 0 && o < 4.5; })) n++;
+    }
+    return n;
+  };
+  const was = quiet(() => shrubSpots({ map, ground, footprints: bare, occ })), now = quiet(() => shrubSpots({ map, ground, footprints: fps, occ }));
+  const tp = (D, i) => SHRUBS[now.kinds[D[i + 6]]].taper, n0 = along(was.data), n1 = along(now.data), n2 = along(now.data, (i) => index.at(now.data[i], now.data[i + 2], doorFoot(now.data[i + 4], tp(now.data, i))) < 0);
+  ok(nFront > 1500 && nShop > 400 && n0 > 1000 && n1 < n0 * 0.45 && n2 < n0 * 0.3, `shrubs within 4.5 m in front of the ${nFront} walls with a public face (${nShop} on blocks of flats): ${n0} -> ${n1}, ${n2} once the doors' approaches are cleared`);
+  ok(was.stats.buildings - now.stats.buildings > 500, `the building rule plants ${was.stats.buildings - now.stats.buildings} fewer (${was.stats.buildings} -> ${now.stats.buildings})`);
 }
 
 // street props: none in an approach – stepped along the street, off the carriageways and the buildings, or left out

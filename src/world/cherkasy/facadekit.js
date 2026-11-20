@@ -4,7 +4,8 @@
 //     doors: a plain array the kit appends the entrances it builds to, six numbers each (doorways.js DOOR_STRIDE): x, z on the
 //     wall line, the outward normal nx, nz, the door's half width and how far out its approach reaches (4 m; 5.5 m
 //     past a public stair, 8 m for a gate). Apartment entrances, public doors, industrial gates and staff doors,
-//     townhouse doors and a private house's door on a wall that faces a road; not shop porches, sheds or garages.
+//     townhouse doors, a private house's door on a wall that faces a road, and one per main-street shop unit (its
+//     porch, else the middle of its glazing); not sheds or garages.
 //     The other layers keep that approach clear (cherkasy/doorways.js: street props, generated trees, shrubs).
 //     t.fac: FacadeBuilder of the building's tile (facade shader), t.det: MB of the tile (detail material, DP parts),
 //     t.near: MB for what only reads up close (drawn within ~220 m, cherkasy/buildings.js)
@@ -69,10 +70,10 @@ const DISH = [[3, hexL('#D8D8D2')], [1, hexL('#9FA3A6')], [0.4, hexL('#3A3C3E')]
 let cur = null;
 function begin(S) {
   if (cur && cur.S === S) return cur;
-  cur = { S, grid: new Map(), n: 0, v: 0, vn: 0, s: 0, ms: 0, c: { bal: 0, loggia: 0, ac: 0, dish: 0, ant: 0, ent: 0, shop: 0, gar: 0, gas: 0, ins: 0, pub: 0, gate: 0, bench: 0, lamp: 0, road: 0, step: 0, doors: 0 } };
+  cur = { S, grid: new Map(), n: 0, v: 0, vn: 0, s: 0, ms: 0, c: { bal: 0, loggia: 0, ac: 0, dish: 0, ant: 0, ent: 0, shop: 0, gar: 0, gas: 0, ins: 0, pub: 0, gate: 0, bench: 0, lamp: 0, road: 0, step: 0, doors: 0, shopDoor: 0 } };
   const C = cur;
   setTimeout(() => console.log(`[cherkasy] facadekit: ${C.n} buildings dressed, +${(C.v / 1e3).toFixed(0)}k verts, +${C.s} solids, ${C.ms.toFixed(0)} ms `
-    + `(${C.c.bal} stripes / ${C.c.loggia} loggias, ${C.c.ac} AC, ${C.c.dish} dishes, ${C.c.ant} antennas, ${C.c.ent} entrances, ${C.c.shop} shop units, ${C.c.gar} garage doors, ${C.c.gas} gas pipes, ${C.c.ins} insulated flats, ${C.c.road} shop porches off a carriageway (${C.c.step} doorsteps), ${C.c.doors} entrances handed out`
+    + `(${C.c.bal} stripes / ${C.c.loggia} loggias, ${C.c.ac} AC, ${C.c.dish} dishes, ${C.c.ant} antennas, ${C.c.ent} entrances, ${C.c.shop} shop units, ${C.c.gar} garage doors, ${C.c.gas} gas pipes, ${C.c.ins} insulated flats, ${C.c.road} shop porches off a carriageway (${C.c.step} doorsteps), ${C.c.doors} entrances handed out (${C.c.shopDoor} of them shop units)`
     + (C.vn ? `; near: ${(C.vn / 1e3).toFixed(0)}k of the verts, ${C.c.pub} public doors, ${C.c.gate} gates, ${C.c.bench} benches, ${C.c.lamp} door lamps)` : ')')), 0);
   return C;
 }
@@ -145,7 +146,7 @@ function segBays(e, A) {
 
 // an entrance for the other layers (dressBuilding's `doors`): its place on the wall line, the way out, the door's half
 // width and how far out its approach reaches (doorways.js DOOR_STRIDE)
-const DOOR_OUT = 4, STAIR_OUT = 5.5, GATE_OUT = 8;
+const DOOR_OUT = 4, STAIR_OUT = 5.5, GATE_OUT = 8, SHOP_HW = 0.8;
 function mark(C, e, s, hw, out = DOOR_OUT) {
   if (!C.doors) return;
   C.doors.push(e.ax + e.ux * s, e.az + e.uz * s, e.nx, e.nz, hw, out); C.c.doors++;
@@ -308,6 +309,9 @@ function dressApt(C, D, Dn, S, b, A, outer, sg, base, H, r, pitched, fl, gAt) {
     }
   }
   // ---- main-street ground floors: porches, fascia panels, awnings (units match the shader's 6.5 m storefront bays)
+  // (glazed: where buildings.js gives the wall its storefront floor – an apartment or public block of two storeys
+  // and up; only those units are entrances for the other layers)
+  const glazed = (b.k === 'apt' || b.k === 'public') && A.lv >= 2;
   for (const e of E) {
     if (e.f !== '2' || e.L < 5 || b.k === 'indus') continue;
     const gH = base + Math.max(A.gH, 3.6), nb2 = Math.max(1, Math.floor(e.L / 6.5 + 0.5)), bw2 = e.L / nb2;
@@ -321,6 +325,7 @@ function dressApt(C, D, Dn, S, b, A, outer, sg, base, H, r, pitched, fl, gAt) {
       D.setPart(DP.PAINT).setColor(jit(bcol, r, 0.05));
       ebox(D, e, s0, s1, 0, 0.14, gH - 0.58, gH - 0.02, 1 | 16);        // composite fascia over the cornice band
       const u = r();
+      let ds = sc, dhw = SHOP_HW; // the unit's way in for the other layers: the middle of its glazing, or its porch
       if (u < 0.35 && bw2 > 3.2) { // porch: landing + step, granite / tile
         const hP = Math.min(1.0, Math.max(0.35, A.plinth)), w = 1.1, ps = sc + (r() - 0.5) * (bw2 - 2 * w - 0.8);
         D.setPart(DP.CONC).setColor(jit(r() < 0.5 ? GRANITE : TILE, r));
@@ -329,6 +334,7 @@ function dressApt(C, D, Dn, S, b, A, outer, sg, base, H, r, pitched, fl, gAt) {
         const road = onRoad(C, e, ps, w, 1.65);
         if (road) C.c.road++;
         if (!road) {
+          ds = ps; dhw = w;
           ebox(D, e, ps - w, ps + w, 0, 1.3, base - 1.2, base + hP, 1 | 4 | 8 | 16); // (deep: terrain falls away from the footprint)
           ebox(D, e, ps - w, ps + w, 1.3, 1.65, base - 1.2, base + hP / 2, 1 | 4 | 8 | 16);
           D.setPart(DP.STEEL).setColor(hexL('#2E3134'));
@@ -336,6 +342,7 @@ function dressApt(C, D, Dn, S, b, A, outer, sg, base, H, r, pitched, fl, gAt) {
           eprism(S, e, ps - w, ps + w, -0.05, 1.3, base - 0.2, base + hP, 'ledge', 2);
         } else if (!onRoad(C, e, ps, w, 0.55)) {
           const hS = Math.min(hP, 0.3); C.c.step++;
+          ds = ps; dhw = w;
           ebox(D, e, ps - w, ps + w, 0, 0.55, base - 1.2, base + hS, 1 | 4 | 8 | 16);
           eprism(S, e, ps - w, ps + w, -0.05, 0.55, base - 0.2, base + hS, 'ledge', 2);
         }
@@ -348,7 +355,14 @@ function dressApt(C, D, Dn, S, b, A, outer, sg, base, H, r, pitched, fl, gAt) {
         ebox(D, e, s0a, s1a, dA - 0.02, dA, ya - 0.25, ya, 1 | 2);
       }
       C.c.shop++;
+      if (glazed) { C.c.shopDoor++; mark(C, e, ds, dhw); }
     }
+  }
+  // a storefront wall too short for a unit (the shader glazes it all the same): its middle is the way in
+  if (glazed) for (const e of E) {
+    if (e.f !== '2' || e.L < 2.5 || e.L >= 5) continue;
+    const p = W(e, e.L / 2, 1.6, 0);
+    if (!blocked(C, p[0], p[2])) { C.c.shopDoor++; mark(C, e, e.L / 2, Math.min(SHOP_HW, e.L / 2 - 0.4)); }
   }
   // ---- roof antenna forest on flat roofs of 5-16 storey blocks (thin masts + Yagi booms; WIRE fades out at range)
   if (!pitched && b.lv >= 5 && b.lv <= 17) {

@@ -75,10 +75,11 @@ See `ARCHITECTURE.md` for the module map. Where things live:
       benches. That small geometry goes to the tile's `near` builder, merged behind the detail of its 512 m group
       and drawn through the draw range only within 220 m (less on the lower levels), so it adds no mesh.
     - Where the entrances are (`cherkasy/doorways.js`, `tests/doorways.test.mjs`): the kit hands out every entrance
-      it builds – apartment entrances, public doors, industrial gates, row and house doors that face a street – as
+      it builds – apartment entrances, public doors, industrial gates, row and house doors that face a street, one
+      per main-street shop unit (its porch, else the middle of its glazing) – as
       six numbers (`doors`: x, z on the wall line, the outward normal, the door's half width, the reach of its
       approach: 4 m, more for a deep porch, 8 m for a gate), `generate` returns them, the city pass packs them through
-      the workers and the single-thread path alike (`B.doors`, ~23 thousand), and `doorIndex` answers "is this spot
+      the workers and the single-thread path alike (`B.doors`, ~27 thousand), and `doorIndex` answers "is this spot
       in a door's approach" (the door's width plus 0.5 m each side). Nothing generated stands there: `street.js`
       steps a prop along its street or drops it, `greenery.js treeSpots` plants no tree (an OSM-mapped one steps to
       the approach's side), the shrub layer drops its bushes (`drop`, below). The hand-built sites' plantings and
@@ -108,7 +109,8 @@ See `ARCHITECTURE.md` for the module map. Where things live:
       Where they grow (`shrubbery.js`): by the walls and in the gardens of private houses (behind the lot's street
       fence: 3.5 m off a carriageway, 5.3 m off a main street), front gardens of the blocks of flats, thuja rows along
       public buildings, belts inside park edges, groups on lawns, OSM scrub / flowerbeds / allotments, clipped lines on
-      some main-street verges. A bush's mesh foot reaches below its origin and it is set into the lowest ground under
+      some main-street verges. Not along a wall with a public face: a footprint's `fronts` (`buildings.js`: the edges
+      with a storefront ground floor, a public building's entrance wall) get no front garden and no formal row. A bush's mesh foot reaches below its origin and it is set into the lowest ground under
       it, so none floats on a slope; the flower flecks dim with `daylight.state.night`.
       The shrubs keep off the other layers (`obstacleIndex` in `shrubbery.js`): one that would touch a fence
       (`map_fences.json`: the fence worker's first reply carries the parsed lines, `fenceJob.lines`) or a street prop

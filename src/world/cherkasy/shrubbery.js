@@ -3,8 +3,10 @@
 //   - private houses: lilacs, jasmine and privet bushes, roses and hibiscus, a thuja or a juniper, by the walls and
 //     in the garden, about 3.5 m or more from a carriageway (5.3 m on a main street), so they stand inside the
 //     lot, behind its street fence;
-//   - blocks of flats: the front gardens under the windows (lilac and bushes, some in bloom) along the long walls;
-//   - public buildings: a formal row of thujas with a juniper or a clipped bush along the longest wall;
+//   - blocks of flats: the front gardens under the windows (lilac and bushes, some in bloom) along the long walls,
+//     not along a storefront ground floor (a footprint's `fronts` edges, world/buildings.js);
+//   - public buildings: a formal row of thujas with a juniper or a clipped bush along the longest wall that is not
+//     its entrance front or a storefront;
 //   - parks: a loose belt of shrubs inside the edge and small groups on the lawns; lawns (grass) get a few groups;
 //   - OSM scrub is filled with tall bushes, flowerbeds with low blooming ones, allotments with berry bushes;
 //   - main streets: on some stretches a low clipped line of bushes along the lawn's edge, past the paving;
@@ -280,9 +282,12 @@ export function* shrubSteps({ map, ground, footprints, occ, clear = null, doors 
       continue;
     }
     const len = (i) => Math.hypot(P[(i + 1) % n][0] - P[i][0], P[(i + 1) % n][1] - P[i][1]);
+    // not along a wall with a public face (footprints' `fronts`, buildings.js): shop windows and the steps before
+    // them, a public building's entrance front – the front gardens and the formal rows are for the plain walls
+    const front = f.fronts ? (i) => f.fronts.includes(i) : () => false;
     if (f.kind === 'apt') {
       for (let i = 0; i < n; i++) {
-        const L = len(i); if (L < 10) continue;
+        const L = len(i); if (L < 10 || front(i)) continue;
         for (let s = 2 + r() * 3; s < L - 2; s += 4.5 + r() * 4.5) {
           if (r() < 0.35) continue;
           const [x, z] = off(i, s / L, 2.2 + 1.6 * r());
@@ -292,7 +297,7 @@ export function* shrubSteps({ map, ground, footprints, occ, clear = null, doors 
       continue;
     }
     // public: the two longest walls; a formal row on the first of about half the buildings
-    const order = Array.from({ length: n }, (_, i) => i).sort((a, b) => len(b) - len(a)).slice(0, 2);
+    const order = Array.from({ length: n }, (_, i) => i).filter((i) => !front(i)).sort((a, b) => len(b) - len(a)).slice(0, 2);
     order.forEach((i, rank) => {
       const L = len(i); if (L < 12 || r() > (rank ? 0.2 : 0.5)) return;
       const step = 3.4 + r() * 1.8, size = 0.8 + r() * 0.4, other = r() < 0.5 ? JUNIPER : BUSH;
