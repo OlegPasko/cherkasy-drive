@@ -1,12 +1,15 @@
-// Headless checks of the greenery upgrade: the tree and shrub geometry budgets, the shrub layer's pools and the
-// planting rules on the real map (node tests/greenery.test.mjs; no framework).
+// Headless checks of the greenery upgrade: the tree and shrub geometry budgets, the shrub layer's pools, the
+// planting rules on the real map and what the shrubs keep off (fences, gates, street props) (node tests/greenery.test.mjs; no framework).
 import fs from 'fs';
 import { fileURLToPath } from 'url';
 import * as THREE from 'three';
 import { ringPts } from '../src/world/cherkasy/geo.js';
 import { createHeightField, buildGroundData } from '../src/world/cherkasy/ground.js';
 import { treeSpots, footprintRaster } from '../src/world/cherkasy/greenery.js';
-import { shrubSpots, shrubSteps, hedgeRows } from '../src/world/cherkasy/shrubbery.js';
+import { shrubSpots, shrubSteps, hedgeRows, obstacleIndex, FOOT } from '../src/world/cherkasy/shrubbery.js';
+import { parseFences } from '../src/world/cherkasy/fencework.js';
+import { buildStreet } from '../src/world/cherkasy/street.js';
+import { createCollisionWorld } from '../src/world/collision.js';
 import { HEDGES } from '../src/world/cherkasy/hedges_data.js';
 import { buildTrees, SHRUBS } from '../src/world/trees.js';
 import { buildTreeGeometries, buildShrubGeometries, RECIPES } from '../src/world/nature/treegeo.js';
@@ -35,7 +38,14 @@ const tris = (g) => g.attributes.position.count / 3;
   }
   const S = buildShrubGeometries();
   ok(tris(S.near) <= 260 && tris(S.far) <= 60, `shrub meshes ${tris(S.near)} / ${tris(S.far)} triangles`);
-  for (const g of [S.near, S.far]) { g.computeBoundingBox(); const b = g.boundingBox; ok(b.min.y > -0.1 && b.max.y < 1.15 && b.min.x > -0.62 && b.max.x < 0.62 && b.min.z > -0.62 && b.max.z < 0.62, 'the bush fills its unit box'); }
+  for (const g of [S.near, S.far]) {
+    g.computeBoundingBox(); const b = g.boundingBox, p = g.attributes.position;
+    ok(b.min.y > -0.101 && b.max.y < 1.001 && b.max.y > 0.999 && b.min.x > -0.62 && b.max.x < 0.62 && b.min.z > -0.62 && b.max.z < 0.62, 'the bush fills its unit box');
+    // it stands in the ground, at some girth: no bush floats over its shadow (a 3 m lilac did, by half a metre)
+    let x0 = 1, x1 = -1, z0 = 1, z1 = -1;
+    for (let i = 0; i < p.count; i++) if (p.getY(i) < 0.03) { x0 = Math.min(x0, p.getX(i)); x1 = Math.max(x1, p.getX(i)); z0 = Math.min(z0, p.getZ(i)); z1 = Math.max(z1, p.getZ(i)); }
+    ok(b.min.y < -0.05 && x1 - x0 > 0.3 && z1 - z0 > 0.3, `the bush's foot is in the ground (lowest ${b.min.y.toFixed(2)}, ${(x1 - x0).toFixed(2)} x ${(z1 - z0).toFixed(2)} wide there)`);
+  }
 }
 
 // ---- the shrub layer: pools, bands, culling
@@ -93,6 +103,24 @@ const tris = (g) => g.attributes.position.count / 3;
   ok(T.group.children.length === before && T.stats().shrubs === null, 'setShrubs(null) drops the layer');
   const L = buildTrees({ scene: new THREE.Group(), spots, plus: false });
   ok(L.stats().plus === false && L.items.length === 600 && !L.items.some((it) => it.wash), 'plus: false builds the old trees, no limewash');
+}
+
+// ---- what the shrubs keep off: fences, gates, street props
+{
+  const kinds = ['sheet', 'gate', 'wicket', 'hedge'], d = [];
+  const piece = (kind, pts) => { d.push(kinds.indexOf(kind), 0, 20, 0, pts.length / 2, pts[0] * 10, pts[1] * 10); for (let i = 2; i < pts.length; i += 2) d.push((pts[i] - pts[i - 2]) * 10, (pts[i + 1] - pts[i - 1]) * 10); };
+  piece('sheet', [0, 0, 40, 0]); piece('gate', [40, 0, 43.5, 0]); piece('sheet', [43.5, 0, 60, 0, 60, 30]); piece('wicket', [100, 0, 101, 0]); piece('hedge', [0, 50, 30, 50]);
+  const F = parseFences({ d, region: { x0: 0, z0: 0 }, unit: 0.1, kinds });
+  const O = obstacleIndex({ fences: F, props: [{ x: 20, z: 10, kind: 'pole', alive: true }, { x: 20, z: 20, kind: 'bench', alive: true }, { x: 30, z: 10, kind: 'pole', alive: false }] });
+  ok(O.hit(10, 0.8, 1) === 1 && O.hit(10, 1.3, 1) === 0 && O.hit(10, -0.8, 1) === 1, 'a bush within its radius of a fence touches it');
+  ok(O.hit(41.7, 2.5, 1) === 2 && O.hit(41.7, -3, 1) === 2 && O.hit(41.7, 3.5, 1) === 0, 'a gate keeps its mouth free on both sides');
+  ok(O.hit(100.5, 1.5, 0.5) === 0 && O.hit(100.5, 1, 0.5) === 2, 'a wicket keeps a narrower one');
+  ok(O.hit(20.5, 10, 0.5) === 3 && O.hit(21.5, 20, 0.6) === 3 && O.hit(30, 10, 1) === 0 && O.hit(20, 13, 1) === 0, 'street props: by their kind, the dropped ones not at all');
+  const a = O.settle(10, 0.6, 1), b = O.settle(10, -0.6, 1), c = O.settle(59.5, 0.5, 1);
+  ok(a && a[1] > 1.14 && a[1] < 1.4 && a[0] === 10 && b && b[1] < -1.14, `a bush on a fence is pushed off it, to its own side (${a?.[1].toFixed(2)}, ${b?.[1].toFixed(2)})`);
+  ok(c && c[0] < 58.9 && c[1] > 1.14 && O.hit(c[0], c[1], 1) === 0, 'out of a corner, off both fences');
+  ok(O.settle(41.7, 1, 1) === null && O.settle(10, 0.005, 1) === null && O.settle(5, 5, 1)?.[0] === 5, 'none in a gate\'s mouth, none astride the line; a free bush stays');
+  ok(O.hit(15, 50.5, 1) === 1 && obstacleIndex({ fences: F, skipKinds: ['hedge'] }).hit(15, 50.5, 1) === 0, 'skipKinds leaves a kind of fence out (the hedge blocks stand on the hedge lines)');
 }
 
 // ---- planting on the real map
@@ -181,6 +209,31 @@ const tris = (g) => g.attributes.position.count / 3;
       }
     }
     ok(inHoles > 50 && onPaving === 0, `shrubs grow in the lawns paving encloses, none on the paving (${inHoles} in holes, ${onPaving} on paving)`);
+  }
+
+  // nothing touches a fence or a street prop or blocks a gate, once the layout knows of them
+  {
+    const F = parseFences(JSON.parse(fs.readFileSync(dir + 'map_fences.json'))), log = console.log;
+    console.log = () => {};
+    const street = buildStreet({ scene: new THREE.Group(), data: JSON.parse(fs.readFileSync(dir + 'map_street.json')), map, heightAt: hf.heightAt, ground, solids: createCollisionWorld({ terrain: hf.heightAt }), occ, spots: [], clear: [], detailMat: new THREE.MeshStandardMaterial() });
+    console.log = log;
+    const props = street.props(), O = obstacleIndex({ fences: F, props }), noHedge = obstacleIndex({ fences: F, props, skipKinds: ['hedge'] });
+    const count = (q) => { const c = [0, 0, 0, 0]; for (let i = 0; i < q.length; i += 8) c[O.hit(q[i], q[i + 2], q[i + 4] * FOOT[q[i + 6]])]++; return c; };
+    const was = count(D), t1 = performance.now(), fit = shrubSpots({ map, ground, footprints, occ, clear: hole, obstacles: () => ({ fences: F, props }) }), now = count(fit.data);
+    ok(was[1] > 1000 && was[2] > 500 && was[3] > 50, `without the fences and props: ${was[1]} shrubs touch a fence, ${was[2]} stand in a gate's mouth, ${was[3]} touch a street prop`);
+    ok(now[1] + now[2] + now[3] === 0 && fit.stats.total > 0.94 * N, `with them: none (${fit.stats.moved} moved, ${fit.stats.dropped} left out, ${fit.stats.total} of ${N} shrubs, ${Math.round(performance.now() - t1)} ms)`);
+    let high = 0; const E = fit.data;
+    for (let i = 0; i < E.length; i += 8) { const e = E[i + 4] * 0.35; if (E[i + 1] > Math.min(hf.heightAt(E[i], E[i + 2]), hf.heightAt(E[i] + e, E[i + 2]), hf.heightAt(E[i] - e, E[i + 2]), hf.heightAt(E[i], E[i + 2] + e), hf.heightAt(E[i], E[i + 2] - e)) - 0.01) high++; }
+    ok(high === 0, `every shrub is set into the lowest ground under it (${high} are not)`);
+    // the hedge blocks stand on the fences' hedge lines, and off everything else
+    let bad = 0, onLine = 0; const all = hedgeRows({ ground, occ });
+    for (const s of all) {
+      const L = s.s3[0], hw = s.s3[2] / 2, cs = Math.cos(s.ry), sn = -Math.sin(s.ry); let k = 0;
+      for (let u = -L / 2 + hw; u <= L / 2 - hw + 1e-6 && !k; u += 0.4) k = noHedge.hit(s.x + cs * u, s.z + sn * u, hw);
+      if (k) bad++;
+      if (O.hit(s.x, s.z, 0.2) === 1) onLine++;
+    }
+    ok(bad === 0 && onLine > 0.95 * all.length, `hedge blocks: ${all.length}, ${onLine} on a fence's hedge line, ${bad} touching another fence, a gate's mouth or a prop`);
   }
 
   // hedges

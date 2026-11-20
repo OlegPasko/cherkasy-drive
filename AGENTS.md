@@ -80,8 +80,15 @@ See `ARCHITECTURE.md` for the module map. Where things live:
       Where they grow (`shrubbery.js`): by the walls and in the gardens of private houses (behind the lot's street
       fence: 3.5 m off a carriageway, 5.3 m off a main street), front gardens of the blocks of flats, thuja rows along
       public buildings, belts inside park edges, groups on lawns, OSM scrub / flowerbeds / allotments, clipped lines on
-      some main-street verges. OSM `barrier=hedge` ways are hedge blocks of the tree system (`hedges_data.js`, made by
-      `node tools/cherkasy/build_hedges.mjs` from the raw OSM dump; `map.json` does not carry them).
+      some main-street verges. A bush's mesh foot reaches below its origin and it is set into the lowest ground under
+      it, so none floats on a slope; the flower flecks dim with `daylight.state.night`.
+      The shrubs keep off the other layers (`obstacleIndex` in `shrubbery.js`): one that would touch a fence
+      (`map_fences.json`, which the shrub job fetches and parses itself) or a street prop (`street.props()`) is pushed
+      off it by up to 3 m, one in a gate's mouth is left out; the job waits up to 6 s for both to land and uses what is
+      there. The hedges are hedge blocks of the tree system on the fences' own `hedge` pieces, cut where a block would
+      touch another fence, a gate's mouth or a street prop (`hedges_data.js`, made by
+      `node tools/cherkasy/build_hedges.mjs` from `map_fences.json` and `map_street.json`: run it again after
+      `build_fences.mjs` or `build_street.mjs`).
     - Planting (`cherkasy/greenery.js`): a street is an alley of one species picked by its name (бульвар Шевченка is
       the chestnut alley), limewashed on some streets and in private yards, a young tree here and there; the pine woods
       are Scots pines in two shapes; weeping willows along the Dnipro shore and round the ponds.

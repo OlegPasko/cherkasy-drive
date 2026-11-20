@@ -158,7 +158,7 @@ for (const k of LIVE) Object.defineProperty(TreeItem.prototype, k, {
 });
 
 // ---------------------------------------------------------------------------------------------------------- shader
-const U = { uTime: { value: 0 }, uWind: { value: new Vector3(0.8, 0.6, 1) } };
+const U = { uTime: { value: 0 }, uWind: { value: new Vector3(0.8, 0.6, 1) }, uNight: { value: 0 } }; // uNight: how dark it is (daylight.js state.night)
 // mode: 'N' near / mid tree, 'F' far tree, 'S' shrub. plus: the greenery upgrade's look (off: the picture before it).
 //   Per tree, keyed by its phase and weighted by aLeaf.z (0 at the trunk foot): a squash across a random axis, a
 //   twist, a sweep of the crown and a stretch, so a row of one species is not one stamp. In the fragment: leaf
@@ -225,7 +225,7 @@ if (vFadeIn <= 0.0 || vFadeOut <= 0.0) gl_Position = vec4(2.0, 2.0, 2.0, 1.0);`)
     sh.fragmentShader = sh.fragmentShader
       .replace('#include <common>', `#include <common>
 varying float vFadeIn; varying float vFadeOut;
-${shrub ? 'varying vec4 vFl;' : ''}
+${shrub ? 'varying vec4 vFl; uniform float uNight;' : ''}
 ${plus ? `varying vec3 vLp; varying vec3 vLk;
 float thash(vec3 p) { return fract(sin(dot(p, vec3(12.9898, 78.233, 37.719))) * 43758.5453); }` : ''}
 float bayer2(vec2 a) { a = floor(a); return fract(dot(a, vec2(0.5, a.y * 0.75))); }
@@ -249,7 +249,12 @@ if (vLk.x > 0.5) { // leaves: two skewed cell lattices, small flecks over broad 
     vec3 ff = fract(fq) - 0.5 - (fract(fh * vec3(17.0, 31.0, 57.0)) - 0.5) * 0.26;
     hit = step(dot(ff, ff), 0.04 + 0.09 * fract(fh * 91.0)) * step(1.0 - vFl.w * 0.95, fh);
   }
-  diffuseColor.rgb = mix(diffuseColor.rgb, vFl.rgb, mix(vFl.w * 0.1, hit, vLk.z));` : ''}
+  // by day the tone mapping squeezes a white fleck against the leaves; in the dusk nothing does, and a flower 15
+  // times brighter than its leaf reads as a lit dot: as it gets dark a fleck keeps its hue but comes down to at
+  // most 2.5 times its leaf
+  float lf = dot(vFl.rgb, vec3(0.3, 0.6, 0.1)), ll = dot(diffuseColor.rgb, vec3(0.3, 0.6, 0.1));
+  vec3 fleck = vFl.rgb * mix(1.0, min(1.0, 2.5 * ll / max(lf, 1e-4)), uNight);
+  diffuseColor.rgb = mix(diffuseColor.rgb, fleck, mix(vFl.w * 0.1, hit, vLk.z));` : ''}
 } else if (vLk.z > 0.0 || vLk.y < 1.4) { // bark: long flakes; the limewashed foot
   float col = thash(floor(vec3(vLp.x * 12.0, 0.0, vLp.z * 12.0)));
   float n = thash(floor(vec3(vLp.x * 12.0, vLp.y * 1.6 + col * 5.0, vLp.z * 12.0)));
@@ -637,7 +642,7 @@ export function buildTrees({ scene, spots = [], shrubs = null, plus = true, maxS
     return { x: it._x, z: it._z, y0: it._y - 0.3, y1: it._y + V.trunk.h * it._s * s3[1], r, kind: it.kind, item: it };
   };
   Object.assign(out, {
-    update(dt, camPos, camera) { frame++; U.uTime.value += Number.isFinite(dt) ? dt : 0; if (camera) viewCam = camera; refresh(camPos, false); },
+    update(dt, camPos, camera) { frame++; U.uTime.value += Number.isFinite(dt) ? dt : 0; U.uNight.value = Math.min(1, (getDaylight()?.state?.night ?? 0) * 1.6); if (camera) viewCam = camera; refresh(camPos, false); },
     setCulling(on = true) { if (cullOn !== !!on) { cullOn = !!on; cullDirty = true; } },
     // the graphics quality's draw distances: nothing given = the defaults (LOD); repacks on the next update
     setDetail({ nearOut = LOD.nearOut, midOut = LOD.midOut, farOut = LOD.farOut, shadow = LOD.shadow, shrubNear = LOD.shrubNear, shrubOut = LOD.shrubOut, shrubShadow = LOD.shrubShadow } = {}) {
