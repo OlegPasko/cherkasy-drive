@@ -4,12 +4,20 @@
 // roof-edge anchors are emitted from the same numbers in the same pass.
 //
 // Exports
-//   buildBuildings({ map, solids, zips, heightAt, skip, dress, tile = 256, overhangFlag = 1 }) -> result
+//   buildBuildings({ map, solids, zips, heightAt, skip, dress, tile = 256, overhangFlag = 1, plus = false, roadAt }) -> result
 //   buildBuildingsAsync({ ...same, sliceMs = 40, onProgress(f) }) -> Promise<result>  (time-sliced, yields between slices)
 //     map.buildings[]: { id, p:[x0,z0,...], holes?, k, lv, h?, mh?, rs?, rc?, bc?, tint?, mat?, f?, name?, bt?, am?, row?, parts? }
 //     heightAt(x, z) -> terrain y            skip: Set of ids replaced by hand-made landmarks (not emitted)
-//     dress({ t, S, Z, b, A, outer, holes, base, H, r, pitched }) optional per-building hook (facade kit); S / Z are
-//       the solids / zips arguments as given, t the building's tile
+//     dress({ t, S, Z, b, A, outer, holes, base, H, r, pitched, heightAt, roadAt }) optional per-building hook (facade kit);
+//     roadAt(x, z) -> true on a carriageway (optional, handed to the hook: it keeps porches and steps off the roads);
+//       S / Z are the solids / zips arguments as given, t the building's tile
+//     plus: the city pass's type detail (off for every other caller, whose output stays as it was). Each apartment,
+//       public and industrial building gets A.plus (the facade shader's PLUS bits: panel / brick / stalinka detail,
+//       mixed window frames, downpipes) and A.entr, its entrances [{ i (edge of outer), s (m along it), w, kind
+//       ('K' khrushchevka, 'S' pre-war, 'N' nine-storey porch, 'M' modern lobby, 'P' / 'p' public), v, ww, wh, split }];
+//       the wall is split there into a one-bay STAIR quad (a stair column over the door), and the dress hook puts the
+//       door, steps and canopy under it. These choices draw from their own seeded generator, so the look of everything
+//       else does not depend on the flag.
 //     solids: collision sink, either
 //       - an object with legacy-style methods (as Oleg's modules call them):
 //           box(x0, y0, z0, x1, y1, z1, kind)                         axis-aligned box
@@ -25,14 +33,17 @@
 //       come as boxes, everything else as convex pieces of the footprint (holes respected).
 //     zips: anchor sink, object with edge(ax, az, bx, bz, y, nx, nz, kind) or function({type:'edge', a:[x,z], b:[x,z],
 //       y, n:[nx,nz], kind}); roof edges >= 3 m of buildings taller than 5 m, 12 cm inboard, at the roof top
-//   result = { tiles: Map<key, {fac, det, cx, cz, i, j}>, footprints: [{poly:[[x,z]..], h, kind, name, id}],
+//   result = { tiles: Map<key, {fac, det, near, cx, cz, i, j}>, footprints: [{poly:[[x,z]..], h, kind, name, id}],
 //              boxes: [{min: Vector3, max: Vector3, id}], landmarks: [{name, x, z, h}], stats }
-//     tiles: fac.build() -> facade geometry | null, det.v ? det.build({part: true}) : skip  (kit/batch.js batchTiles)
+//     tiles: fac.build() -> facade geometry | null, det.v ? det.build({part: true}) : skip  (kit/batch.js batchTiles);
+//     near: a second detail builder for what only reads up close (the kit's doors, steps, canopies, AC units): the
+//     city pass draws it within its near distance only; empty unless the dress hook fills it
 //   DP, createDetailMaterial   re-exported from ./materials.js;  TILE = 256
 //   archetype(b, r) -> A        the per-building style record (exported for tests / the facade kit)
+//   typify(b, A, outer, r2)     the `plus` pass on one building: sets A.plus and A.entr (exported for tests)
 import * as THREE from 'three';
 import { MeshBuilder, hexLin, orient, ringArea2, triangulateRings } from '../kit/mesh.js';
-import { FacadeBuilder, STYLE, LAYER } from './facade.js';
+import { FacadeBuilder, STYLE, LAYER, PLUS } from './facade.js';
 import { DP } from './materials.js';
 
 export { DP, createDetailMaterial } from './materials.js';
@@ -191,6 +202,7 @@ export function archetype(b, r) {
         Object.assign(A, { floorH: 2.8, bayW: 3.3, winW: 0.46, winH: 0.53, plinth: 1.2, parapet: 0.9, depth: 0.13, machine: true });
       } else { // point towers, new residential complexes
         const modern = lv >= 17 || r() < 0.3;
+        if (modern) A.modern = 1;
         look = modern ? choose(r, [[2, LOOK.beige], [1, LOOK.terra], [1, LOOK.cream], [1, LOOK.greige]]) : choose(r, [[3, LOOK.panel], [2, LOOK.silicate], [1, LOOK.redBrick]]);
         Object.assign(A, { floorH: modern ? 3.05 : 2.85, bayW: modern ? 2.8 : 3.2, winW: modern ? 0.56 : 0.46, winH: modern ? 0.6 : 0.53, plinth: 1.2, parapet: 1.0, depth: 0.15, machine: true });
         if (modern && r() < 0.3) Object.assign(A, { style: STYLE.CURTAIN, glass: 1 });
@@ -248,6 +260,55 @@ export function archetype(b, r) {
     else if (/^(hipped|pyramidal|half-hipped|hipped-and-gabled|mansard)$/.test(b.rs)) A.roof = 'hip';
     else if (b.rs === 'flat') A.roof = 'flat';
     if (A.roof !== 'flat') { A.roofCol ??= '#8c8f8b'; A.pitch ??= 0.45; A.overhang ??= 0.3; }
+  }
+  return A;
+}
+
+// ---------------------------------------------------------------------------------------------- type detail
+// The `plus` pass (docs/cherkasy-facades.md): what tells a panel series from a brick block or a stalinka, and where
+// the doors are. r2 is its own generator: nothing here moves the archetype's or the kit's random sequence.
+export function typify(b, A, outer, r2) {
+  const lv = A.lv, panel = A.layer === LAYER.CONCRETE, stucco = A.layer === LAYER.STUCCO;
+  const brick = A.layer === LAYER.WHITE || A.layer === LAYER.BUFF || A.layer === LAYER.RED2;
+  let type = 0, frames = 0, pipes = 0;
+  if (b.k === 'apt' && !A.modern && !A.glass) {
+    type = panel ? (lv >= 6 && r2() < 0.5 ? PLUS.TILED : PLUS.PANEL) : brick ? PLUS.BRICK : stucco && lv <= 5 ? PLUS.STALIN : 0;
+    frames = PLUS.FRAMES;
+    // pitched roofs drain down the wall; a flat roof drains inside, but many brick five-storeys got pipes anyway
+    if (A.roof !== 'flat' || (lv <= 5 && !panel && r2() < 0.35)) pipes = PLUS.PIPES;
+  } else if (b.k === 'public' && !A.glass) {
+    type = panel ? PLUS.PANEL : brick ? PLUS.BRICK : stucco && lv <= 3 && r2() < 0.45 ? PLUS.STALIN : 0;
+    if (A.roof !== 'flat') pipes = PLUS.PIPES;
+  } else if (b.k === 'indus') type = panel ? PLUS.PANEL : brick ? PLUS.BRICK : 0;
+  A.plus = type | frames | pipes;
+  A.entr = [];
+  const E = edgesOf(outer), fl = b.f ?? '', flag = (e) => +fl[e[3]] || 0, maxL = Math.max(0, ...E.map((e) => e[2]));
+  if (b.k === 'apt') {
+    // the yard side: a long edge with the lowest street flag (all-shopfront blocks keep their doors in the shop units)
+    const cand = E.filter((e) => e[2] >= (lv <= 2 ? 7 : 10) && e[2] >= 0.6 * maxL);
+    if (!cand.length) return A;
+    const lo = Math.min(...cand.map(flag));
+    if (lo >= 2) return A;
+    const pool = cand.filter((e) => flag(e) === lo), e = pool[Math.floor(r2() * pool.length)], L = e[2];
+    const kind = A.modern || A.glass ? 'M' : lv >= 6 ? 'N' : lv <= 3 && stucco ? 'S' : 'K';
+    // one stair per section: ~17 m in a five-storey block, 20-26 m in a nine-storey one, one lobby in a tower
+    const pitch = lv >= 12 ? 30 : lv >= 6 ? 20 + r2() * 6 : 15.5 + r2() * 3.5;
+    const n = Math.max(1, Math.round(L / pitch)), w = Math.min(kind === 'M' ? 3.6 : kind === 'N' ? 3.1 : 2.7, L / n - 2.4);
+    if (w < 2.2) return A;
+    // stair column: 0 a window per half-landing, STRIP one glazed strip, SCREEN perforated concrete (series 121),
+    // RECESS small windows in a recessed strip (the brick series 87)
+    const v = kind === 'M' ? PLUS.STRIP : kind === 'N' ? (panel ? choose(r2, [[5.5, 0], [3, PLUS.SCREEN], [1.5, PLUS.STRIP]]) : choose(r2, [[6, PLUS.RECESS], [4, 0]]))
+      : kind === 'K' && panel && r2() < 0.25 ? PLUS.STRIP : 0;
+    const [ww, wh] = v === PLUS.STRIP ? [kind === 'M' ? 0.62 : 0.44, 0.5] : v === PLUS.SCREEN ? [0.78, 0.5] : v === PLUS.RECESS ? [0.8 / w, 0.75 / A.floorH]
+      : kind === 'S' ? [1.0 / w, Math.min(0.52, 1.6 / A.floorH)] : kind === 'N' ? [1.5 / w, 1.1 / A.floorH] : [1.25 / w, 1.25 / A.floorH];
+    for (let j = 0; j < n; j++) A.entr.push({ i: e[3], s: ((j + 0.5) / n) * L, w, kind, v, ww, wh, split: !A.glass });
+  } else if (b.k === 'public') {
+    // toward the street: the long edge nearest a road; a block with a shopfront floor on a main street has its doors there
+    const long = E.filter((e) => e[2] >= Math.max(5, 0.5 * maxL));
+    if (!long.length || (lv >= 2 && long.some((e) => flag(e) === 2))) return A;
+    const e = long.reduce((m, q) => (flag(q) > flag(m) || (flag(q) === flag(m) && q[2] > m[2]) ? q : m)), L = e[2];
+    const big = lv >= 2 && L >= 16, w = big ? Math.min(4.4, Math.max(3.4, L * 0.16)) : Math.min(2.6, L - 2);
+    A.entr.push({ i: e[3], s: L / 2, w, kind: big ? 'P' : 'p', v: PLUS.STRIP, ww: big ? 0.7 : 0.5, wh: 0.5, split: A.style !== STYLE.CURTAIN });
   }
   return A;
 }
@@ -343,7 +404,7 @@ function dome(t, E, cx, cz, r, y0, h, col, onion) {
 
 // ---------------------------------------------------------------------------------------------- main
 function* generate(o) {
-  const { map, solids, zips, heightAt = () => 0, skip = null, dress = null, tile = TILE, overhangFlag = 1 } = o;
+  const { map, solids, zips, heightAt = () => 0, skip = null, dress = null, tile = TILE, overhangFlag = 1, plus = false, roadAt = null } = o;
   const t0 = typeof performance !== 'undefined' ? performance.now() : Date.now();
   const E = solidSink(solids, overhangFlag), anchor = anchorSink(zips);
   const tiles = new Map(), footprints = [], boxes = [], landmarks = [];
@@ -351,7 +412,7 @@ function* generate(o) {
   const tileAt = (x, z) => {
     const i = Math.floor(x / tile), j = Math.floor(z / tile), key = i + ',' + j;
     let t = tiles.get(key);
-    if (!t) tiles.set(key, (t = { key, i, j, cx: (i + 0.5) * tile, cz: (j + 0.5) * tile, fac: new FacadeBuilder(), det: new MeshBuilder() }));
+    if (!t) tiles.set(key, (t = { key, i, j, cx: (i + 0.5) * tile, cz: (j + 0.5) * tile, fac: new FacadeBuilder(), det: new MeshBuilder(), near: new MeshBuilder() }));
     return t;
   };
   const list = map.buildings ?? [];
@@ -378,6 +439,7 @@ function* generate(o) {
     const r = seeded(b.id);
     b.area = Math.abs(ringArea2(outer)) / 2 - holes.reduce((s, h) => s + Math.abs(ringArea2(h)) / 2, 0);
     const A = archetype(b, r);
+    if (plus && (b.k === 'apt' || b.k === 'public' || b.k === 'indus') && !b.parts?.length && !b.mh) typify(b, A, outer, seeded(b.id + 77773));
     const [ix, iz] = interiorPoint(outer, holes);
     const t = tileAt(ix, iz), F = t.fac;
     // relief: the grid counts from the mean ground (+ kerb), walls reach below the lowest corner
@@ -390,13 +452,24 @@ function* generate(o) {
     const facadeOf = Object.fromEntries(FACADE_KEYS.map((key) => [key, A[key]]));
     const wallP = (floorLine, top, extra = {}) => Object.assign({}, facadeOf, { seed, baseY: floorLine, topY: top }, extra);
     const shopKind = (b.k === 'apt' || b.k === 'public') && A.lv >= 2;
-    const walls = (rings, y0, top, p, flagsStr, noShop) => {
+    // entr (A.entr, the outer ring only): the edge is cut at each entrance, which gets a one-bay stair column
+    const walls = (rings, y0, top, p, flagsStr, noShop, entr = null) => {
       const plain = -(A.plinth + A.floorH), shopH = Math.max(3.6, A.plinth + A.floorH);
       rings.forEach((R, ri) => edgesOf(R).forEach(([a, c, len, i]) => {
         if (len < 0.05) return;
         const street = ri === 0 && flagsStr ? flagsStr[i] : '0'; // '2' = main street edge (build_map.mjs)
         const style = len < 2.2 && A.style !== STYLE.CURTAIN ? STYLE.BLANK : A.style;
-        F.wall(a[0], a[1], c[0], c[1], y0, top, p, style, !noShop && shopKind && street === '2' ? shopH : plain);
+        const gH = !noShop && shopKind && street === '2' ? shopH : plain;
+        const cuts = ri === 0 && entr ? entr.filter((q) => q.i === i && q.split).sort((q, w) => q.s - w.s) : null;
+        if (!cuts?.length) { F.wall(a[0], a[1], c[0], c[1], y0, top, p, style, gH); return; }
+        const ux = (c[0] - a[0]) / len, uz = (c[1] - a[1]) / len;
+        let s0 = 0, u0 = 0;
+        const seg = (s1, q, st, g) => { if (s1 - s0 > 0.05) F.wall(a[0] + ux * s0, a[1] + uz * s0, a[0] + ux * s1, a[1] + uz * s1, y0, top, { ...q, u0 }, st, g); s0 = s1; u0 += 40; };
+        for (const q of cuts) {
+          seg(q.s - q.w / 2, p, style, gH);
+          seg(q.s + q.w / 2, { ...p, bayW: q.w, winW: q.ww, winH: q.wh, plus: (p.plus & 31) | q.v }, STYLE.STAIR, plain);
+        }
+        seg(len, p, style, gH);
       }));
     };
     const summary = (top, y0 = yB) => {
@@ -467,13 +540,13 @@ function* generate(o) {
     const floorY = mh ? y0 : g0 - 0.15;
     let H = g0 + mh + (pitched ? Eh - A.parapet : Eh);
     if (pitched && b.h != null) H = g0 + Math.max(A.floorH, b.h - Math.min(6, (box.W / 2) * (A.pitch ?? 0.5)));
-    const p = wallP(floorY, H);
+    const p = wallP(floorY, H, A.plus ? { plus: A.plus } : {});
     const noShop = b.k === 'house' || b.k === 'shed' || b.k === 'garage';
-    walls([outer, ...holes], y0, H, p, b.f, noShop);
+    walls([outer, ...holes], y0, H, p, b.f, noShop, A.entr);
     massSolids(E, outer, holes, y0, H, 'wall');
     let top = H;
     if (pitched) {
-      top = pitchedRoof(t, E, box, H, A, { ...p, tint: A.tint.map((v, i) => v * [0.8, 0.78, 0.75][i]) });
+      top = pitchedRoof(t, E, box, H, A, { ...p, plus: 0, tint: A.tint.map((v, i) => v * [0.8, 0.78, 0.75][i]) });
     } else {
       const par = A.parapet >= 0.3 ? Math.min(A.parapet, 1.0) : 0;
       const roofY = H - par * 0.85;
@@ -481,7 +554,7 @@ function* generate(o) {
       const layer = noShop ? LAYER.ROOF_MEMBRANE : choose(r, [[3, LAYER.ROOF_MEMBRANE], [2, LAYER.ROOF], [1, LAYER.ROOF_GRAVEL]]);
       F.fill(outer, holes, roofY, { layer, tint: [rk, rk, rk * 0.98] });
       if (par > 0) { // inner face of the parapet
-        const ip = { ...p, tint: A.tint.map((v) => v * 0.82) };
+        const ip = { ...p, plus: 0, tint: A.tint.map((v) => v * 0.82) };
         for (const R of [outer, ...holes]) for (const [a, c] of edgesOf(R)) F.wall(c[0], c[1], a[0], a[1], roofY, H, ip, STYLE.BLANK, -0.01); // reversed: faces the roof
       }
       if (b.k !== 'shed' && b.k !== 'garage' && H - g0 > 5) roofAnchors(anchor, [outer, ...holes], H);
@@ -491,7 +564,7 @@ function* generate(o) {
       if (rect && rect.W > (lift ? 9 : 8)) {
         const [pitch, hl, hw, bh, shade] = lift ? [17, 1.6, 2.9, 2.8, 0.94] : [16, 0.9, 1.1, 1.6, 0.9];
         const count = Math.min(6, Math.max(1, Math.round(rect.L / pitch)));
-        const bp = { ...p, tint: A.tint.map((v) => v * shade), baseY: roofY, topY: roofY + bh };
+        const bp = { ...p, plus: 0, tint: A.tint.map((v) => v * shade), baseY: roofY, topY: roofY + bh };
         const at = (s, a, c) => [rect.cx + rect.ux * (s + a) - rect.uz * c, rect.cz + rect.uz * (s + a) + rect.ux * c];
         for (let k = 0; k < count; k++) {
           const s = ((k + 0.5) / count - 0.5) * rect.L;
@@ -504,7 +577,7 @@ function* generate(o) {
       }
     }
     if (dress) {
-      try { dress({ t, S: solids, Z: zips, b, A, outer, holes, base: mh ? g0 + mh : g0, H, r, pitched }); }
+      try { dress({ t, S: solids, Z: zips, b, A, outer, holes, base: mh ? g0 + mh : g0, H, r, pitched, heightAt, roadAt }); }
       catch (e) { if (!stats.dressErrors++) console.warn('[buildings] dress hook failed', e); }
     }
     summary(top, y0);
