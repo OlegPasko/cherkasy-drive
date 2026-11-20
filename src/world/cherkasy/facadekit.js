@@ -1,7 +1,8 @@
 // OWNER: cherkasy (facade kit). Per-building street-level / facade dressing for the Cherkasy typology, called once per
 // extruded building by buildings.js after its walls and roof are emitted.
-//   dressBuilding({ t, S, Z, b, A, outer, holes, base, H, r, pitched })
-//     t.fac: FacadeBuilder of the building's tile (facade shader), t.det: MB of the tile (detail material, DP parts)
+//   dressBuilding({ t, S, Z, b, A, outer, holes, base, H, r, pitched, heightAt?, roadAt? })
+//     t.fac: FacadeBuilder of the building's tile (facade shader), t.det: MB of the tile (detail material, DP parts),
+//     t.near: MB for what only reads up close (drawn within ~220 m, cherkasy/buildings.js)
 //     S: Solids (collision), Z: ZipPoints, b: map building record, A: archetype (buildings.js), outer / holes: rings
 //     [[x,z],...] (outer ccw in the map sense: outward normal of edge a->b is (dz, -dx) / L), base: wall bottom y,
 //     H: wall top y, r(): seeded random, pitched: roof is pitched (no flat-roof clutter)
@@ -16,8 +17,19 @@
 // stripe: 2 vertices per level, parapet + glass quads share rows and the flat 'part' varying is taken from each
 // triangle's provoking (last) vertex, so a row can carry the parapet colour for the quad above it while its part says
 // GLASS for the glazing quad that starts there (GLASS ignores vertex colour). Small props get no collision.
+// Entrances (docs/cherkasy-facades.md; only when the generator ran its `plus` pass, which plans them as A.entr and
+// puts a stair column in the wall over each): 'K' a khrushchevka's door in a proud portal on a low landing, under a
+// concrete slab (bare, on pipe posts or between cheek walls) or a sheet visor; 'S' a pre-war house's panelled door in a
+// plaster architrave under a small gable or a hood; 'N' a nine-storey block's porch (cheek walls, a deep slab, steps,
+// sometimes closed into a vestibule); 'M' a new block's glazed lobby under a steel canopy; 'P' / 'p' a public
+// building's glazed doors up a wide stair under a slab on piers, toward the street; industrial sheds get steel gates
+// with a wicket and a staff door. A lamp over most doors (DP.LIGHT), an address plate, a bench by some. All of it, and
+// the AC units and dishes, goes to t.near; only the canopies, porches and public stairs collide. An entrance is built
+// only where its whole footprint is free (`fits`: no other building, no carriageway by roadAt(x, z), ground its steps
+// can meet); a porch or a public stair that does not fit falls back to a plain door, else the wall stays blank.
 // ?nokit skips the kit (A/B); the build prints one '[cherkasy] facadekit:' summary line (vertices / solids / ms).
 import { DP } from '../materials.js';
+import { LAYER } from '../facade.js';
 import { area2, inPoly, bboxOf } from './geo.js';
 
 const hexL = (h) => { const n = parseInt(h.slice(h[0] === '#' ? 1 : 0), 16); return [16, 8, 0].map((sh) => (((n >> sh) & 255) / 255) ** 2.2); }; // '#rrggbb' -> linear (gamma 2.2)
@@ -42,10 +54,11 @@ const DISH = [[3, hexL('#D8D8D2')], [1, hexL('#9FA3A6')], [0.4, hexL('#3A3C3E')]
 let cur = null;
 function begin(S) {
   if (cur && cur.S === S) return cur;
-  cur = { S, grid: new Map(), n: 0, v: 0, s: 0, ms: 0, c: { bal: 0, loggia: 0, ac: 0, dish: 0, ant: 0, ent: 0, shop: 0, gar: 0, gas: 0, ins: 0 } };
+  cur = { S, grid: new Map(), n: 0, v: 0, vn: 0, s: 0, ms: 0, c: { bal: 0, loggia: 0, ac: 0, dish: 0, ant: 0, ent: 0, shop: 0, gar: 0, gas: 0, ins: 0, pub: 0, gate: 0, bench: 0, lamp: 0 } };
   const C = cur;
   setTimeout(() => console.log(`[cherkasy] facadekit: ${C.n} buildings dressed, +${(C.v / 1e3).toFixed(0)}k verts, +${C.s} solids, ${C.ms.toFixed(0)} ms `
-    + `(${C.c.bal} stripes / ${C.c.loggia} loggias, ${C.c.ac} AC, ${C.c.dish} dishes, ${C.c.ant} antennas, ${C.c.ent} entrances, ${C.c.shop} shop units, ${C.c.gar} garage doors, ${C.c.gas} gas pipes, ${C.c.ins} insulated flats)`), 0);
+    + `(${C.c.bal} stripes / ${C.c.loggia} loggias, ${C.c.ac} AC, ${C.c.dish} dishes, ${C.c.ant} antennas, ${C.c.ent} entrances, ${C.c.shop} shop units, ${C.c.gar} garage doors, ${C.c.gas} gas pipes, ${C.c.ins} insulated flats`
+    + (C.vn ? `; near: ${(C.vn / 1e3).toFixed(0)}k of the verts, ${C.c.pub} public doors, ${C.c.gate} gates, ${C.c.bench} benches, ${C.c.lamp} door lamps)` : ')')), 0);
   return C;
 }
 const GC = 32;
@@ -100,6 +113,19 @@ function bays(e, A) {
   const m = A.margin ?? 0.6, us = e.L - 2 * m, nb = Math.max(1, Math.floor(us / A.bayW + 0.5)), bw = us / nb;
   const c = []; for (let i = 0; i < nb; i++) c.push(e.L - m - (i + 0.5) * bw);
   return { c, bw };
+}
+// the same with the generator's `plus` pass: the bays as the shader really lays them (FacadeBuilder.quad), wall segment
+// by wall segment between the stair columns of A.entr, so balconies sit on their windows and none crosses a stair
+function segBays(e, A) {
+  const cuts = A.entr.filter((q) => q.i === e.i && q.split).sort((a, b) => a.s - b.s), c = [], bw = [];
+  let s0 = 0;
+  const seg = (s1) => {
+    const len = s1 - s0, nb = len >= A.bayW * 0.62 ? Math.max(1, Math.round(len / A.bayW)) : 0;
+    for (let j = 0; j < nb; j++) { c.push(s0 + (j + 0.5) * len / nb); bw.push(len / nb); }
+  };
+  for (const q of cuts) { seg(q.s - q.w / 2); s0 = q.s + q.w / 2; }
+  seg(e.L);
+  return { c: c.reverse(), bw: bw.reverse() };
 }
 
 // ---------------------------------------------------------------------------------------------- loggia stripe
@@ -168,7 +194,7 @@ function dish(D, e, s, o, y, r) {
 }
 
 // ---------------------------------------------------------------------------------------------- per-kind dressing
-function dressApt(C, D, S, b, A, outer, sg, base, H, r, pitched, fl) {
+function dressApt(C, D, Dn, S, b, A, outer, sg, base, H, r, pitched, fl, gAt) {
   const E = ringFrames(outer, sg, fl), maxL = Math.max(0, ...E.map((e) => e.L));
   const fh = A.floorH;
   const gOf = (e) => (e.f === '2' ? Math.max(A.gH, 3.6) : A.plinth + fh);
@@ -182,11 +208,11 @@ function dressApt(C, D, S, b, A, outer, sg, base, H, r, pitched, fl) {
       if (side && e !== side) continue;
       const g = gOf(e), nf = Math.min(b.lv - 1, Math.floor((H - base - g - (pitched ? 0 : A.parapet)) / fh + 0.05));
       if (nf < 2) continue;
-      const { c, bw } = bays(e, A), ph = Math.floor(r() * per), hw = Math.min(1.55, bw * 0.47);
+      const B0 = A.entr ? null : bays(e, A), { c, bw } = B0 ? { c: B0.c, bw: B0.c.map(() => B0.bw) } : segBays(e, A), ph = Math.floor(r() * per);
       const y0 = base + g, used = new Set();
       for (let k = 1; k < c.length - 1; k++) {
         if ((k + ph) % per) continue;
-        const sc = c[k];
+        const sc = c[k], hw = Math.min(1.55, bw[k] * 0.47);
         const a1 = W(e, sc - hw, dp + 0.1, 0), a2 = W(e, sc + hw, dp + 0.1, 0);
         if (inPoly(outer, a1[0], a1[2]) || inPoly(outer, a2[0], a2[2]) || blocked(C, a1[0], a1[2]) || blocked(C, a2[0], a2[2])) continue;
         const open = loggiaStripe(D, e, sc, hw, dp, y0, fh, nf, r);
@@ -195,18 +221,18 @@ function dressApt(C, D, S, b, A, outer, sg, base, H, r, pitched, fl) {
         // props on the balcony fronts: an AC unit or a dish on the parapet of some floors
         for (let j = 0; j < nf; j++) {
           const u = r();
-          if (u < 0.04) { acUnit(D, e, sc + (r() < 0.5 ? -1 : 1) * (hw - 0.55), dp, y0 + j * fh + 0.12, r); C.c.ac++; }
-          else if (u < 0.11 && !open[j]) { dish(D, e, sc + (r() - 0.5) * hw, dp + 0.25, y0 + j * fh + 0.55, r); C.c.dish++; }
+          if (u < 0.04) { acUnit(Dn, e, sc + (r() < 0.5 ? -1 : 1) * (hw - 0.55), dp, y0 + j * fh + 0.12, r); C.c.ac++; }
+          else if (u < 0.11 && !open[j]) { dish(Dn, e, sc + (r() - 0.5) * hw, dp + 0.25, y0 + j * fh + 0.55, r); C.c.dish++; }
         }
       }
       // wall-hung AC units / dishes next to the windows of the bays without loggias
-      const wwH = bw * A.winW / 2;
       for (let k = 0; k < c.length; k++) {
-        if (used.has(k) || used.has(k - 1) && hw > bw / 2 || used.has(k + 1) && hw > bw / 2) continue;
+        if (used.has(k)) continue;
+        const wwH = bw[k] * A.winW / 2;
         for (let j = 0; j < nf; j++) {
           const u = r(), yb = y0 + j * fh;
-          if (u < 0.032) { acUnit(D, e, c[k] + (r() < 0.5 ? -1 : 1) * Math.min(wwH + 0.5, bw / 2 - 0.42), 0, yb + fh * 0.2, r); C.c.ac++; }
-          else if (u < 0.052) { dish(D, e, c[k] + (r() < 0.5 ? -1 : 1) * Math.min(wwH + 0.45, bw / 2 - 0.4), 0.35, yb + fh * 0.55, r); C.c.dish++; }
+          if (u < 0.032) { acUnit(Dn, e, c[k] + (r() < 0.5 ? -1 : 1) * Math.min(wwH + 0.5, bw[k] / 2 - 0.42), 0, yb + fh * 0.2, r); C.c.ac++; }
+          else if (u < 0.052) { dish(Dn, e, c[k] + (r() < 0.5 ? -1 : 1) * Math.min(wwH + 0.45, bw[k] / 2 - 0.4), 0.35, yb + fh * 0.55, r); C.c.dish++; }
         }
       }
       // (car) insulation patches: single flats wrapped in painted foam by their owners (a 1-3 bay x 1 floor slab 10 cm
@@ -214,14 +240,28 @@ function dressApt(C, D, S, b, A, outer, sg, base, H, r, pitched, fl) {
       const nP = Math.round(c.length * nf * (0.022 + r() * 0.03) * INS_K);
       for (let q = 0; q < nP; q++) {
         const span = r() < 0.4 ? 1 : r() < 0.75 ? 2 : 3, k0 = Math.floor(r() * (c.length - span + 1)), j = Math.floor(r() * nf);
-        let clash = false; for (let k = k0; k < k0 + span; k++) if (used.has(k)) clash = true;
+        let clash = c[k0] - c[k0 + span - 1] > (span - 1) * bw[k0] + 0.1; // a stair column in between
+        for (let k = k0; k < k0 + span; k++) if (used.has(k)) clash = true;
         if (clash) continue;
-        insulation(D, e, c, k0, span, bw, A, y0 + j * fh, fh, r); C.c.ins++;
+        insulation(D, e, c, k0, span, bw[k0], A, y0 + j * fh, fh, r); C.c.ins++;
       }
     }
   }
-  // ---- entrance canopies + doors on the courtyard side (the long edge with the lowest street flag)
-  if (b.k === 'apt' && b.lv >= 3) {
+  // ---- entrances: as the generator planned them (A.entr, under their stair columns), else the old canopies + doors on
+  // the courtyard side (the long edge with the lowest street flag)
+  if (b.k === 'apt' && A.entr) {
+    const dcol = pick(r, A.entr[0]?.kind === 'S' ? WOODDOOR : ENTRY);
+    for (const q0 of A.entr) {
+      const e = E[q0.i], q = e && fitted(C, e, outer, q0, base, gAt);
+      if (!q) continue;
+      const cw = entrance(C, Dn, S, e, q, A, base, gAt, r, dcol);
+      C.c.ent++;
+      const sd = r() < 0.5 ? -1 : 1, sb = q.s + sd * (cw + 1.3);
+      if (q.kind !== 'M' && r() < 0.4 && sb > 1.5 && sb < e.L - 1.5 && !A.entr.some((o) => o !== q0 && o.i === q.i && Math.abs(o.s - sb) < 4)) {
+        if (fits(C, e, outer, sb, 0.85, 0.7, base, gAt)) { bench(Dn, e, sb, 0.22, groundAt(gAt, e, sb, base), r); C.c.bench++; }
+      }
+    }
+  } else if (b.k === 'apt' && b.lv >= 3) {
     const cand = E.filter(e => e.L >= 10 && e.L >= 0.6 * maxL);
     const lo = Math.min(...cand.map(e => +e.f));
     if (cand.length && lo < 2) { // all-shopfront blocks: entrances are in the storefront units
@@ -322,6 +362,219 @@ function insulation(D, e, c, k0, span, bw, A, yb, fh, r) {
   if (s1 - prev > 0.05) ebox(D, e, prev, s1, 0, t, oy0, oy1, 1 | 4 | 8);
 }
 
+// ---------------------------------------------------------------------------------------------- entrances (plus)
+const TRIM = hexL('#DAD6CB'), LAMP = [1.0, 0.8, 0.5], PLATE = hexL('#2B4F9E'), PLAQUE = hexL('#5E1F28'), ANTH = hexL('#2B2E31'), POST = hexL('#3A3D40');
+const FRAMEC = [[3, hexL('#C9C6BE')], [2, hexL('#8A8C8A')], [1.5, hexL('#4A3A30')], [1, hexL('#3E5A44')], [1, hexL('#E6E4DC')]];
+const WOODDOOR = [[3, hexL('#5B3A2E')], [2, hexL('#6E3A2A')], [1.5, hexL('#3E5A44')], [1, hexL('#7A5536')], [1, hexL('#8A8C8A')]];
+const PUBFRAME = [[3, hexL('#8A8C8A')], [2, hexL('#5B3A2E')], [2, hexL('#E6E4DC')], [1, hexL('#2E3134')]];
+const GATE = [[3, hexL('#7C7F80')], [2, hexL('#3F6147')], [2, hexL('#3F5F86')], [2, hexL('#6B3A2A')], [1, hexL('#8A4A2A')], [1, hexL('#4A4D50')]];
+const VISOR = [[2, hexL('#8e9296')], [1, hexL('#6b2f2a')], [1, hexL('#3f6147')], [1, hexL('#5a3b2d')]];
+const BENCH = [[2, WOODC], [1, hexL('#3F6147')], [1, hexL('#4A6C9A')], [1, BROWNS]];
+// the ground in front of a door (the building's floor line follows its mean ground: on a slope a door stands lower)
+// an entrance's footprint (s +- hw along the wall, out to dep) must stand on open ground: clear of this building's other
+// wings and of its neighbours, off the carriageways (C.roadAt), and on ground its steps can meet - not most of a storey
+// under the floor line, not buried in a slope
+function fits(C, e, outer, s, hw, dep, base, gAt) {
+  for (const o of [dep * 0.5, dep]) for (const ds of [-hw, 0, hw]) {
+    const p = W(e, s + ds, o, 0);
+    if (inPoly(outer, p[0], p[2]) || blocked(C, p[0], p[2]) || C.roadAt?.(p[0], p[2])) return false;
+  }
+  const p = W(e, s, 0.9, 0), y = gAt ? gAt(p[0], p[2]) : NaN;
+  return !Number.isFinite(y) || (y > base - 2.2 && y < base + 1.5);
+}
+// [half width, depth] an entrance kind takes up in front of the wall, with its steps
+const REACH = { K: () => [1.3, 1.3], S: () => [1.3, 1.3], N: () => [2.0, 2.6], M: (q) => [Math.min(1.7, q.w / 2) + 0.5, 1.9], P: (q) => [q.w / 2 + 1.1, 3.5], p: () => [1.4, 1.2] };
+// the planned entrance if it fits, else a shallower one in its place: a porch or a public stair by a driveway becomes a
+// plain door, and a door with a driveway right along the wall keeps only a doorstep under an overhead canopy (`flat`:
+// nothing on the ground past 0.55 m, no cheek walls or posts); else none
+function fitted(C, e, outer, q, base, gAt) {
+  const k = q.kind, tries = k === 'N' ? ['N', 'K', 'K_'] : k === 'P' ? ['P', 'p', 'p_'] : k === 'M' ? ['M'] : [k, k + '_'];
+  for (const t of tries) {
+    const kind = t[0], flat = t.length > 1, [hw, dep] = flat ? [1.3, 0.55] : REACH[kind](q);
+    if (q.s - hw > 0.2 && q.s + hw < e.L - 0.2 && fits(C, e, outer, q.s, hw, dep, base, gAt)) return kind === k && !flat ? q : { ...q, kind, flat };
+  }
+  return null;
+}
+// the ground a door stands on: the terrain 0.9 m out of the wall, kept within reach of the floor line (base): a door
+// follows a slope down to 1.6 m under it and up to `hi` over it (the blank foot of the stair column has that much room)
+function groundAt(gAt, e, s, base, hi = 0.9) {
+  const p = W(e, s, 0.9, 0), y = gAt ? gAt(p[0], p[2]) : NaN;
+  return Number.isFinite(y) ? Math.max(base - 1.6, Math.min(base + hi, y)) : base - 0.15;
+}
+// bench along the wall: a plank seat and back on two concrete legs
+function bench(D, e, s, o, y, r) {
+  D.setPart(DP.WOOD).setColor(jit(pick(r, BENCH), r));
+  ebox(D, e, s - 0.85, s + 0.85, o, o + 0.38, y + 0.4, y + 0.46, 1 | 16);
+  ebox(D, e, s - 0.85, s + 0.85, o - 0.05, o, y + 0.62, y + 0.86, 1);
+  D.setPart(DP.CONC).setColor(CONC);
+  for (const k of [-0.65, 0.65]) ebox(D, e, s + k - 0.06, s + k + 0.06, o + 0.02, o + 0.36, y - 0.4, y + 0.4, 1 | (k < 0 ? 4 : 8));
+}
+// one entrance q of A.entr on edge frame e; returns its half width. dcol: the building's door colour
+function entrance(C, D, S, e, q, A, base, gAt, r, dcol) {
+  const s = q.s, k = q.kind, yg = groundAt(gAt, e, s, base);
+  const B = (s0, s1, o0, o1, y0, y1, f) => ebox(D, e, s0, s1, o0, o1, y0, y1, f);
+  const part = (pt, c, j = 0.05) => D.setPart(pt).setColor(j ? jit(c, r, j) : c);
+  const G = (o, s0, s1, y0, y1) => B(Math.min(s0, s1), Math.max(s0, s1), o, o + 0.02, y0, y1, 1); // a pane (the part is set by the caller)
+  const lamp = (hw, o0, o1, y0, y1, f = 1 | 32, p = 0.75) => { if (r() < p) { part(DP.LIGHT, LAMP, 0); B(s - hw, s + hw, o0, o1, y0, y1, f); C.c.lamp++; } };
+  const plate = (s0, o, y, w = 0.5, h = 0.22, c = PLATE) => { if (r() < 0.7) { part(DP.PAINT, c, 0.03); B(s0, s0 + w, o, o + 0.025, y, y + h, 1); } };
+  const solid = (hw, o1, y0, y1, kind, fl) => eprism(S, e, s - hw, s + hw, -0.05, o1, y0, y1, kind, fl);
+  if (k === 'K' || k === 'S') {
+    const old = k === 'S', dw = old ? 0.62 : 0.66, hD = old ? 2.3 : 2.06, st = 0.13 + r() * 0.15, cw = 1.15 + r() * 0.15, yT = yg + st;
+    part(DP.CONC, CONC); B(s - cw, s + cw, 0, q.flat ? 0.55 : 1.2, yg - 1.0, yT, 1 | 4 | 8 | 16);          // landing
+    // portal: jambs and a lintel proud of the wall, so the leaves sit in a reveal
+    const fw = old ? 0.2 : 0.11, fd = old ? 0.16 : 0.12, yL = yT + hD + 0.3;
+    part(DP.PAINT, old ? TRIM : pick(r, FRAMEC));
+    B(s - dw - fw, s - dw, 0, fd, yT, yL + fw, 1 | 8); B(s + dw, s + dw + fw, 0, fd, yT, yL + fw, 1 | 4);
+    B(s - dw, s + dw, 0, fd, yL, yL + fw, 1 | 32);
+    // a wooden pair of leaves, or a new steel door with a fixed side panel; a transom light over them (often boarded up)
+    const sp = old ? 0 : (r() < 0.5 ? 0.24 : -0.24);
+    part(DP.PAINT, dcol); B(s - dw, s + sp, 0, 0.03, yT, yT + hD, 1);
+    part(DP.PAINT, dcol.map((v) => v * 0.8), 0.03); B(s + sp, s + dw, 0, 0.03, yT, yT + hD, 1);
+    if (old || r() < 0.5) D.setPart(DP.GLASS);
+    B(s - dw, s + dw, 0, 0.03, yT + hD, yL, 1);
+    const yc = yL + fw + 0.07, ct = old ? (r() < 0.55 ? 'gable' : 'hood') : pick(r, q.flat ? [[4, 'slab'], [2, 'sheet']] : [[4, 'slab'], [3, 'posts'], [2.5, 'cheeks'], [2, 'sheet']]);
+    if (ct === 'gable') { // a sheet-metal gable on two cleats
+      const hg = dw + 0.5, dG = 0.95, rise = 0.42, nl = Math.hypot(rise, hg);
+      part(r() < 0.5 ? DP.GALV : DP.PAINT, pick(r, VISOR));
+      for (const sd of [-1, 1]) {
+        const P = [W(e, s + sd * hg, 0, yc), W(e, s + sd * hg, dG, yc), W(e, s, dG, yc + rise), W(e, s, 0, yc + rise)], ns = sd * rise / nl, ny = hg / nl;
+        q4(D, ...P, e.ux * ns, ny, e.uz * ns); q4(D, ...P, -e.ux * ns, -ny, -e.uz * ns);
+      }
+      part(DP.WOOD, WOODC);
+      for (const sd of [-1, 1]) B(s + sd * (hg - 0.12) - 0.035, s + sd * (hg - 0.12) + 0.035, 0, 0.07, yc - 0.55, yc + 0.05, 1 | (sd < 0 ? 4 : 8));
+    } else if (ct === 'hood') { // a plaster hood on two brackets
+      part(DP.PAINT, TRIM); B(s - dw - 0.42, s + dw + 0.42, 0, 0.5, yc, yc + 0.1, 1 | 4 | 8 | 16 | 32);
+      for (const sd of [-1, 1]) B(s + sd * (dw + 0.26) - 0.06, s + sd * (dw + 0.26) + 0.06, 0, 0.3, yc - 0.3, yc, 1 | (sd < 0 ? 4 : 8));
+    } else if (ct === 'sheet') { // a new profiled-sheet visor: a sloped sheet with a lip, seen from both sides
+      const P = [W(e, s - cw, 0, yc + 0.34), W(e, s + cw, 0, yc + 0.34), W(e, s + cw, 1.05, yc), W(e, s - cw, 1.05, yc)], sl = 0.31, cs = 0.95;
+      part(r() < 0.5 ? DP.GALV : DP.PAINT, pick(r, VISOR));
+      q4(D, ...P, e.nx * sl, cs, e.nz * sl); q4(D, ...P, -e.nx * sl, -cs, -e.nz * sl);
+      B(s - cw, s + cw, 1.03, 1.05, yc - 0.08, yc, 1 | 2);
+      solid(cw, 1.05, yc, yc + 0.34, 'awning', 1);
+    } else { // the concrete slab: bare, on two pipe posts, or between cheek walls
+      part(DP.CONC, CONC); B(s - cw, s + cw, 0, 1.25, yc, yc + 0.14, 1 | 4 | 8 | 16 | 32);
+      if (ct === 'posts') { part(DP.STEEL, POST, 0); for (const sd of [-1, 1]) B(s + sd * (cw - 0.1) - 0.03, s + sd * (cw - 0.1) + 0.03, 1.1, 1.16, yg - 0.5, yc, 1 | 4 | 8); }
+      if (ct === 'cheeks') {
+        if (A.layer === LAYER.CONCRETE || A.layer === LAYER.STUCCO) part(DP.CONC, FIN); else part(DP.BRICK, A.layer === LAYER.RED2 ? hexL('#8E4A3A') : A.layer === LAYER.BUFF ? hexL('#C9A86A') : hexL('#CFCCC3'));
+        B(s - cw, s - cw + 0.2, 0, 1.1, yg - 1.0, yc, 1 | 4 | 8); B(s + cw - 0.2, s + cw, 0, 1.1, yg - 1.0, yc, 1 | 4 | 8);
+        solid(cw, 1.25, yg - 0.5, yc + 0.14, 'wall', 0);
+      } else solid(cw, 1.25, yc, yc + 0.14, 'awning', 1);
+    }
+    lamp(0.13, fd, fd + 0.09, yL + 0.015, yL + fw - 0.015);
+    plate(s + dw + fw + 0.18, 0, yT + 1.75);
+    return cw;
+  }
+  if (k === 'N') { // a porch: landing and steps, cheek walls, a deep slab; every third closed into a vestibule
+    const st = 0.38 + r() * 0.25, hw = 1.55 + r() * 0.2, dep = 1.9, yT = yg + st, yc = yT + 2.55, od = r() < 0.35 ? dep - 0.12 : 0;
+    part(DP.CONC, CONC); B(s - hw, s + hw, 0, dep, yg - 1.0, yT, 1 | 4 | 8 | 16);
+    for (const j of [1, 2]) B(s - hw, s + hw, dep + (j - 1) * 0.3, dep + j * 0.3, yg - 1.0, yT - j * st / 3, 1 | 16);
+    if (A.layer === LAYER.CONCRETE || A.layer === LAYER.STUCCO) part(DP.CONC, FIN); else part(DP.BRICK, A.layer === LAYER.RED2 ? hexL('#8E4A3A') : A.layer === LAYER.BUFF ? hexL('#C9A86A') : hexL('#CFCCC3'));
+    B(s - hw, s - hw + 0.22, 0, dep - 0.1, yT, yc, 1 | 4 | 8); B(s + hw - 0.22, s + hw, 0, dep - 0.1, yT, yc, 1 | 4 | 8);
+    if (od) B(s - hw + 0.22, s + hw - 0.22, 0, od, yT, yc, 1);
+    part(DP.CONC, SLAB); B(s - hw - 0.25, s + hw + 0.25, 0, dep + 0.35, yc, yc + 0.18, 1 | 4 | 8 | 16 | 32);
+    part(DP.PAINT, pick(r, FRAMEC)); B(s - 1.0, s + 1.0, od, od + 0.05, yT, yT + 2.38, 1);
+    part(DP.PAINT, dcol); B(s - 0.93, s - 0.015, od + 0.05, od + 0.07, yT + 0.02, yT + 2.04, 1);
+    part(DP.PAINT, dcol, 0.03); B(s + 0.015, s + 0.93, od + 0.05, od + 0.07, yT + 0.02, yT + 2.04, 1);
+    D.setPart(DP.GLASS); G(od + 0.05, s - 0.93, s + 0.93, yT + 2.09, yT + 2.33);
+    lamp(0.14, od + 0.05, od + 0.16, yT + 2.4, yT + 2.5);
+    plate(s + 1.05, od, yT + 1.7, Math.min(0.5, hw - 1.3));
+    if (od) solid(hw, dep, yg - 0.5, yc + 0.18, 'wall', 0); // a closed vestibule is one block
+    else { // an open porch: the landing, the two cheeks and the slab overhead, so the way to the door stays free
+      solid(hw, dep, yg - 0.5, yT, 'ledge', 0);
+      for (const sd of [-1, 1]) eprism(S, e, s + sd * (hw - 0.11) - 0.11, s + sd * (hw - 0.11) + 0.11, -0.05, dep - 0.1, yT, yc, 'wall', 0);
+      solid(hw + 0.25, dep + 0.35, yc, yc + 0.18, 'awning', 1);
+    }
+    return hw + 0.25;
+  }
+  if (k === 'M') { // a new block's lobby: a dark frame of glass, a thin steel canopy
+    const st = 0.18 + r() * 0.15, hw = Math.min(1.7, q.w / 2 - 0.05), yT = yg + st, yc = yT + 2.85;
+    part(DP.CONC, GRANITE); B(s - hw - 0.5, s + hw + 0.5, 0, 1.9, yg - 1.0, yT, 1 | 4 | 8 | 16);
+    part(DP.PAINT, ANTH, 0.03); B(s - hw, s + hw, 0, 0.06, yT, yT + 2.7, 1);
+    D.setPart(DP.GLASS);
+    for (const sd of [-1, 1]) { G(0.06, s + sd * 0.56, s + sd * (hw - 0.07), yT + 0.07, yT + 2.63); G(0.06, s + sd * 0.02, s + sd * 0.5, yT + 0.07, yT + 2.12); }
+    G(0.06, s - 0.5, s + 0.5, yT + 2.2, yT + 2.63);
+    part(DP.STEEL, ANTH, 0.03); B(s - hw - 0.4, s + hw + 0.4, 0, 1.7, yc, yc + 0.1, 1 | 4 | 8 | 16 | 32);
+    lamp(0.8, 0.5, 0.62, yc - 0.03, yc - 0.004, 1 | 32, 0.9);
+    solid(hw + 0.4, 1.7, yc, yc + 0.1, 'awning', 1);
+    return hw + 0.5;
+  }
+  if (k === 'P') { // a public building's main entrance: a wide stair, glazed doors, a slab on square piers
+    const hw = q.w / 2 - 0.15, st = 0.42 + r() * 0.3, cw = hw + 1.25, dep = 2.5, ns = st > 0.55 ? 3 : 2, yT = yg + st, yc = yT + 2.78;
+    part(DP.CONC, r() < 0.5 ? GRANITE : CONC);
+    B(s - cw, s + cw, 0, dep, yg - 1.0, yT, 1 | 4 | 8 | 16);
+    for (let j = 1; j <= ns; j++) B(s - cw, s + cw, dep + (j - 1) * 0.32, dep + j * 0.32, yg - 1.0, yT - j * st / (ns + 1), 1 | 16);
+    part(DP.PAINT, pick(r, PUBFRAME)); B(s - hw, s + hw, 0, 0.05, yT, yT + 2.62, 1);
+    D.setPart(DP.GLASS);
+    for (const sd of [-1, 1]) { G(0.05, s + sd * 0.03, s + sd * 0.9, yT + 0.3, yT + 2.06); if (hw > 1.3) G(0.05, s + sd * 1.0, s + sd * (hw - 0.07), yT + 0.55, yT + 2.06); }
+    G(0.05, s - hw + 0.07, s + hw - 0.07, yT + 2.14, yT + 2.55);
+    part(DP.CONC, TRIM); B(s - cw, s + cw, 0, dep + 0.25, yc, yc + 0.28, 1 | 4 | 8 | 16 | 32);
+    part(DP.CONC, FIN); // two square piers clear of the doors
+    for (const sd of [-1, 1]) B(s + sd * (hw + 0.7) - 0.17, s + sd * (hw + 0.7) + 0.17, dep - 0.44, dep - 0.1, yT, yc, 1 | 2 | 4 | 8);
+    lamp(0.7, 0.9, 1.05, yc - 0.04, yc - 0.004, 32, 0.9);
+    plate(s + hw + 0.3, 0, yT + 1.45, 0.45, 0.6, PLAQUE);
+    solid(cw, dep + 0.25, yc, yc + 0.28, 'awning', 1);
+    solid(cw, dep, yg - 0.5, yT, 'ledge', 0);
+    return cw;
+  }
+  // 'p': a small public building's glazed door on a step, under a slab
+  const dw = Math.max(0.5, Math.min(0.85, q.w / 2 - 0.35)), st = 0.12 + r() * 0.2, cw = dw + 0.55, yT = yg + st, yc = yT + 2.45;
+  part(DP.CONC, CONC); B(s - cw, s + cw, 0, q.flat ? 0.55 : 1.1, yg - 1.0, yT, 1 | 4 | 8 | 16);
+  part(DP.PAINT, pick(r, PUBFRAME)); B(s - dw - 0.08, s + dw + 0.08, 0, 0.06, yT, yT + 2.3, 1);
+  D.setPart(DP.GLASS); G(0.06, s - dw, s - 0.03, yT + 0.3, yT + 2.02); G(0.06, s + 0.03, s + dw, yT + 0.3, yT + 2.02); G(0.06, s - dw, s + dw, yT + 2.08, yT + 2.24);
+  part(DP.CONC, SLAB); B(s - cw, s + cw, 0, 1.2, yc, yc + 0.12, 1 | 4 | 8 | 16 | 32);
+  lamp(0.13, 0.06, 0.15, yT + 2.32, yT + 2.41);
+  plate(s + dw + 0.25, 0, yT + 1.5, 0.4, 0.5, PLAQUE);
+  solid(cw, 1.2, yc, yc + 0.12, 'awning', 1);
+  return cw;
+}
+function dressPublic(C, D, S, A, outer, sg, base, r, fl, gAt) {
+  const E = ringFrames(outer, sg, fl);
+  for (const q0 of A.entr) {
+    const e = E[q0.i], q = e && fitted(C, e, outer, q0, base, gAt);
+    if (!q) continue;
+    entrance(C, D, S, e, q, A, base, gAt, r, null);
+    C.c.pub++;
+  }
+}
+// industrial: steel gates (two leaves in a channel frame, a brace, a wicket) on the street-most long wall, with a
+// concrete apron, and a staff door beside them
+function dressIndus(C, D, A, outer, sg, base, H, r, fl, gAt) {
+  const E = ringFrames(outer, sg, fl), maxL = Math.max(0, ...E.map((e) => e.L));
+  const cand = E.filter((e) => e.L >= 7 && e.L >= 0.5 * maxL);
+  if (!cand.length) return;
+  const e = cand.reduce((m, q) => (q.f > m.f || (q.f === m.f && q.L > m.L) ? q : m));
+  const hG = Math.min(4.2, H - base - 0.8), gcol = pick(r, GATE), hw = hG > 3.5 ? 1.9 : 1.45;
+  const n = hG >= 2.6 ? Math.max(1, Math.min(3, Math.round(e.L / 30))) : 0;
+  // (a gate may open straight onto a driveway, so no road test here)
+  const clear = (s, hs) => {
+    const p = W(e, s, 1.5, 0), g = W(e, s, 0.9, 0), y = gAt ? gAt(g[0], g[2]) : NaN;
+    return s - hs > 0.8 && s + hs < e.L - 0.8 && !inPoly(outer, p[0], p[2]) && !blocked(C, p[0], p[2]) && (!Number.isFinite(y) || (y > base - 2.2 && y < base + 0.9));
+  };
+  let sDoor = e.L / 2;
+  for (let j = 0; j < n; j++) {
+    const s = (j + 0.5) / n * e.L + (r() - 0.5) * Math.max(0, Math.min(4, e.L / n - 2 * hw - 3));
+    if (!clear(s, hw + 0.2)) continue;
+    const yg = groundAt(gAt, e, s, base, 0.25), yt = yg + hG;
+    D.setPart(DP.CONC).setColor(jit(CONC, r)); ebox(D, e, s - hw - 0.4, s + hw + 0.4, 0, 1.8, yg - 1.0, yg + 0.05, 1 | 16);
+    D.setPart(DP.STEEL).setColor(POST);
+    ebox(D, e, s - hw - 0.14, s - hw, 0, 0.1, yg, yt + 0.14, 1 | 8); ebox(D, e, s + hw, s + hw + 0.14, 0, 0.1, yg, yt + 0.14, 1 | 4);
+    ebox(D, e, s - hw, s + hw, 0, 0.1, yt, yt + 0.14, 1 | 32);
+    D.setPart(DP.PAINT).setColor(jit(gcol, r, 0.06)); ebox(D, e, s - hw, s, 0, 0.05, yg + 0.05, yt, 1);
+    D.setColor(jit(gcol, r, 0.06)); ebox(D, e, s, s + hw, 0, 0.05, yg + 0.05, yt, 1);
+    D.setColor(gcol.map((v) => v * 0.6)); ebox(D, e, s - hw, s + hw, 0.05, 0.09, yg + hG * 0.55 - 0.05, yg + hG * 0.55 + 0.05, 1 | 16);
+    if (r() < 0.6) ebox(D, e, s + 0.3, s + 1.15, 0.05, 0.065, yg + 0.15, yg + Math.min(2.05, hG * 0.55 - 0.1), 1);
+    C.c.gate++; sDoor = s + (r() < 0.5 ? -1 : 1) * (hw + 1.7);
+  }
+  if (!clear(sDoor, 0.8) || H - base < 2.6) return;
+  const s = sDoor, yg = groundAt(gAt, e, s, base, 0.25), yT = yg + 0.12;
+  D.setPart(DP.CONC).setColor(jit(CONC, r)); ebox(D, e, s - 0.7, s + 0.7, 0, 0.8, yg - 1.0, yT, 1 | 16);
+  D.setPart(DP.PAINT).setColor(POST); ebox(D, e, s - 0.53, s + 0.53, 0, 0.06, yT, yT + 2.14, 1);
+  D.setColor(jit(gcol, r, 0.06)); ebox(D, e, s - 0.45, s + 0.45, 0.06, 0.08, yT, yT + 2.06, 1);
+  D.setPart(DP.GALV).setColor(hexL('#8e9296')); ebox(D, e, s - 0.75, s + 0.75, 0, 0.7, yT + 2.3, yT + 2.36, 1 | 16 | 32);
+  if (r() < 0.7) { D.setPart(DP.LIGHT).setColor(LAMP); ebox(D, e, s - 0.12, s + 0.12, 0.06, 0.15, yT + 2.17, yT + 2.26, 1 | 32); C.c.lamp++; }
+  C.c.ent++;
+}
+
 function dressGarage(C, D, b, A, outer, sg, base, H, r, fl) {
   const E = ringFrames(outer, sg, fl);
   const L1 = Math.max(...E.map(e => e.L)), depth = (b.area ?? L1 * 6) / L1;
@@ -403,18 +656,24 @@ function dressHouse(C, D, outer, sg, base, H, r, fl) {
 // ---------------------------------------------------------------------------------------------- entry
 const INS_K = typeof location !== 'undefined' && /[?&]insdbg\b/.test(location.search) ? 8 : 1; // debug: ?insdbg = 8x the insulated flats
 const OFF = typeof location !== 'undefined' && /[?&]nokit\b/.test(location.search); // A/B: ?nokit skips the kit
-export function dressBuilding({ t, S, Z, b, A, outer, holes, base, H, r, pitched }) {
+export function dressBuilding({ t, S, Z, b, A, outer, holes, base, H, r, pitched, heightAt = null, roadAt = null }) {
   void Z; void holes;
   if (OFF) return;
   const C = begin(S), t0 = performance.now(), D = t.det, v0 = D.v, n0 = S.count ?? 0;
+  C.roadAt = roadAt;
   const sg = area2(outer) >= 0 ? 1 : -1, fl = b.f ?? '';
+  // the generator's `plus` pass ran on this building (A.entr): small things go to the near builder
+  const Dn = A.entr && t.near ? t.near : D, vn0 = Dn.v;
   try {
-    if (b.k === 'apt' || (b.k === 'public' && b.lv >= 2)) dressApt(C, D, S, b, A, outer, sg, base, H, r, pitched, fl);
+    if (b.k === 'apt' || (b.k === 'public' && b.lv >= 2)) dressApt(C, D, Dn, S, b, A, outer, sg, base, H, r, pitched, fl, heightAt);
     else if (b.k === 'garage') dressGarage(C, D, b, A, outer, sg, base, H, r, fl);
     else if (b.k === 'house' && A.row) dressRow(C, D, S, A, outer, sg, base, H, r, fl);
     else if (b.k === 'house') dressHouse(C, D, outer, sg, base, H, r, fl);
+    if (A.entr && b.k === 'public') dressPublic(C, Dn, S, A, outer, sg, base, r, fl, heightAt);
+    else if (A.entr && b.k === 'indus') dressIndus(C, Dn, A, outer, sg, base, H, r, fl, heightAt);
   } finally {
     addFoot(C, outer);
-    C.n++; C.v += D.v - v0; C.s += (S.count ?? 0) - n0; C.ms += performance.now() - t0;
+    const vn = Dn === D ? 0 : Dn.v - vn0;
+    C.n++; C.v += D.v - v0 + vn; C.vn += vn; C.s += (S.count ?? 0) - n0; C.ms += performance.now() - t0;
   }
 }

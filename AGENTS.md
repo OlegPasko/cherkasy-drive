@@ -61,6 +61,17 @@ See `ARCHITECTURE.md` for the module map. Where things live:
   - `buildings.js` – OSM building extrusion; townhouse rows (OSM `terrace`, or `row` from the map build: untagged outlines
     in a cottage quarter, which also gets no borrowed nine storeys – issue #45, вул. Руставі) are gabled two-storey rows
     that the facade kit gives doors, canopies and party-wall ribs (`tests/townhouses.test.mjs`);
+    - Building types and entrances (`docs/cherkasy-facades.md` is the reference; `tests/facadeplus.test.mjs`): with
+      `plus` (only the city pass sets it, `cherkasy/buildings.js`; `?nofacadeplus` turns it off) `typify` gives an
+      apartment, public or industrial building a type and plans its entrances (`A.entr`: one per section on the yard
+      side, toward the street on public ones). The type rides in the facade vertex's spare byte (`PLUS` in
+      `facade.js`) and the shader draws it only where window detail shows: panel joints, brick lintel courses and
+      aprons, a pre-war block's rustication, string course and cornice, a mix of old brown and new white frames,
+      downpipes. The stair column over an entrance is its own one-bay quad (`STYLE.STAIR`). Walls without the byte
+      (the hand-built sites, `proxies.js`) come out byte for byte as before. `facadekit.js` builds the doors: portals
+      with canopies, porches, glazed lobbies, public stairs under a slab on piers, industrial gates, lamps, plates,
+      benches. That small geometry goes to the tile's `near` builder, merged behind the detail of its 512 m group
+      and drawn through the draw range only within 220 m (less on the lower levels), so it adds no mesh.
   - `trees.js` – procedural trees with LODs and breakable items;
   - `farcull.js` – the draw-distance cull of the hand-built sites on the lower graphics levels;
   - `drawdist.js` – draw distances per class for small repeated detail cut into chunks (kerb faces, road paint, sleepers,
@@ -575,6 +586,7 @@ See `ARCHITECTURE.md` for the module map. Where things live:
     the Telegram bot's "🚗 Подивитись у грі" links use it.
   - `?noga` – no Google Analytics on the production site;
   - `?noadapt` – no adaptive resolution (steady pixel ratio for perf measurements);
+  - `?nofacadeplus` – the generated buildings without their type detail and entrances (the A/B switch for `plus`);
   - `?stilltime` – the clock stands still (the game runs a day per hour of play and skips the night, `startGame` in `main.js`);
   - `?nosound` – no sound at all (no AudioContext, nothing fetched, the radio muted); use it for every dev and test run;
   - `?mobile` / `?desktop` – force the phone map page or the game (`src/mapview.js`).
