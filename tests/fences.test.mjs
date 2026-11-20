@@ -5,7 +5,7 @@
 // deterministic; the atlas has the size it says.
 //   node tests/fences.test.mjs
 import { readFileSync } from 'node:fs';
-import { parseFences, samplePoints, buildFenceChunks, makeFenceAtlas } from '../src/world/cherkasy/fencework.js';
+import { parseFences, samplePoints, buildFenceChunks, makeFenceAtlas, openLeaves } from '../src/world/cherkasy/fencework.js';
 
 const root = new URL('../', import.meta.url);
 let fails = 0;
@@ -68,6 +68,82 @@ ok(fronts > 20000 && gen > 5000 && gen < fronts, `${fronts} street-front pieces,
   }
   ok(segs.length > 5000, `${segs.length} motor road segments to test against`);
   ok(on === 0, `no fence point on a carriageway (${on} of ${S.length / 2})`);
+}
+
+// no orphan stubs: pieces join into groups (an end within 0.8 m of another piece); every group holds 4 m of fence, or
+// closes a gap between two buildings, or runs 2.5 m from one (the compiler's step 6, checked on the compiled data)
+{
+  const C = 16, grid = new Map(), key = (i, j) => i * 100003 + j, parent = Array.from({ length: F.n }, (_, i) => i);
+  const find = (i) => { while (parent[i] !== i) i = parent[i] = parent[parent[i]]; return i; };
+  const near = (x, z, ax, az, bx, bz) => { const dx = bx - ax, dz = bz - az, t = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / (dx * dx + dz * dz || 1))); return Math.hypot(x - ax - dx * t, z - az - dz * t); };
+  for (let k = 0; k < F.n; k++) for (let j = F.start[k] + 1; j < F.start[k] + F.count[k]; j++) {
+    const s = [k, F.pts[2 * j - 2], F.pts[2 * j - 1], F.pts[2 * j], F.pts[2 * j + 1]];
+    for (let gi = Math.floor((Math.min(s[1], s[3]) - 1) / C); gi <= Math.floor((Math.max(s[1], s[3]) + 1) / C); gi++) for (let gj = Math.floor((Math.min(s[2], s[4]) - 1) / C); gj <= Math.floor((Math.max(s[2], s[4]) + 1) / C); gj++) { const q = key(gi, gj); (grid.get(q) ?? grid.set(q, []).get(q)).push(s); }
+  }
+  const B = JSON.parse(readFileSync(new URL('public/assets/cherkasy/map_buildings.json', root))), bgrid = new Map();
+  for (const b of B) { let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity; for (let i = 0; i < b.p.length; i += 2) { x0 = Math.min(x0, b.p[i]); x1 = Math.max(x1, b.p[i]); z0 = Math.min(z0, b.p[i + 1]); z1 = Math.max(z1, b.p[i + 1]); }
+    for (let gi = Math.floor((x0 - 2.5) / 32); gi <= Math.floor((x1 + 2.5) / 32); gi++) for (let gj = Math.floor((z0 - 2.5) / 32); gj <= Math.floor((z1 + 2.5) / 32); gj++) { const q = key(gi, gj); (bgrid.get(q) ?? bgrid.set(q, []).get(q)).push(b.p); } }
+  const atBuilding = (x, z) => (bgrid.get(key(Math.floor(x / 32), Math.floor(z / 32))) ?? []).some((p) => { // within 2.1 m of a wall (the compiler: 1.8 m, before the 0.1 m rounding), or inside
+    let inside = false;
+    for (let i = 0, j = p.length - 2; i < p.length; j = i, i += 2) {
+      if (near(x, z, p[j], p[j + 1], p[i], p[i + 1]) < 2.1) return true;
+      if ((p[i + 1] > z) !== (p[j + 1] > z) && x < (p[j] - p[i]) * (z - p[i + 1]) / (p[j + 1] - p[i + 1]) + p[i]) inside = !inside;
+    }
+    return inside;
+  });
+  const ends = new Uint8Array(F.n);
+  for (let k = 0; k < F.n; k++) for (const j of [F.start[k], F.start[k] + F.count[k] - 1]) {
+    const x = F.pts[2 * j], z = F.pts[2 * j + 1];
+    for (const s of grid.get(key(Math.floor(x / C), Math.floor(z / C))) ?? []) if (s[0] !== k && near(x, z, s[1], s[2], s[3], s[4]) < 0.95) parent[find(k)] = find(s[0]);
+    if (atBuilding(x, z)) ends[k]++;
+  }
+  // no gap in a closed run: a gate or a wicket meets the fence (or the other leaf) at both ends
+  let gateEnds = 0, open = 0;
+  for (let k = 0; k < F.n; k++) {
+    if (F.kind[k] < K.gate || F.kind[k] === K.gateopen) continue;
+    for (const j of [F.start[k], F.start[k] + F.count[k] - 1]) {
+      const x = F.pts[2 * j], z = F.pts[2 * j + 1]; gateEnds++;
+      if (!(grid.get(key(Math.floor(x / C), Math.floor(z / C))) ?? []).some((s) => s[0] !== k && near(x, z, s[1], s[2], s[3], s[4]) < 0.12) && !atBuilding(x, z)) open++;
+    }
+  }
+  ok(open <= gateEnds * 0.003, `gates and wickets close their runs: ${open} of ${gateEnds} ends meet nothing`);
+  const G = new Map();
+  for (let k = 0; k < F.n; k++) { const g = G.get(find(k)) ?? G.set(find(k), { fence: 0, total: 0, ends: 0, n: 0 }).get(find(k)), L = lenOf(k); if (F.kind[k] < K.gate) g.fence += L; if (F.kind[k] !== K.gateopen) g.total += L; g.ends += ends[k]; g.n++; }
+  let orphans = 0, lone = 0;
+  for (const g of G.values()) { if (!(g.fence >= 3.8 || g.ends >= 2 || (g.ends >= 1 && g.total >= 2.3))) orphans += g.n; if (g.n === 1) lone++; }
+  ok(orphans === 0, `no orphan stub among the ${G.size} groups of joined pieces (${orphans} pieces in groups too small to stand alone)`);
+  ok(json.stats.orphans > 100, `the compiler dropped ${json.stats.orphans} of them (${json.stats.orphanKm} km)`);
+}
+// the hedges: the shrub layer's hedge blocks (hedges_data.js, compiled from this file's hedge pieces) stand on a hedge
+// piece's face and solid. The compiler once read OSM ids out of hedges_data.js as "a site draws these" and left every
+// hedge out; a hedge run with no piece under it means the two files are out of step (run build_hedges.mjs).
+{
+  const { HEDGES } = await import('../src/world/cherkasy/hedges_data.js');
+  const H = []; let m = 0;
+  for (let k = 0; k < F.n; k++) if (F.kind[k] === K.hedge) { m += lenOf(k); for (let j = F.start[k] + 1; j < F.start[k] + F.count[k]; j++) H.push([F.pts[2 * j - 2], F.pts[2 * j - 1], F.pts[2 * j], F.pts[2 * j + 1]]); }
+  const off = (x, z) => Math.min(...H.map(([ax, az, bx, bz]) => { const dx = bx - ax, dz = bz - az, t = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / (dx * dx + dz * dz || 1))); return Math.hypot(x - ax - dx * t, z - az - dz * t); }));
+  const astray = HEDGES.filter(({ p }) => off(p[0], p[1]) > 0.3 || off(p[2], p[3]) > 0.3).length;
+  ok(m > 800, `${m.toFixed(0)} m of hedges in ${H.length} segments`);
+  ok(HEDGES.length > 100 && astray === 0, `each of the ${HEDGES.length} hedge runs of hedges_data.js lies on a hedge piece (${astray} do not)`);
+}
+// an open gate's leaves swing into the lot and never stand over a road
+{
+  const C = 64, grid = new Map(), key = (i, j) => i * 100003 + j;
+  for (const r of map.roads) { if (r.k !== 'm') continue; const p = r.p; for (let i = 2; i + 1 < p.length; i += 2) { const s = [p[i - 2], p[i - 1], p[i], p[i + 1], r.w];
+    for (let gi = Math.floor((Math.min(s[0], s[2]) - 12) / C); gi <= Math.floor((Math.max(s[0], s[2]) + 12) / C); gi++) for (let gj = Math.floor((Math.min(s[1], s[3]) - 12) / C); gj <= Math.floor((Math.max(s[1], s[3]) + 12) / C); gj++) { const q = key(gi, gj); (grid.get(q) ?? grid.set(q, []).get(q)).push(s); } } }
+  const onRoad = (x, z) => (grid.get(key(Math.floor(x / C), Math.floor(z / C))) ?? []).some((s) => { const dx = s[2] - s[0], dz = s[3] - s[1], t = Math.max(0, Math.min(1, ((x - s[0]) * dx + (z - s[1]) * dz) / (dx * dx + dz * dz || 1))); return Math.hypot(x - s[0] - dx * t, z - s[1] - dz * t) < s[4] / 2 - 0.1; });
+  let n = 0, bare = 0, over = 0;
+  for (let k = 0; k < F.n; k++) {
+    if (F.kind[k] !== K.gateopen) continue;
+    n++;
+    if (F.flags[k] & 4) { bare++; continue; }
+    const a = F.start[k];
+    for (const [x0, z0, x1, z1] of openLeaves(F.pts[2 * a], F.pts[2 * a + 1], F.pts[2 * a + 2], F.pts[2 * a + 3])) for (const t of [0.3, 0.65, 1]) if (onRoad(x0 + (x1 - x0) * t, z0 + (z1 - z0) * t)) { over++; break; }
+  }
+  ok(n > 100 && over === 0, `${n} open gates: no leaf over a carriageway (${over}); ${bare} with no clear side keep their posts only`);
+  ok(bare < n * 0.4, 'most open gates keep their leaves');
+  const lv = openLeaves(0, 0, 4, 0);
+  ok(lv.every(([, , , z1]) => z1 > 1.5) && lv[0][2] < 0 && lv[1][2] > 4, 'leaves swing to the left of the piece (the lot) and away from the opening');
 }
 
 // the chunk builder

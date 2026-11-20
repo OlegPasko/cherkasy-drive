@@ -28,11 +28,14 @@
 // only where its whole footprint is free (`fits`: no other building, no carriageway by roadAt(x, z), ground its steps
 // can meet); a porch or a public stair that does not fit falls back to a plain door, else the wall stays blank.
 // ?nokit skips the kit (A/B); the build prints one '[cherkasy] facadekit:' summary line (vertices / solids / ms).
-// The private sector (dressHouse, dressShed): a house gets a front door on a step or a porch (a frame and a pent canopy
-// on some) in a pier between two windows, a brick chimney through a pitched roof, on some a gas pipe; a shed gets a
-// door. All of it is drawn as far as the roofs are (no LOD inside a tile) and again in the river mirror, so a house is
-// held to about 9 triangles (+ ~0.2 M triangles for the 23k houses and 17k sheds) and nothing there has a solid: the
-// fences (fences.js) keep the car out of the yards.
+// The private sector (dressHouse, dressShed): a house gets a front door in a pier between two windows – over a stoop
+// or a porch slab with a step, or flush at ground level where a carriageway is near; a frame and a pent canopy on
+// some; sunk panels and a handle on the street wall's door –, a brick chimney through a pitched roof, on some a gas
+// pipe; two sheds in five get a door. The doors and steps go to t.near, the chimney and the pipe (the skyline) to
+// t.det. Neither is free: t.det is drawn as far as the roofs and again in the river mirror, and a 512 m group shows
+// its near part as a whole and once more in the shadow cascades, a few thousand houses at once in a private quarter.
+// So a house is held to about 8 near and 4 far triangles, and nothing there has a solid: the fences (fences.js) keep
+// the car out of the yards.
 import { DP } from '../materials.js';
 import { LAYER } from '../facade.js';
 import { area2, inPoly, bboxOf, obb } from './geo.js';
@@ -646,22 +649,29 @@ function dressRow(C, D, S, A, outer, sg, base, H, r, fl) {
   }
 }
 
-// private house (not a townhouse row): a front door with its frame on a step or a porch, in a pier between two windows
-// of the street wall or a side wall, a canopy over some; a brick chimney through a pitched roof; on some a yellow gas
-// pipe along the street wall. No collision: the steps are a kerb's height and the fences (fences.js) keep the car out.
+// private house (not a townhouse row): a front door in a pier between two windows of the street wall or a side wall –
+// flush at ground level where a carriageway is near, else over a stoop or a porch slab with a step –, a frame and a
+// canopy on some, panels and a handle on the street wall's door (all in the near builder N); a brick chimney through
+// a pitched roof and on some a yellow gas pipe along the street wall (in D: they read from afar). No collision: the
+// steps are a kerb's height and the fences (fences.js) keep the car out.
 const HDOOR = [[3, hexL('#5B3A2E')], [2.5, hexL('#3A2A22')], [2, hexL('#E4E2DA')], [1.5, hexL('#7A5536')], [1, hexL('#3F6147')], [1, hexL('#3F5F86')], [1, hexL('#2E3134')], [0.6, hexL('#6B2A2E')]];
 const HFRAME = [[3, hexL('#ECEBE6')], [1.5, hexL('#4A3A30')], [1, hexL('#2E3134')]];
 const CHIM = [[4, hexL('#8A4A38')], [2, hexL('#A8553E')], [1.5, hexL('#D9D5CB')], [1, hexL('#7C7A76')]];
 const CANOPY = [[3, hexL('#5E4332')], [2, hexL('#3C3E42')], [2, hexL('#6D2C2A')], [1, hexL('#3E5E46')], [1.5, hexL('#B4B8BA')]];
-// the piers of a windowed wall (between two bays, and at its two ends) wide enough for a door: [s of the pier's middle]
+const HANDLE = hexL('#26282B');
+const HWOOD = [[3, hexL('#5B3A2E')], [2.5, hexL('#3A2A22')], [1.5, hexL('#7A5536')]]; // the WOOD part's grain reads as marble on a pale leaf
+// the piers of a windowed wall (between two windows, and at its two ends) wide enough for a door: [s of the pier's
+// middle]. The windows are where the facade shader puts them (facade.js quad, punched style): round(L / bayW) bays over
+// the whole wall, a window winW of its bay wide in the middle of each – not the margin-inset bays() of the flats' kit.
 function piers(e, A, need) {
-  const { c, bw } = bays(e, A), m = A.margin ?? 0.6, out = [];
-  if (bw * (1 - A.winW) >= need) for (let k = 0; k + 1 < c.length; k++) out.push(c[k] - bw / 2);
-  const end = m + bw * (1 - A.winW) / 2;
-  if (end >= need + 0.25) out.push(end / 2 + 0.12, e.L - end / 2 - 0.12);
+  const nb = e.L >= A.bayW * 0.62 ? Math.max(1, Math.round(e.L / A.bayW)) : 0, out = [];
+  if (!nb) { if (e.L >= need + 0.3) out.push(e.L / 2); return out; } // a blank wall
+  const bw = e.L / nb, hw = A.winW * bw / 2 + 0.12, end = bw / 2 - hw; // + 0.12: the window's frame
+  if (bw - 2 * hw >= need) for (let k = 1; k < nb; k++) out.push(k * bw);
+  if (end >= need + 0.15) out.push(end / 2 + 0.07, e.L - end / 2 - 0.07);
   return out;
 }
-function dressHouse(C, D, b, A, outer, sg, base, H, r, fl, pitched) {
+function dressHouse(C, D, N, b, A, outer, sg, base, H, r, fl, pitched) {
   if (H - base < 2.6) return;
   const E = ringFrames(outer, sg, fl).filter((e) => e.L > 3);
   // the street-most edge longer than 3 m (ties: the longer one)
@@ -670,14 +680,10 @@ function dressHouse(C, D, b, A, outer, sg, base, H, r, fl, pitched) {
   // ---- the door: a side wall on most houses (the yard side of the gate), else the street wall
   const sides = E.filter((e) => e !== front && Math.abs(e.ux * front.ux + e.uz * front.uz) < 0.5);
   const order = r() < 0.55 && sides.length ? [sides[Math.floor(r() * sides.length)], front, ...sides] : [front, ...sides];
-  // a third of the doors open at ground level (old houses: the door sits lower than the windows), the rest at the floor
-  // line the windows count from, over a stoop or, on a few, a porch slab. Every triangle here is drawn out to 2.6 km
-  // with the roofs and once more in the river mirror, hence the low shares
-  const dw = 0.92 + (r() < 0.3 ? 0.1 : 0), canopy = r() < 0.25, u = r(), porch = u < 0.12, low = u > 0.65, framed = r() < 0.25;
-  const yf = low ? base - 0.1 : base - 0.15 + A.plinth, hD = Math.min(2.08, H - yf - 0.3);
+  const dw = 0.92 + (r() < 0.3 ? 0.1 : 0), canopy = r(), u = r(), framed = r();
   let doorAt = null;
   for (const e of order) {
-    if (hD < 1.85) break;
+    if (H - (base - 0.15 + A.plinth) - 0.3 < 1.85) break;
     const P = piers(e, A, dw + 0.36);
     for (let n = P.length, k = Math.floor(r() * n), t = 0; t < n && !doorAt; t++, k = (k + 1) % n) {
       const s = P[k], p = W(e, s, 1.1, 0);
@@ -686,26 +692,52 @@ function dressHouse(C, D, b, A, outer, sg, base, H, r, fl, pitched) {
     if (doorAt) break;
   }
   if (doorAt) {
-    const [e, s] = doorAt, hw = dw / 2, dep = porch ? 0.95 : 0.5, sw = hw + (porch ? 0.45 : 0.22);
-    D.setPart(DP.CONC).setColor(jit(CONC, r));
-    if (porch) ebox(D, e, s - sw, s + sw, 0, dep, base - 0.7, yf, 1 | 4 | 8 | 16);           // porch slab (deep: the ground may fall)
-    else if (!low) { // a stoop: one sloped face from the threshold to the ground
+    // Where the door's step would come within ~4 m of a carriageway (roadAt; without it the map's edge flag: a road
+    // within ~22 m) the house may stand on the pavement's edge: a flush door at ground level there, under a shallow
+    // canopy, nothing on the asphalt. Elsewhere the door is at the floor line the windows count from, over a stoop
+    // or, on a few, a porch slab with a step under a canopy; a third open at ground level anyway (old houses).
+    // All of it goes to the tile's near builder N (drawn within ~220 m, not to 2.6 km with the roofs, not in the
+    // river mirror). It is still no free lunch: a 512 m group shows its near part as a whole and the two shadow
+    // cascades draw it again: ~2.3 frame triangles for each one here, some 2500 doors at once in a private
+    // quarter. Hence shares, not every part on every door, and panels and a handle only on the street wall's door
+    // (measured at the private-street camera: the frame stays under what it was with the lean far set).
+    const [e, s] = doorAt, rich = N !== D;
+    const road = C.roadAt ? [0.6, 1.8, 3, 4.2].some((o) => { const p = W(e, s, o, 0); return C.roadAt(p[0], p[2]); }) : e.f !== '0';
+    const low = road || u > 0.66, porch = !low && u < 0.05;
+    const yf = low ? base - 0.1 : base - 0.15 + A.plinth, hD = Math.min(2.08, H - yf - 0.3), yg = base - 0.7; // yg: the ground may fall
+    const hw = dw / 2, dep = porch ? 0.95 : road ? 0.3 : 0.5, sw = hw + (porch ? 0.45 : 0.22);
+    N.setPart(DP.CONC).setColor(jit(CONC, r));
+    if (porch) {
+      ebox(N, e, s - sw, s + sw, 0, dep, yg, yf, 1 | 4 | 8 | 16);                           // porch slab
+      if (rich) ebox(N, e, s - sw + 0.15, s + sw - 0.15, dep, dep + 0.3, yg, (yf + base - 0.1) / 2, 1 | 4 | 8 | 16); // and the step up to it
+    } else if (!low) { // a stoop: one sloped face from the threshold to the ground
       const sl = 0.45 / Math.hypot(0.45, dep), cs = dep / Math.hypot(0.45, dep);
-      q4(D, W(e, s - sw, 0, yf), W(e, s + sw, 0, yf), W(e, s + sw, dep, base - 0.25), W(e, s - sw, dep, base - 0.25), e.nx * sl, cs, e.nz * sl);
+      q4(N, W(e, s - sw, 0, yf), W(e, s + sw, 0, yf), W(e, s + sw, dep, base - 0.25), W(e, s - sw, dep, base - 0.25), e.nx * sl, cs, e.nz * sl);
     }
-    if (framed) {
-      D.setPart(DP.PAINT).setColor(jit(pick(r, HFRAME), r, 0.04));
-      ebox(D, e, s - hw - 0.08, s + hw + 0.08, 0, 0.03, yf, yf + hD + 0.08, 1);              // frame
+    if (framed < 0.25) {
+      N.setPart(DP.PAINT).setColor(jit(pick(r, HFRAME), r, 0.04));
+      ebox(N, e, s - hw - 0.08, s + hw + 0.08, 0, 0.03, yf, yf + hD + 0.08, 1);              // frame
     }
-    D.setPart(r() < 0.35 ? DP.WOOD : DP.PAINT).setColor(jit(pick(r, HDOOR), r, 0.07));
-    ebox(D, e, s - hw, s + hw, 0, 0.06, yf + 0.02, yf + hD, 1);                              // leaf
-    if (canopy) {
+    const wood = r() < 0.35, leaf = jit(pick(r, wood ? HWOOD : HDOOR), r, 0.07);
+    N.setPart(wood ? DP.WOOD : DP.PAINT).setColor(leaf);
+    ebox(N, e, s - hw, s + hw, 0, 0.06, yf + 0.02, yf + hD, 1);                              // leaf
+    if (rich && e === front) { // what makes it read as a door: sunk panels (two, one, or a flush leaf) and the handle
+      const v = r(), k = leaf[0] + leaf[1] + leaf[2] < 0.25 ? 1.5 : 0.7, hs = s + (r() < 0.5 ? -1 : 1) * (hw - 0.11);
+      N.setColor([leaf[0] * k, leaf[1] * k, leaf[2] * k]);
+      if (v < 0.18) {
+        ebox(N, e, s - hw + 0.14, s + hw - 0.14, 0, 0.075, yf + 0.2, yf + hD * 0.43, 1);
+        ebox(N, e, s - hw + 0.14, s + hw - 0.14, 0, 0.075, yf + hD * 0.5, yf + hD - 0.16, 1);
+      } else if (v < 0.55) ebox(N, e, s - hw + 0.16, s + hw - 0.16, 0, 0.075, yf + 0.22, yf + hD - 0.18, 1);
+      N.setPart(DP.PAINT).setColor(HANDLE);
+      ebox(N, e, hs - 0.025, hs + 0.025, 0, 0.1, yf + 0.95, yf + 1.15, 1);
+    }
+    if (canopy < 0.17 || porch) {
       const yc = yf + hD + 0.2, cw = sw + 0.12, cd = dep + 0.15, col = jit(pick(r, CANOPY), r, 0.05);
-      D.setPart(col[2] > col[0] * 1.02 && col[0] > 0.4 ? DP.GALV : DP.PAINT).setColor(col);
+      N.setPart(col[2] > col[0] * 1.02 && col[0] > 0.4 ? DP.GALV : DP.PAINT).setColor(col);
       // a pent canopy: 0.22 m of fall away from the wall, top and underside (the detail material is one-sided)
       const a = W(e, s - cw, 0, yc + 0.22), bq = W(e, s + cw, 0, yc + 0.22), cq = W(e, s + cw, cd, yc), dq = W(e, s - cw, cd, yc);
       const sl = 0.22 / Math.hypot(0.22, cd), cs = cd / Math.hypot(0.22, cd);
-      q4(D, a, bq, cq, dq, e.nx * sl, cs, e.nz * sl); q4(D, a, bq, cq, dq, -e.nx * sl, -cs, -e.nz * sl);
+      q4(N, a, bq, cq, dq, e.nx * sl, cs, e.nz * sl); q4(N, a, bq, cq, dq, -e.nx * sl, -cs, -e.nz * sl);
     }
     C.c.hdoor = (C.c.hdoor ?? 0) + 1;
   }
@@ -734,7 +766,7 @@ function dressHouse(C, D, b, A, outer, sg, base, H, r, fl, pitched) {
     }
   }
   // ---- the gas pipe along the street wall, over the windows and the door
-  if (r() < 0.22) {
+  if (r() < 0.19) {
     const e = front, y = Math.min(base + 2.62, H - 0.2), s0 = 0.25, s1 = e.L - 0.25, o0 = 0.1, o1 = 0.17, rs = r() < 0.5 ? s0 : s1 - 0.07;
     D.setPart(DP.PAINT).setColor(jit(GAS, r, 0.06));
     ebox(D, e, s0, s1, o0, o1, y, y + 0.07, 1);                // run along the wall
@@ -744,8 +776,9 @@ function dressHouse(C, D, b, A, outer, sg, base, H, r, fl, pitched) {
 }
 // shed, summer kitchen, outhouse: a plank or steel door on its street-most (else longest) wall
 const SDOOR = [[3, hexL('#6E5238')], [2, hexL('#4A3A30')], [2, hexL('#3F6147')], [1.5, hexL('#7C7F80')], [1, hexL('#3F5F86')], [1, hexL('#8A4A2A')]];
+const SWOOD = [[3, hexL('#6E5238')], [2, hexL('#4A3A30')], [1, hexL('#8A4A2A')]];
 function dressShed(C, D, outer, sg, base, H, r, fl) {
-  if (r() > 0.7) return;
+  if (r() > 0.4) return; // two in five: a shed stands behind the house, its door is seldom seen
   const hD = Math.min(1.95, H - base - 0.25);
   if (hD < 1.5) return;
   const E = ringFrames(outer, sg, fl).filter((e) => e.L > 1.5).sort((a, c) => c.f - a.f || c.L - a.L);
@@ -753,7 +786,8 @@ function dressShed(C, D, outer, sg, base, H, r, fl) {
     const wide = e.L > 4.2 && r() < 0.3, hw = wide ? 1.05 : Math.min(0.42, e.L / 2 - 0.25), s = wide ? e.L / 2 : hw + 0.25 + r() * (e.L - 2 * hw - 0.5);
     const p = W(e, s, 0.9, 0);
     if (inPoly(outer, p[0], p[2]) || blocked(C, p[0], p[2])) continue;
-    D.setPart(r() < 0.55 ? DP.WOOD : DP.PAINT).setColor(jit(pick(r, SDOOR), r, 0.1));
+    const wood = r() < 0.55; // planks: the WOOD part only in wood tones (its grain reads as marble on a pale leaf)
+    D.setPart(wood ? DP.WOOD : DP.PAINT).setColor(jit(pick(r, wood ? SWOOD : SDOOR), r, 0.1));
     ebox(D, e, s - hw, s + hw, 0, 0.04, base - 0.1, base - 0.1 + hD, 1);
     C.c.sdoor = (C.c.sdoor ?? 0) + 1;
     return;
@@ -771,12 +805,14 @@ export function dressBuilding({ t, S, Z, b, A, outer, holes, base, H, r, pitched
   const sg = area2(outer) >= 0 ? 1 : -1, fl = b.f ?? '';
   // the generator's `plus` pass ran on this building (A.entr): small things go to the near builder
   const Dn = A.entr && t.near ? t.near : D, vn0 = Dn.v;
+  // a house's and a shed's doors and steps too, in the city pass (the one that passes roadAt and draws t.near)
+  const Nh = roadAt && t.near ? t.near : D;
   try {
     if (b.k === 'apt' || (b.k === 'public' && b.lv >= 2)) dressApt(C, D, Dn, S, b, A, outer, sg, base, H, r, pitched, fl, heightAt);
     else if (b.k === 'garage') dressGarage(C, D, b, A, outer, sg, base, H, r, fl);
     else if (b.k === 'house' && A.row) dressRow(C, D, S, A, outer, sg, base, H, r, fl);
-    else if (b.k === 'house') dressHouse(C, D, b, A, outer, sg, base, H, r, fl, pitched);
-    else if (b.k === 'shed') dressShed(C, D, outer, sg, base, H, r, fl);
+    else if (b.k === 'house') dressHouse(C, D, Nh, b, A, outer, sg, base, H, r, fl, pitched);
+    else if (b.k === 'shed') dressShed(C, Nh, outer, sg, base, H, r, fl);
     if (A.entr && b.k === 'public') dressPublic(C, Dn, S, A, outer, sg, base, r, fl, heightAt);
     else if (A.entr && b.k === 'indus') dressIndus(C, Dn, A, outer, sg, base, H, r, fl, heightAt);
   } finally {

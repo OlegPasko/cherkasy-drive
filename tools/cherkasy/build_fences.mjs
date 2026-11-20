@@ -1,7 +1,7 @@
 // Fence compiler: the raw OpenStreetMap barriers (tools/cherkasy/raw/poi.json: way["barrier"]) + the compiled map
 // (public/assets/cherkasy/map.json, map_buildings.json) -> public/assets/cherkasy/map_fences.json, the fences, walls,
 // hedges and gates the game draws (src/world/cherkasy/fences.js). Same frame as map.json. Map data (c) OpenStreetMap
-// contributors, ODbL. Deterministic; about 4 s.
+// contributors, ODbL. Deterministic; about 10 s.
 //
 //   node tools/cherkasy/build_fences.mjs [rawDir]      rawDir: where poi.json lies (default tools/cherkasy/raw/)
 //
@@ -19,15 +19,26 @@
 //   3. Generated fronts: where a house (not a townhouse row) stands by a street and OSM has no fence along it, a
 //      fence line on the pavement's edge across the house's lot, cut the same way (and by car parks and rails).
 //   4. Lots: a private front is split into lots at the side fences that join it (else between the houses behind it);
-//      each lot gets its own fence type, colour seed and height, and a gate with a wicket where there is room.
+//      each lot gets its own fence type, colour seed and height, and a gate with a wicket where there is room (at
+//      least 0.7 m of fence each side of them, so neither ends in a gap).
+//   5. Open gates: the two leaves (fencework.js openLeaves) swing into the lot and must stand clear of every
+//      carriageway, pavement band, footway and building. An inner gate (a plant's, a school's) may turn to its other
+//      side; a gate with no clear side keeps its posts only (flag 4).
+//   6. Orphans: pieces are joined into groups (an end within 0.8 m of another piece). A group that holds under 4 m of
+//      fence is dropped, unless it closes a gap between two buildings or runs 2.5 m from one: no metre of fence by a
+//      house wall, no gate with nothing beside it.
+// The hedge pieces are also what tools/cherkasy/build_hedges.mjs compiles the shrub layer's hedge blocks from: run it
+// after this one (tests/fences.test.mjs checks that the two agree).
 //
 // Output: { attribution, frame, region, unit: 0.1, kinds: [names], stats, d: [flat integers] }
 //   d holds the pieces one after another: kind, seed (0..255), height (dm), flags, n, x0, z0, then n - 1 (dx, dz)
 //   pairs; coordinates in decimetres from the region's (x0, z0) corner. flags: 1 = a street front (posts are built in
-//   3D), 2 = generated (not in OSM). A front runs so that the lot is on its left; 'gateopen' is the 2-point opening of
-//   a driveway (posts and two open leaves), 'gate' / 'oldgate' a closed double gate, 'wicket' / 'oldwicket' a door.
+//   3D), 2 = generated (not in OSM), 4 = an open gate with no room for its leaves (posts only). A front runs so that
+//   the lot is on its left; 'gateopen' is the 2-point opening of a driveway (posts and two open leaves on its left),
+//   'gate' / 'oldgate' a closed double gate, 'wicket' / 'oldwicket' a door.
 import { readFileSync, writeFileSync, readdirSync } from 'node:fs';
 import { simplify, pointInRing, GridIndex, boundsOf } from './geom2d.mjs';
+import { openLeaves } from '../../src/world/cherkasy/fencework.js';
 
 export const KINDS = ['sheet', 'sheetbrick', 'plank', 'picket', 'slate', 'brick', 'euro', 'mesh', 'slab', 'bars', 'forged', 'hedge',
   'gate', 'wicket', 'oldgate', 'oldwicket', 'gateopen'];
@@ -98,10 +109,10 @@ function bldsAround(x0, z0, x1, z1, m) {
 const ringDist = (P, x, z) => { let d = Infinity, q = P[P.length - 1]; for (const p of P) { const e = segNear(x, z, q[0], q[1], p[0], p[1])[0]; if (e < d) d = e; q = p; } return d; };
 
 // ------------------------------------------------------------------------------------------------ OSM barriers
-// ids a hand-built site names (it draws that fence itself)
+// ids a hand-built site names (it draws that fence itself). Not hedges_data.js: it is compiled from this tool's output
 const SITE_IDS = (() => {
   const dir = here('../../src/world/cherkasy/'), ids = new Set();
-  for (const f of readdirSync(dir)) if (f.endsWith('.js')) for (const m of readFileSync(new URL(f, dir), 'utf8').matchAll(/\b\d{7,11}\b/g)) ids.add(+m[0]);
+  for (const f of readdirSync(dir)) if (f.endsWith('.js') && f !== 'hedges_data.js') for (const m of readFileSync(new URL(f, dir), 'utf8').matchAll(/\b\d{7,11}\b/g)) ids.add(+m[0]);
   return ids;
 })();
 const num = (v) => { const f = parseFloat(String(v ?? '').replace(',', '.')); return Number.isFinite(f) ? f : null; };
@@ -315,12 +326,14 @@ function lotFront(run, C, cuts, houses, flags, hTag = null) {
       const room = big.s1 - big.s0, gw = 3 + 0.5 * hash(id, 4), ww = 1;
       const full = room >= gw + ww + 2.2, only = !full && room >= ww + 1.6;
       if (full || only) {
-        const used = full ? gw + 0.3 + ww : ww, slack = room - used - 1.2, m = 0.6 + slack * 0.25 * hash(id, 5);
+        // at least 0.7 m of fence stays on each side (a shorter remainder would not be emitted: a hole by the gate)
+        const used = full ? gw + 0.3 + ww : ww, slack = room - used - 1.4, m = 0.7 + slack * 0.25 * hash(id, 5);
         const s = hash(id, 6) < 0.5 ? big.s0 + m : big.s1 - m - used;
         // straight under the gate: no vertex of the run inside it
         if (!run.cum.some((c) => c > s + 0.05 && c < s + used - 0.05)) {
           const flip = hash(id, 7) < 0.5; // which of the two comes first
-          gate = { s0: s, s1: s + used, parts: full ? (flip ? [[s, s + ww, 1], [s + ww + 0.3, s + used, 0]] : [[s, s + gw, 0], [s + gw + 0.3, s + used, 1]]) : [[s, s + ww, 1]] };
+          // the two meet in the middle of the post between them (their frames are the post): no gap in the closed run
+          gate = { s0: s, s1: s + used, parts: full ? (flip ? [[s, s + ww + 0.15, 1], [s + ww + 0.15, s + used, 0]] : [[s, s + gw + 0.15, 0], [s + gw + 0.15, s + used, 1]]) : [[s, s + ww, 1]] };
         }
       }
     }
@@ -493,6 +506,68 @@ for (const r of roads) {
       }
     }
   }
+}
+
+// ------------------------------------------------------------------------------------------------ 5. open gates
+// An open gate's leaves swing into the lot (the left of its piece) and stand clear of every road, pavement band,
+// footway and building. A street front never swings to the street; an inner gate (a plant's, a school's) may turn to
+// its other side, the one farther from the street first. With no clear side the gate keeps its posts only (flag 4).
+{
+  const clearAt = (x, z) => {
+    for (const s of roadsAround(x, z, x, z, 14)) {
+      const d = segNear(x, z, s.a[0], s.a[1], s.b[0], s.b[1])[0];
+      if (d < (s.r.street ? s.r.cor - 0.05 : s.r.k === 'm' ? s.r.w / 2 + 0.1 : s.r.w / 2)) return false;
+    }
+    for (const b of bldsAround(x, z, x, z, 1)) if (pointInRing(b.P, x, z) || ringDist(b.P, x, z) < 0.15) return false;
+    return true;
+  };
+  const clear = (a, b) => openLeaves(a[0], a[1], b[0], b[1]).every(([x0, z0, x1, z1]) => [0.3, 0.65, 1].every((t) => clearAt(x0 + (x1 - x0) * t, z0 + (z1 - z0) * t)));
+  const streetDist = (x, z) => { let d = 60; for (const s of roadsAround(x, z, x, z, 60)) if (s.r.street) d = Math.min(d, segNear(x, z, s.a[0], s.a[1], s.b[0], s.b[1])[0]); return d; };
+  stats.leavesTurned = 0; stats.leavesOff = 0;
+  for (const p of pieces) {
+    if (p.kind !== K.gateopen) continue;
+    const [a, b] = p.P, L = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1, nx = -(b[1] - a[1]) / L, nz = (b[0] - a[0]) / L, mx = (a[0] + b[0]) / 2, mz = (a[1] + b[1]) / 2;
+    let turn = !(p.flags & 1) && streetDist(mx - nx * 4, mz - nz * 4) > streetDist(mx + nx * 4, mz + nz * 4) + 0.5; // inner: away from the street
+    if (!(turn ? clear(b, a) : clear(a, b))) {
+      if (!(p.flags & 1) && (turn ? clear(a, b) : clear(b, a))) turn = !turn;
+      else { p.flags |= 4; stats.leavesOff++; continue; }
+    }
+    if (turn) { p.P = [b, a]; stats.leavesTurned++; }
+  }
+}
+
+// ------------------------------------------------------------------------------------------------ 6. orphans
+// After the cuts (carriageways, driveways, footways, buildings) a run can leave a stub that joins nothing: a metre of
+// fence by a house wall, a gate with no fence beside it. Pieces are joined into groups (an end within 0.8 m of another
+// piece); a group stays if it holds 4 m of fence, or closes a gap between two buildings, or runs 2.5 m from one.
+{
+  const idx = new GridIndex(16), parent = pieces.map((_, i) => i);
+  const find = (i) => { while (parent[i] !== i) i = parent[i] = parent[parent[i]]; return i; };
+  pieces.forEach((p, k) => { for (let i = 1; i < p.P.length; i++) { const a = p.P[i - 1], b = p.P[i]; idx.insert(Math.min(a[0], b[0]), Math.min(a[1], b[1]), Math.max(a[0], b[0]), Math.max(a[1], b[1]), { k, a, b }); } });
+  const ends = new Uint8Array(pieces.length); // ends that meet a building (within 1.8 m: a front stops 1.5 m short of one)
+  pieces.forEach((p, k) => {
+    for (const [x, z] of [p.P[0], p.P.at(-1)]) {
+      idx.query(x, z, 0.8, (s) => { if (s.k !== k && segNear(x, z, s.a[0], s.a[1], s.b[0], s.b[1])[0] < 0.8) parent[find(k)] = find(s.k); });
+      if (bldsAround(x, z, x, z, 2).some((b) => pointInRing(b.P, x, z) || ringDist(b.P, x, z) < 1.8)) ends[k]++;
+    }
+  });
+  const G = new Map();
+  pieces.forEach((p, k) => {
+    const g = G.get(find(k)) ?? G.set(find(k), { fence: 0, total: 0, ends: 0 }).get(find(k)), L = lenOf(p.P);
+    if (p.kind < K.gate) g.fence += L;
+    if (p.kind !== K.gateopen) g.total += L;
+    g.ends += ends[k];
+  });
+  stats.orphans = 0; stats.orphanKm = 0;
+  const keep = pieces.filter((p, k) => {
+    const g = G.get(find(k));
+    if (g.fence >= 4 || g.ends >= 2 || (g.ends >= 1 && g.total >= 2.5)) return true;
+    stats.orphans++; stats.orphanKm += lenOf(p.P) / 1000;
+    const name = KINDS[p.kind]; stats.byKind[name] = Math.round((stats.byKind[name] - lenOf(p.P)) * 10) / 10;
+    return false;
+  });
+  pieces.length = 0; pieces.push(...keep);
+  stats.orphanKm = Math.round(stats.orphanKm * 100) / 100;
 }
 
 // ------------------------------------------------------------------------------------------------ write

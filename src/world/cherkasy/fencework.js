@@ -69,6 +69,13 @@ export function parseFences(json) {
   }
   return F;
 }
+// The two leaves of an open gate a -> b, as [x0, z0, x1, z1] from each post: swung to the left of the piece (the lot)
+// and 8 degrees past square, away from the opening, so no leaf hangs over the driveway. The compiler tests the same
+// lines against roads and buildings (tools/cherkasy/build_fences.mjs, step 5).
+export function openLeaves(ax, az, bx, bz) {
+  const L = Math.hypot(bx - ax, bz - az) || 1, ux = (bx - ax) / L, uz = (bz - az) / L, nx = -uz, nz = ux, w = Math.max(0.6, Math.min(2.4, L / 2 - 0.1));
+  return [[ax, az, -1], [bx, bz, 1]].map(([x, z, sg]) => [x, z, x + (ux * sg * 0.14 + nx * 0.99) * w, z + (uz * sg * 0.14 + nz * 0.99) * w]);
+}
 export function samplePoints(F) {
   const S = new Float32Array(F.n * 6);
   for (let k = 0; k < F.n; k++) {
@@ -187,15 +194,11 @@ export function buildFenceChunks(F, heightAt, dead = null, { size = 512 } = {}) 
     const C = chunkAt(X(0), Z(0));
     const col = jit(T.tints[seed % T.tints.length], 0.9 + ((seed >> 3) % 8) * 0.025);
     stats.pieces++;
-    if (T.open) { // a driveway's gate: two posts, the leaves swung into the lot (on the left)
-      const ax = X(0), az = Z(0), bx = X(1), bz = Z(1), L = Math.hypot(bx - ax, bz - az) || 1, ux = (bx - ax) / L, uz = (bz - az) / L, nx = -uz, nz = ux;
-      const brick = seed & 1, half = brick ? 0.19 : 0.06, pc = brick ? jit(BRICKS[(seed >> 1) % BRICKS.length], 1) : STEEL, w = Math.min(2.4, L / 2 - 0.1), cs = 0.14, sn = 0.99;
-      for (const [x, z, sg] of [[ax, az, 1], [bx, bz, -1]]) {
-        const g = heightAt(x, z);
-        post(C, x, z, ux, uz, half, g - SINK, g + h + 0.12, brick ? ROW.brick : ROW.sheet, pc, brick ? 0.04 : 0);
-        const ex = x + (ux * sg * cs + nx * sn) * w, ez = z + (uz * sg * cs + nz * sn) * w;
-        face(C, C.det, x, z, ex, ez, h, 0.02, 0.48, vOf(T.row, 0), vOf(T.row, 1), col);
-      }
+    if (T.open) { // a driveway's gate: two posts, the leaves swung into the lot (on the left); flag 4: the posts only
+      const ax = X(0), az = Z(0), bx = X(1), bz = Z(1), L = Math.hypot(bx - ax, bz - az) || 1, ux = (bx - ax) / L, uz = (bz - az) / L;
+      const brick = seed & 1, half = brick ? 0.19 : 0.06, pc = brick ? jit(BRICKS[(seed >> 1) % BRICKS.length], 1) : STEEL;
+      for (const [x, z] of [[ax, az], [bx, bz]]) { const g = heightAt(x, z); post(C, x, z, ux, uz, half, g - SINK, g + h + 0.12, brick ? ROW.brick : ROW.sheet, pc, brick ? 0.04 : 0); }
+      if (!(F.flags[p] & 4)) for (const [x0, z0, x1, z1] of openLeaves(ax, az, bx, bz)) face(C, C.det, x0, z0, x1, z1, h, 0.02, 0.48, vOf(T.row, 0), vOf(T.row, 1), col);
       continue;
     }
     let s = 0;
@@ -250,10 +253,10 @@ export function makeFenceAtlas() {
     const x = mod(u, 256);
     if (y < 36) return [0.6, 0];
     const fr = x < 9 || x > 247 || y < 45 || y > 215 || Math.abs(y - 130) < 4;
-    if (fr) return [0.74, 1];
+    if (fr) return [0.58, 1];
     if (ribs) { const t = mod(x, 12.8) / 12.8; return [(t < 0.14 ? 0.8 : t < 0.5 ? 1 : t < 0.64 ? 0.84 : 0.93) * (0.96 + 0.04 * noise(u, y, 8)), 1]; }
     const dx = Math.abs(x - 128) / 104, dy = Math.abs(y - 130) / 74, rh = Math.abs(dx + dy - 1); // the welded rhombus
-    return [(rh < 0.035 ? 0.72 : 0.97) * (0.9 + 0.1 * noise(u, y, 10)) * (hash(u, y) < 0.02 ? 0.8 : 1), 1];
+    return [(rh < 0.035 ? 0.6 : 0.97) * (0.9 + 0.1 * noise(u, y, 10)) * (hash(u, y) < 0.02 ? 0.8 : 1), 1];
   };
   const rows = {
     [ROW.sheet]: (u, y) => { const t = mod(u, 25.6) / 25.6; return [(t < 0.12 ? 0.78 : t < 0.5 ? 1 : t < 0.62 ? 0.82 : 0.92) * (0.95 + 0.05 * noise(u, y, 6)) * (y > 220 ? 0.8 : 1), 1]; },
