@@ -67,6 +67,7 @@ import { createFarCull } from '../farcull.js';
 import { createSiteProxies } from './proxies.js';
 import { buildCarParks } from './carparks.js';
 import { buildStreet } from './street.js';
+import { startFences } from './fences.js';
 
 // Oleg's site modules, resolved at build time; a file that does not exist yet is simply absent
 const SITE_MODULES = import.meta.glob(['./landmarks.js', './frame.js', './restinn.js', './yalynka.js', './pagorb.js', './rosevalley.js',
@@ -199,6 +200,7 @@ export async function buildCherkasy({ scene, renderer, onProgress = null, params
 
   // the ground and the buildings build in workers side by side; the hand-built sites run here meanwhile
   const url = (f) => `${import.meta.env?.BASE_URL ?? '/'}assets/cherkasy/${f}`;
+  const fenceJob = guard('fences', () => startFences({ url: url('map_fences.json'), root, params })); // a worker fetches the fences while the city builds (?nofences: none)
   const collision = createCollisionWorld({ cell: 24 });
   const zips = createZipStore();
   const skip = new Set();
@@ -275,6 +277,7 @@ export async function buildCherkasy({ scene, renderer, onProgress = null, params
   await runSites(true);
   const sites = built.filter(Boolean);
   const movers = sites.filter((s) => s.collide);
+  const fences = fenceJob ? guard('fences', () => fenceJob.place({ hf, collision, sites: [landmarks, yalynka, hero, ...sites], skip, map })) : null; // built off the sites' lots; lands when its worker answers
   stage('sites', 0.5, 'Будинки…');
   const Bld = await bldP;
   const B = Bld.B;
@@ -294,6 +297,7 @@ export async function buildCherkasy({ scene, renderer, onProgress = null, params
   const wet = buildWetBands({ scene: root, T, segs: ground.wetSegs, isWater: ground.isWater, chunk: 1024 });
   for (const m of wet.meshes) ground.drawDist.add(m, 'wet'); // the shore out of sight or far away is not drawn
   for (const m of wet.foams) ground.drawDist.add(m, 'foam');
+  if (fences) water.reflectSkip(fences.root); // the fences stay out of the river mirror: nobody sees them there
   const ponds = buildPonds({ scene: root, map, heightAt });
 
   // trees: generated spots + the sites' own plantings; trunks become switchable collision cylinders
@@ -403,6 +407,7 @@ export async function buildCherkasy({ scene, renderer, onProgress = null, params
       camPos.copy(camera.position);
       Bld.update(camPos);
       ground.update(dt, camera); // the ground's far sheets and the draw distances of its small detail
+      fences?.update(camPos); // the fence chunks' draw distance, near detail and shadows
       trees.update(dt, camPos, camera); // the camera lets trees skip what cannot reach the image
       geoDebug.update(camera);
       landmarks.update?.(dt, camera); hero.update?.(dt, camera); yalynka.update?.(dt, camera);
@@ -418,6 +423,7 @@ export async function buildCherkasy({ scene, renderer, onProgress = null, params
       Bld.update(camPos); trees.update(0, camPos, camera); farCull.update(camPos); proxies?.update(camPos);
       ground.update(0, camera);
       street?.view(camera);
+      fences?.update(camPos);
       if (relight) {
         landmarks.update?.(0, camera); hero.update?.(0, camera); yalynka.update?.(0, camera);
         for (const s of sites) s.update?.(0, camera);
@@ -433,6 +439,7 @@ export async function buildCherkasy({ scene, renderer, onProgress = null, params
       water.setReflection(D.water.on, D.water);
       ground.setDetail(D.ground);
       streetDetail = D.street; street?.setDetail(streetDetail);
+      fences?.setQuality(q); // its own table (fences.js QUALITY)
     },
     stats: () => ({ loadMs: world.loadMs, stages, solids: collision.count, zips: zips.count, buildings: Bld.stats(), ground: ground.stats, trees: trees.stats(),
       spots: spots.stats, carParks: carParks?.stats() ?? null, farCull: farCull.stats(), proxies: proxies?.stats() ?? null, traffic: traffic?.stats() ?? null, people: people?.stats?.() ?? null, treeBreak: treeBreak.stats(), sites: sites.length, modules: Object.keys(S) }),
@@ -441,6 +448,8 @@ export async function buildCherkasy({ scene, renderer, onProgress = null, params
   world.street = street; // street.js api (stats, setDetail), null with ?nostreet
   if (streetP && streetData === undefined) streetP.then((d) => { world.street = street = mkStreet(d); if (streetDetail) street?.setDetail(streetDetail); });
   { const stats = world.stats; world.stats = () => Object.assign(stats(), { street: street?.stats() ?? null }); }
+  world.cherkasy.fences = fences;
+  { const plain = world.stats; world.stats = () => ({ ...plain(), fences: fences?.stats() ?? null }); }
   world.loadMs = Math.round(performance.now() - t0);
   console.log(`[cherkasy] built in ${world.loadMs} ms: ${B.footprints.length} buildings, ${collision.count} solids, ${spots.length} trees, ${sites.length} sites | ${Object.entries(stages).map(([k, v]) => k + ' ' + v).join(', ')}`);
   return world;

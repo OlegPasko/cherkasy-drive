@@ -11,7 +11,8 @@
 //     water.update(dt, camera?) every frame (camera may be missing); water.setReflection(on, { hz, scale }?)
 //     (rate and size, the build values when left out); water.reflectCull(obj) ->
 //     unregister(): obj (drawn with frustumCulled = false, e.g. the player car) is left out of a capture whose view its
-//     world bounds miss – no visible change, its draw calls saved; water.setSkyAdd(rgb):
+//     world bounds miss – no visible change, its draw calls saved; water.reflectSkip(obj) -> unregister(): obj is left
+//     out of every capture (small far detail whose reflection nobody sees: the fences); water.setSkyAdd(rgb):
 //     extra sky radiance when the scene has no environment map; water.mesh; water.material; water.y; water.stats();
 //     water.dispose(). `shore` is accepted for the legacy call (shore treatment comes from buildWetBands).
 //   buildWetBands({ scene, T?, segs, y = WATER_Y, isWater?, foam = true, chunk = 0 }) -> { mesh, foam, meshes, foams, update(dt), dispose() }
@@ -194,7 +195,7 @@ export function buildWater({ scene, renderer = null, shoreDist = null, skirtWate
   const toUV = new Matrix4().makeScale(0.5, 0.5, 0.5).setPosition(0.5, 0.5, 0.5); // clip -> [0, 1]
   // objects drawn with frustumCulled = false (the player car: ~200 draws) are hidden from a capture that cannot see
   // them; only the four side planes are tested, the ones the oblique near plane leaves untouched
-  const cullSet = new Set(), hidden = [], fr = new Frustum(), pv = new Matrix4(), box = new Box3(), sph = new Sphere();
+  const cullSet = new Set(), skipSet = new Set(), hidden = [], fr = new Frustum(), pv = new Matrix4(), box = new Box3(), sph = new Sphere();
   const inMirror = (o) => {
     if (box.setFromObject(o).isEmpty()) return true;
     box.getBoundingSphere(sph);
@@ -234,6 +235,7 @@ export function buildWater({ scene, renderer = null, shoreDist = null, skirtWate
           fr.setFromProjectionMatrix(pv.multiplyMatrices(rc.projectionMatrix, rc.matrixWorldInverse));
           for (const o of cullSet) if (o.visible && !inMirror(o)) { o.visible = false; hidden.push(o); }
         }
+        for (const o of skipSet) if (o.visible) { o.visible = false; hidden.push(o); }
         mesh.visible = false; rend.xr.enabled = false; rend.shadowMap.autoUpdate = false;
         rend.setRenderTarget(R.rt); rend.state.buffers.depth.setMask(true);
         if (rend.autoClear === false) rend.clear();
@@ -273,6 +275,7 @@ export function buildWater({ scene, renderer = null, shoreDist = null, skirtWate
     },
     setReflection(on, { hz = HZ0, scale = SCALE0 } = {}) { R.on = !!on && planar; reflectHz = hz; reflectScale = scale; if (!R.on) u.uReflW.value = 0; },
     reflectCull(obj) { if (obj) cullSet.add(obj); return () => cullSet.delete(obj); },
+    reflectSkip(obj) { if (obj) skipSet.add(obj); return () => skipSet.delete(obj); },
     setSkyAdd(c) { if (c) u.uSkyAdd.value.set(c[0] ?? c.r, c[1] ?? c.g, c[2] ?? c.b); },
     stats: () => ({ planar: planar && R.on && !R.failed, reflWeight: +R.weight.toFixed(2), reflRenders: R.renders, reflMs: +R.ms.toFixed(2), reflCulled: R.culled, rt: R.rt ? [R.rt.width, R.rt.height] : null }),
     dispose() { mesh.removeFromParent(); mesh.geometry.dispose(); material.dispose(); R.rt?.dispose(); u.tSkirt.value?.dispose(); if (CLOCK.owner === this) CLOCK.owner = null; },
