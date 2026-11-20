@@ -10,6 +10,8 @@ const PARTS = {
   land: `way["natural"](${b}); node["natural"="tree"](${b}); way["landuse"](${b}); relation["landuse"](${b}); way["leisure"](${b}); relation["leisure"](${b}); way["waterway"](${b});`,
   water: `relation["natural"="water"](${b}); relation["natural"]["natural"!="water"](${b});`,
   poi: `way["amenity"](${b}); node["amenity"](${b}); way["man_made"](${b}); node["man_made"](${b}); way["historic"](${b}); node["historic"](${b}); way["tourism"](${b}); node["tourism"](${b}); node["place"](${b}); way["barrier"](${b});`,
+  // the street nodes (lamps, bus stops, crossings, poles) – read by build_street.mjs only, build_map.mjs does not use it
+  street: `node["highway"](${b}); node["public_transport"](${b}); node["power"](${b}); way["power"](${b}); node["barrier"](${b}); node["traffic_sign"](${b});`,
 };
 const SERVERS = ['https://overpass-api.de/api/interpreter', 'https://overpass.kumi.systems/api/interpreter', 'https://overpass.private.coffee/api/interpreter'];
 const want = process.argv.slice(2).length ? process.argv.slice(2) : Object.keys(PARTS);

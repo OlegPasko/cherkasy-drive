@@ -39,6 +39,8 @@ the Dnipro, +z south-east, origin at Soborna square).
         cherkasy/             Oleg's Cherkasy modules: landmarks, ground, city assembly; proxies.js: far boxes for the hand-built buildings
                               ground.js + groundfar.js: the ground in 1 km units, full tiles near the camera, one far sheet
                               (a few thousand triangles + a map of surface ids) beyond the level's far distance
+                              street.js: the generated streets' furniture (lamps, utility poles and wires, bus stops,
+                              benches, bins) from map_street.json, merged per 48 m cell into five meshes round the camera
       npc/
         lanes.js              lane graph from OSM roads; junctions; traffic lights
         vehicles.js           loads public/assets/vehicles/*.glb; instanced bodies with LOD and paint colours
