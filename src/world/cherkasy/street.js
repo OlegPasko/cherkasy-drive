@@ -19,7 +19,8 @@
 //     spots, a pole steps aside from a trunk.
 //     The sites' areas are ~120 functions, 16 us a point for all of them, so they are not asked for 20 thousand props
 //     at the load: a 48 m cell is checked when the camera first comes within CHECK_R (640 m) of it, and a prop a site
-//     clears goes then, with its collider (collision.disable), its wires, its glow and its pool. Nothing is drawn,
+//     clears goes then, with its collider (collision.disable), its wires, its glow and its pool; so does a pole or a
+//     lamp head that turns out to be inside a solid the raster does not know (a site's own walls). Nothing is drawn,
 //     and no car park is laid out (carparks.js, 420 m), nearer than that.
 //   street.update(dt, camera)   streams the cells round the camera (only when it enters another 48 m cell) and sets
 //     the night uniforms; street.view(camera) is the same for the photo mode's free camera
@@ -29,7 +30,7 @@
 //     sprites toward `glow`
 //   street.checkAll()   checks every cell against the sites now (tests, exact counts)
 //   street.stats() -> { props: { lamps, main, ..., poles, benches, ... } (placed, before the sites' say), solids,
-//     dropped: { site, deck, building, water, region }, checked (cells), ms (the build), checkMs (the sites' checks so
+//     dropped: { site, deck, solid, building, water, region }, checked (cells), ms (the build), checkMs (the sites' checks so
 //     far), drawn: { near, far (triangles), wires (segments), pools (triangles), glow (points) }, cells, refreshes, detail }
 //   street.props(kind?) -> [{ x, y, z, ry, kind, alive }]   (tests) kind: 'lamp' | 'pole' | 'bench' | 'bin' | 'stop' | 'cross' | 'container' | 'shelter'
 //   street.root   the group (five meshes: near, far, wires, pools, glow), street.lampCount
@@ -293,7 +294,7 @@ export function buildStreet({ scene, data, map, heightAt, ground = null, solids 
 
   // ---- where a prop may not stand: the cheap tests now, the sites' own ground when its cell is first needed (check)
   const inside = (x, z, m = 2) => x > R.x0 + m && x < R.x1 - m && z > R.z0 + m && z < R.z1 - m;
-  const dropped = { site: 0, deck: 0, building: 0, water: 0, region: 0 };
+  const dropped = { site: 0, deck: 0, solid: 0, building: 0, water: 0, region: 0 };
   const ok = (x, z) => {
     if (!inside(x, z)) { dropped.region++; return false; }
     if (occ && occ.get(x, z) === 1) { dropped.building++; return false; }
@@ -315,6 +316,16 @@ export function buildStreet({ scene, data, map, heightAt, ground = null, solids 
     return [x, z];
   };
 
+  // a lamp arm that would reach into a building (a pole tight against a wall, its street on the far side of the house)
+  // turns about, or to a side: no head, lens or glow sprite ends up inside a footprint
+  const aim = (x, z, ry, reach, turns, both = false) => {
+    if (!occ) return ry;
+    const blocked = (a) => { for (const s of both ? [1, -1] : [1]) for (const t of [0.5, 1, 1.25]) if (occ.get(x + Math.cos(a) * reach * t * s, z - Math.sin(a) * reach * t * s) === 1) return true; return false; };
+    for (const d of turns) if (!blocked(ry + d)) return ry + d;
+    return ry;
+  };
+  const TURNS = [0, Math.PI, Math.PI / 2, -Math.PI / 2], ABOUT = [0, Math.PI]; // a utility pole only turns about: its crossarm stays across the wires
+
   // ---- the props. Per prop: place, template, its collider and the wire records that hang on it (w0 / w1: first
   // record of the span behind and ahead, -1 none; a utility pole's span is four records, a trolley span one)
   const P = { x: [], y: [], z: [], ry: [], t: [], kind: [], solid: [], w0: [], w1: [] };
@@ -332,11 +343,12 @@ export function buildStreet({ scene, data, map, heightAt, ground = null, solids 
     const D = data.lamps; let px = 0, pz = 0;
     for (let i = 0; i < D.length; i += 3) {
       px += D[i]; pz += D[i + 1];
-      const code = D[i + 2], type = code & 7, ry = ((code >> 3) & 63) * Y64, span = (code >> 9) / 10;
+      const code = D[i + 2], type = code & 7, ry0 = ((code >> 3) & 63) * Y64;
       let x = px / 10, z = pz / 10;
       if (!ok(x, z)) continue;
-      [x, z] = stepAside(x, z, ry);
+      [x, z] = stepAside(x, z, ry0);
       const [kind, t] = LAMP_OF[type] ?? LAMP_OF[2], y = groundY(x, z);
+      const ry = aim(x, z, ry0, LAMPS[kind].head[0], TURNS, type === 1), span = ry === ry0 ? (code >> 9) / 10 : 0; // a turned arm holds no span wire
       const id = add(x, y, z, ry, t, 0, pole(x, y, z, LAMPS[kind]));
       headAt(id, kind); if (type === 1) headAt(id, kind, -1);
       counts.lamps++; counts[['main', 'main2', 'street', 'yard', 'park'][type] ?? 'street']++;
@@ -352,10 +364,11 @@ export function buildStreet({ scene, data, map, heightAt, ground = null, solids 
     const solo = ch.length === 3;
     for (let i = 0; i < ch.length; i += 3) {
       px += ch[i]; pz += ch[i + 1];
-      const lamp = ch[i + 2] & 1, ry = (ch[i + 2] >> 1) * Y64;
+      const lamp = ch[i + 2] & 1, ry0 = (ch[i + 2] >> 1) * Y64;
       let x = px / 10, z = pz / 10;
       if (!ok(x, z)) continue;
-      [x, z] = stepAside(x, z, ry);
+      [x, z] = stepAside(x, z, ry0);
+      const ry = lamp ? aim(x, z, ry0, LAMPS.util.head[0], ABOUT) : ry0;
       const y = groundY(x, z), id = add(x, y, z, ry, lamp ? (solo ? T_UTIL_SOLO : T_UTIL_LAMP) : T_UTIL, 1, pole(x, y, z, LAMPS.util));
       if (lamp) { headAt(id, 'util'); counts.poleLamps++; }
       counts.poles++;
@@ -498,7 +511,7 @@ export function buildStreet({ scene, data, map, heightAt, ground = null, solids 
 
   // ---- the sites' say, a cell at a time
   const checked = new Set();
-  let checkMs = 0;
+  let checkMs = 0, gridFresh = false;
   function drop(i, why) {
     alive[i] = 0; dropped[why]++;
     if (P.solid[i] >= 0) solids.disable(P.solid[i]);
@@ -506,15 +519,24 @@ export function buildStreet({ scene, data, map, heightAt, ground = null, solids 
     const hs = headsOf.get(i);
     if (hs) { const a = glowGeo.attributes.size; for (const h of hs) a.array[h] = 0; a.needsUpdate = true; }
   }
+  // inside a static solid that is not a pole of ours or a tree trunk (the collision world is complete by the first check)
+  const inSolid = solids?.solidAt ? (x, y, z) => { const id = solids.solidAt(x, y, z); if (id < 0) return false; const k = solids.kindOf(id); return k !== 'pole' && k !== 'tree'; } : null;
   function check(key) {
     checked.add(key);
     const ids = cellProps.get(key); if (!ids) return;
+    if (inSolid && !gridFresh) { solids.topAt(0, 0); gridFresh = true; } // a query that rebuilds the grid if solids were added since
     const t = performance.now();
     for (const i of ids) {
       const x = PX[i], z = PZ[i];
       let why = null;
       for (const f of clear) if (f(x, z)) { why = 'site'; break; }
       if (!why) for (const f of decks) if (f(x, z) != null) { why = 'deck'; break; }
+      // a pole or a lamp head inside a solid the building raster does not know (a hand-built site's walls): gone too
+      if (!why && P.kind[i] < 2 && inSolid) {
+        const c = Math.cos(PR[i]), sn = Math.sin(PR[i]);
+        if (inSolid(x + c * 0.5, PY[i] + 1.5, z - sn * 0.5)) why = 'solid';
+        else for (const h of headsOf.get(i) ?? []) if (inSolid(H[h * 5], H[h * 5 + 1], H[h * 5 + 2])) { why = 'solid'; break; }
+      }
       if (why) drop(i, why);
     }
     checkMs += performance.now() - t;

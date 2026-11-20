@@ -96,6 +96,10 @@ for (const kind of ['shelter', 'container', 'bench', 'bin', 'stop', 'cross']) {
 const hit = (p) => solids.pushCylinder({ x: p.x + 0.3, y: p.y + 1, z: p.z }, 0.5, 1.5, 0.3) != null;
 ok(posts.filter((_, i) => i % 97 === 0).every(hit), 'poles collide');
 
+// a wall the building raster does not know (a hand-built site's): the lamp whose head it swallows goes when its cell is checked (below)
+const walled = street.props('lamp').filter((p) => p.alive && p.x > 1500 && p.kind === 'lamp')[7];
+{ const c = Math.cos(walled.ry), sn = Math.sin(walled.ry); solids.obox(walled.x + c * 1.2, walled.z - sn * 1.2, 0.9, 3, -walled.ry, 0, 14, 'wall'); }
+
 // ---- streaming
 const cam = (x, z, y = 2) => ({ position: new THREE.Vector3(x, y, z) });
 street.setDetail({ near: 120, far: 560, wires: 220, pools: 320, glow: 3500 });
@@ -138,6 +142,29 @@ for (let x = R.x0 + 200; x < R.x1; x += 240) for (let z = R.z0 + 200; z < R.z1; 
 ok(worstTris < 150000, `worst spot ${at?.slice(0, 2)}: ${at?.[2]} near x 3 + ${at?.[3]} far + pools = ${worstTris} triangles a frame`);
 street.checkAll();
 ok(street.stats().checked >= street.stats().cells, 'checkAll covers every cell');
+{ const p = street.props('lamp').find((q) => q.x === walled.x && q.z === walled.z); ok(!p.alive && street.stats().dropped.solid >= 1, `a lamp whose arm is inside a site's wall is dropped (dropped.solid = ${street.stats().dropped.solid})`); }
+{ // no stray glow: every lit sprite hangs on a live pole (within its arm's reach), outside every building; the lamps
+  // the stand-in site cleared have theirs switched off
+  const glow = street.root.children.find((c) => c.isPoints), pos = glow.geometry.attributes.position, size = glow.geometry.attributes.size;
+  const g = new Map(), k = (x, z) => Math.floor(x / 4) * 65536 + Math.floor(z / 4);
+  for (const p of [...street.props('lamp'), ...street.props('pole')]) if (p.alive) { const kk = k(p.x, p.z); (g.get(kk) ?? g.set(kk, []).get(kk)).push(p); }
+  let lit = 0, orphan = 0, inWall = 0, low = 0, inSiteLit = 0;
+  for (let i = 0; i < pos.count; i++) {
+    if (!(size.getX(i) > 0)) continue;
+    lit++;
+    const x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i);
+    let near = false;
+    const ci = Math.floor(x / 4), cj = Math.floor(z / 4);
+    for (let a = -1; a <= 1 && !near; a++) for (let b = -1; b <= 1 && !near; b++) for (const p of g.get((ci + a) * 65536 + cj + b) ?? []) if (Math.hypot(p.x - x, p.z - z) < 2.6) { near = true; break; }
+    if (!near) orphan++;
+    if (occ.get(x, z) === 1) inWall++;
+    if (y < 3) low++;
+    if (inSite(x, z) && inSite(x + 3, z + 3) && inSite(x - 3, z - 3)) inSiteLit++;
+  }
+  ok(lit > 13000 && orphan === 0, `${lit} glow sprites, each on a live pole (${orphan} orphans)`);
+  ok(inWall === 0 && low === 0, `no lamp head inside a building footprint (${inWall}) or under 3 m (${low})`);
+  ok(inSiteLit === 0, 'the lamps a site cleared do not glow');
+}
 
 console.log(fails ? `\n${fails} FAILED` : '\nall ok');
 process.exit(fails ? 1 : 0);
