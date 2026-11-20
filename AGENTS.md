@@ -397,6 +397,24 @@ See `ARCHITECTURE.md` for the module map. Where things live:
     streams the cars (`sim.addParkingLots`): lots within 0.6 x the traffic draw reach (420 / 300 / 210 m) hold cars,
     dropped 80 m past it, at most 900 / 600 / 360 live; the sites' `parked` spots stream the same way. Parked cars keep
     their lamps dark at night (`fleet.add(..., off)`). `tests/carparks.test.mjs`.
+  - `fences.js` + `fencework.js` – the city's fences, walls, hedges and gates (~620 km): the private sector's street
+    fronts (profiled sheet between brick or steel posts, old plank, picket and slate, concrete panels, forged bars; a
+    gate and a wicket per lot, open gates over driveways), the fences between lots, and the concrete / bar / mesh fences
+    of plants, schools and pitches. The lines are `public/assets/cherkasy/map_fences.json` (2.4 MB), compiled by
+    `node tools/cherkasy/build_fences.mjs` from the raw OSM barriers (`poi.json`) and `map.json`: OSM fronts on a
+    pavement band move back to its edge, lots are split at side fences or between houses, and house lots with no OSM
+    fence get a generated front; nothing stands on a carriageway, a driveway, a footway crossing or in a building, and
+    a house on the street line is its own front. A worker (`fencework.js`, no three: it also runs in node) fetches the
+    file and builds the atlas and the 512 m chunks while the city loads; `fences.js` drops the pieces on hand-built
+    sites' lots (a site's `clear`, footprints, `lot.ring`, the OSM buildings it replaces), draws a chunk within `far`
+    (700 / 450 / 260 m at high / medium / low), its posts, plinths and open gates within `near`, shadows within
+    `shadow` (panels only), and keeps the fences out of the river mirror (`water.reflectSkip`). Every fence is a `wall`
+    solid, one per straight run (~43k, each within 0.25 m of the line and 1.2 m of ground rise). `?nofences` turns them
+    off. Rerun the compiler after every map rebuild (`build_map.mjs` does not). `tests/fences.test.mjs`.
+  - The generated private sector's houses (`facadekit.js dressHouse` / `dressShed`): a front door in a pier between
+    windows – at the floor line over a stoop or a porch slab, or at ground level –, a frame and a pent canopy on some, a
+    brick chimney through some pitched roofs, a gas pipe; a door on most sheds. About 9 triangles a house on purpose:
+    the roof-detail mesh has no LOD inside a tile and is drawn to 2.6 km and in the river mirror. No solids.
   - Requests #28–#30: `atb26` rebuilds the supermarket at Остафія Дашковича 26 with a charcoal shopfront beneath
     the three-storey tiled street block; `school7` builds both school №7 blocks at Добровольчих батальйонів 13 and
     the yellow-railed Odeska pedestrian bridge over the roads, garages and railway. Both schools and ATB are
@@ -575,6 +593,7 @@ See `ARCHITECTURE.md` for the module map. Where things live:
     the Telegram bot's "🚗 Подивитись у грі" links use it.
   - `?noga` – no Google Analytics on the production site;
   - `?noadapt` – no adaptive resolution (steady pixel ratio for perf measurements);
+  - `?nofences` – no fences (`fences.js`; A/B for perf measurements);
   - `?stilltime` – the clock stands still (the game runs a day per hour of play and skips the night, `startGame` in `main.js`);
   - `?nosound` – no sound at all (no AudioContext, nothing fetched, the radio muted); use it for every dev and test run;
   - `?mobile` / `?desktop` – force the phone map page or the game (`src/mapview.js`).

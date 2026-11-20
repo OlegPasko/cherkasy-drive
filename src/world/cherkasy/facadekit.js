@@ -17,8 +17,13 @@
 // triangle's provoking (last) vertex, so a row can carry the parapet colour for the quad above it while its part says
 // GLASS for the glazing quad that starts there (GLASS ignores vertex colour). Small props get no collision.
 // ?nokit skips the kit (A/B); the build prints one '[cherkasy] facadekit:' summary line (vertices / solids / ms).
+// The private sector (dressHouse, dressShed): a house gets a front door on a step or a porch (a frame and a pent canopy
+// on some) in a pier between two windows, a brick chimney through a pitched roof, on some a gas pipe; a shed gets a
+// door. All of it is drawn as far as the roofs are (no LOD inside a tile) and again in the river mirror, so a house is
+// held to about 9 triangles (+ ~0.2 M triangles for the 23k houses and 17k sheds) and nothing there has a solid: the
+// fences (fences.js) keep the car out of the yards.
 import { DP } from '../materials.js';
-import { area2, inPoly, bboxOf } from './geo.js';
+import { area2, inPoly, bboxOf, obb } from './geo.js';
 
 const hexL = (h) => { const n = parseInt(h.slice(h[0] === '#' ? 1 : 0), 16); return [16, 8, 0].map((sh) => (((n >> sh) & 255) / 255) ** 2.2); }; // '#rrggbb' -> linear (gamma 2.2)
 const pick = (r, list) => { let u = r() * list.reduce((s, x) => s + x[0], 0); for (const x of list) { u -= x[0]; if (u <= 0) return x[1]; } return list[list.length - 1][1]; };
@@ -388,16 +393,118 @@ function dressRow(C, D, S, A, outer, sg, base, H, r, fl) {
   }
 }
 
-function dressHouse(C, D, outer, sg, base, H, r, fl) {
-  if (r() > 0.22 || H - base < 2.6) return;
+// private house (not a townhouse row): a front door with its frame on a step or a porch, in a pier between two windows
+// of the street wall or a side wall, a canopy over some; a brick chimney through a pitched roof; on some a yellow gas
+// pipe along the street wall. No collision: the steps are a kerb's height and the fences (fences.js) keep the car out.
+const HDOOR = [[3, hexL('#5B3A2E')], [2.5, hexL('#3A2A22')], [2, hexL('#E4E2DA')], [1.5, hexL('#7A5536')], [1, hexL('#3F6147')], [1, hexL('#3F5F86')], [1, hexL('#2E3134')], [0.6, hexL('#6B2A2E')]];
+const HFRAME = [[3, hexL('#ECEBE6')], [1.5, hexL('#4A3A30')], [1, hexL('#2E3134')]];
+const CHIM = [[4, hexL('#8A4A38')], [2, hexL('#A8553E')], [1.5, hexL('#D9D5CB')], [1, hexL('#7C7A76')]];
+const CANOPY = [[3, hexL('#5E4332')], [2, hexL('#3C3E42')], [2, hexL('#6D2C2A')], [1, hexL('#3E5E46')], [1.5, hexL('#B4B8BA')]];
+// the piers of a windowed wall (between two bays, and at its two ends) wide enough for a door: [s of the pier's middle]
+function piers(e, A, need) {
+  const { c, bw } = bays(e, A), m = A.margin ?? 0.6, out = [];
+  if (bw * (1 - A.winW) >= need) for (let k = 0; k + 1 < c.length; k++) out.push(c[k] - bw / 2);
+  const end = m + bw * (1 - A.winW) / 2;
+  if (end >= need + 0.25) out.push(end / 2 + 0.12, e.L - end / 2 - 0.12);
+  return out;
+}
+function dressHouse(C, D, b, A, outer, sg, base, H, r, fl, pitched) {
+  if (H - base < 2.6) return;
+  const E = ringFrames(outer, sg, fl).filter((e) => e.L > 3);
   // the street-most edge longer than 3 m (ties: the longer one)
-  const best = ringFrames(outer, sg, fl).filter((e) => e.L > 3).reduce((m, e) => (!m || e.f > m.f || (e.f === m.f && e.L > m.L) ? e : m), null);
-  if (!best) return;
-  const e = best, y = Math.min(base + 2.2, H - 0.25), s0 = 0.25, s1 = e.L - 0.25, o0 = 0.1, o1 = 0.17, rs = r() < 0.5 ? s0 : s1 - 0.07;
-  D.setPart(DP.PAINT).setColor(jit(GAS, r, 0.06));
-  ebox(D, e, s0, s1, o0, o1, y, y + 0.07, 1 | 32);           // run along the wall at ~2.2 m
-  ebox(D, e, rs, rs + 0.07, o0, o1, base - 0.8, y, 1);      // riser from the ground
-  C.c.gas++;
+  const front = E.reduce((m, e) => (!m || e.f > m.f || (e.f === m.f && e.L > m.L) ? e : m), null);
+  if (!front) return;
+  // ---- the door: a side wall on most houses (the yard side of the gate), else the street wall
+  const sides = E.filter((e) => e !== front && Math.abs(e.ux * front.ux + e.uz * front.uz) < 0.5);
+  const order = r() < 0.55 && sides.length ? [sides[Math.floor(r() * sides.length)], front, ...sides] : [front, ...sides];
+  // a third of the doors open at ground level (old houses: the door sits lower than the windows), the rest at the floor
+  // line the windows count from, over a stoop or, on a few, a porch slab. Every triangle here is drawn out to 2.6 km
+  // with the roofs and once more in the river mirror, hence the low shares
+  const dw = 0.92 + (r() < 0.3 ? 0.1 : 0), canopy = r() < 0.25, u = r(), porch = u < 0.12, low = u > 0.65, framed = r() < 0.25;
+  const yf = low ? base - 0.1 : base - 0.15 + A.plinth, hD = Math.min(2.08, H - yf - 0.3);
+  let doorAt = null;
+  for (const e of order) {
+    if (hD < 1.85) break;
+    const P = piers(e, A, dw + 0.36);
+    for (let n = P.length, k = Math.floor(r() * n), t = 0; t < n && !doorAt; t++, k = (k + 1) % n) {
+      const s = P[k], p = W(e, s, 1.1, 0);
+      if (!inPoly(outer, p[0], p[2]) && !blocked(C, p[0], p[2])) doorAt = [e, s];
+    }
+    if (doorAt) break;
+  }
+  if (doorAt) {
+    const [e, s] = doorAt, hw = dw / 2, dep = porch ? 0.95 : 0.5, sw = hw + (porch ? 0.45 : 0.22);
+    D.setPart(DP.CONC).setColor(jit(CONC, r));
+    if (porch) ebox(D, e, s - sw, s + sw, 0, dep, base - 0.7, yf, 1 | 4 | 8 | 16);           // porch slab (deep: the ground may fall)
+    else if (!low) { // a stoop: one sloped face from the threshold to the ground
+      const sl = 0.45 / Math.hypot(0.45, dep), cs = dep / Math.hypot(0.45, dep);
+      q4(D, W(e, s - sw, 0, yf), W(e, s + sw, 0, yf), W(e, s + sw, dep, base - 0.25), W(e, s - sw, dep, base - 0.25), e.nx * sl, cs, e.nz * sl);
+    }
+    if (framed) {
+      D.setPart(DP.PAINT).setColor(jit(pick(r, HFRAME), r, 0.04));
+      ebox(D, e, s - hw - 0.08, s + hw + 0.08, 0, 0.03, yf, yf + hD + 0.08, 1);              // frame
+    }
+    D.setPart(r() < 0.35 ? DP.WOOD : DP.PAINT).setColor(jit(pick(r, HDOOR), r, 0.07));
+    ebox(D, e, s - hw, s + hw, 0, 0.06, yf + 0.02, yf + hD, 1);                              // leaf
+    if (canopy) {
+      const yc = yf + hD + 0.2, cw = sw + 0.12, cd = dep + 0.15, col = jit(pick(r, CANOPY), r, 0.05);
+      D.setPart(col[2] > col[0] * 1.02 && col[0] > 0.4 ? DP.GALV : DP.PAINT).setColor(col);
+      // a pent canopy: 0.22 m of fall away from the wall, top and underside (the detail material is one-sided)
+      const a = W(e, s - cw, 0, yc + 0.22), bq = W(e, s + cw, 0, yc + 0.22), cq = W(e, s + cw, cd, yc), dq = W(e, s - cw, cd, yc);
+      const sl = 0.22 / Math.hypot(0.22, cd), cs = cd / Math.hypot(0.22, cd);
+      q4(D, a, bq, cq, dq, e.nx * sl, cs, e.nz * sl); q4(D, a, bq, cq, dq, -e.nx * sl, -cs, -e.nz * sl);
+    }
+    C.c.hdoor = (C.c.hdoor ?? 0) + 1;
+  }
+  // ---- the chimney: a brick stack through the roof slope near the ridge (the roof of buildings.js pitchedRoof)
+  if (pitched && r() < 0.27) {
+    const o = obb(outer);
+    if (o && o.W > 3) {
+      const rise = Math.min(6, (o.W / 2) * (A.pitch ?? 0.5)), rl = A.roof === 'hip' ? Math.max(0, (o.L - o.W) / 2) : o.L / 2 - 0.8;
+      const cs = (r() - 0.5) * 1.4 * Math.max(0, rl - 0.4), cq = (r() < 0.5 ? -1 : 1) * (0.12 + 0.22 * r()) * o.W / 2;
+      const yRoof = H + rise * (1 - Math.abs(cq) / (o.W / 2)), y0 = yRoof - 0.45, y1 = Math.min(yRoof + 1.5, Math.max(yRoof + 0.65, H + rise + 0.2));
+      const hs = 0.26 + r() * 0.08, hq = 0.2, vx = -o.uz, vz = o.ux, col = jit(pick(r, CHIM), r, 0.06);
+      const at = (a, c) => [o.cx + o.ux * (cs + a * hs) + vx * (cq + c * hq), o.cz + o.uz * (cs + a * hs) + vz * (cq + c * hq)];
+      const K = [[-1, -1], [1, -1], [1, 1], [-1, 1]], ring = (y, ny) => K.map(([a, c]) => {
+        const [x, z] = at(a, c), dx = o.ux * a + vx * c, dz = o.uz * a + vz * c; // corner normals: four sides share eight vertices
+        return D.vert(x, y, z, ny ? 0 : dx * 0.7071, ny, ny ? 0 : dz * 0.7071, (a + c) * 0.2, y);
+      });
+      D.setPart(DP.BRICK).setColor(col);
+      const lo = ring(y0, 0), hi = ring(y1, 0);
+      // a side's outward normal is (dz, -dx) of its edge when the ring has positive area; flip otherwise
+      const pos = area2(K.map(([a, c]) => at(a, c))) > 0;
+      for (let k = 0; k < 4; k++) { const n = (k + 1) % 4; if (pos) D.quad(lo[k], hi[k], hi[n], lo[n]); else D.quad(lo[k], lo[n], hi[n], hi[k]); }
+      D.setPart(DP.PAINT).setColor([col[0] * 0.35, col[1] * 0.35, col[2] * 0.35]);
+      const top = ring(y1, 1);
+      if (pos) D.quad(top[0], top[3], top[2], top[1]); else D.quad(top[0], top[1], top[2], top[3]); // up
+      C.c.chim = (C.c.chim ?? 0) + 1;
+    }
+  }
+  // ---- the gas pipe along the street wall, over the windows and the door
+  if (r() < 0.22) {
+    const e = front, y = Math.min(base + 2.62, H - 0.2), s0 = 0.25, s1 = e.L - 0.25, o0 = 0.1, o1 = 0.17, rs = r() < 0.5 ? s0 : s1 - 0.07;
+    D.setPart(DP.PAINT).setColor(jit(GAS, r, 0.06));
+    ebox(D, e, s0, s1, o0, o1, y, y + 0.07, 1);                // run along the wall
+    ebox(D, e, rs, rs + 0.07, o0, o1, base - 0.8, y, 1);      // riser from the ground
+    C.c.gas++;
+  }
+}
+// shed, summer kitchen, outhouse: a plank or steel door on its street-most (else longest) wall
+const SDOOR = [[3, hexL('#6E5238')], [2, hexL('#4A3A30')], [2, hexL('#3F6147')], [1.5, hexL('#7C7F80')], [1, hexL('#3F5F86')], [1, hexL('#8A4A2A')]];
+function dressShed(C, D, outer, sg, base, H, r, fl) {
+  if (r() > 0.7) return;
+  const hD = Math.min(1.95, H - base - 0.25);
+  if (hD < 1.5) return;
+  const E = ringFrames(outer, sg, fl).filter((e) => e.L > 1.5).sort((a, c) => c.f - a.f || c.L - a.L);
+  for (const e of E.slice(0, 3)) {
+    const wide = e.L > 4.2 && r() < 0.3, hw = wide ? 1.05 : Math.min(0.42, e.L / 2 - 0.25), s = wide ? e.L / 2 : hw + 0.25 + r() * (e.L - 2 * hw - 0.5);
+    const p = W(e, s, 0.9, 0);
+    if (inPoly(outer, p[0], p[2]) || blocked(C, p[0], p[2])) continue;
+    D.setPart(r() < 0.55 ? DP.WOOD : DP.PAINT).setColor(jit(pick(r, SDOOR), r, 0.1));
+    ebox(D, e, s - hw, s + hw, 0, 0.04, base - 0.1, base - 0.1 + hD, 1);
+    C.c.sdoor = (C.c.sdoor ?? 0) + 1;
+    return;
+  }
 }
 
 // ---------------------------------------------------------------------------------------------- entry
@@ -412,7 +519,8 @@ export function dressBuilding({ t, S, Z, b, A, outer, holes, base, H, r, pitched
     if (b.k === 'apt' || (b.k === 'public' && b.lv >= 2)) dressApt(C, D, S, b, A, outer, sg, base, H, r, pitched, fl);
     else if (b.k === 'garage') dressGarage(C, D, b, A, outer, sg, base, H, r, fl);
     else if (b.k === 'house' && A.row) dressRow(C, D, S, A, outer, sg, base, H, r, fl);
-    else if (b.k === 'house') dressHouse(C, D, outer, sg, base, H, r, fl);
+    else if (b.k === 'house') dressHouse(C, D, b, A, outer, sg, base, H, r, fl, pitched);
+    else if (b.k === 'shed') dressShed(C, D, outer, sg, base, H, r, fl);
   } finally {
     addFoot(C, outer);
     C.n++; C.v += D.v - v0; C.s += (S.count ?? 0) - n0; C.ms += performance.now() - t0;
