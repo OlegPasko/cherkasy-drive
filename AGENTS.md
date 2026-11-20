@@ -411,7 +411,11 @@ See `ARCHITECTURE.md` for the module map. Where things live:
     frame; distances per level in `DETAIL.street`. Lamps glow by `nightFactor()` with no real lights. Poles, shelter
     walls and container sites collide, the small props do not. No prop stands on a carriageway, in a building or on
     water; a site's own ground (`clear`, `deckAt`) drops the props in it when the camera first comes within 640 m (the
-    ~120 `clear` functions are too slow to ask for 20 thousand props at the load). `?nostreet` turns it all off.
+    ~120 `clear` functions are too slow to ask for 20 thousand props at the load). No prop stands in a fence either: the
+    compiler reads `map_fences.json` (run `build_fences.mjs` first when the fences change) and steps a prop clear of a
+    fence line, to the road's side, or drops it; in the game the same cell check drops what still has a `wall` solid
+    across its foot (a site's wall, a pole that stepped round a trunk) and leaves out a wire span that would pass
+    through a solid, and asks again when the collision world grows (the fences land from a worker). `?nostreet` turns it all off.
   - `fences.js` + `fencework.js` – the city's fences, walls, hedges and gates (~620 km): the private sector's street
     fronts (profiled sheet between brick or steel posts, old plank, picket and slate, concrete panels, forged bars; a
     gate and a wicket per lot, open gates over driveways), the fences between lots, and the concrete / bar / mesh fences

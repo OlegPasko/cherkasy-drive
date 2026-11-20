@@ -20,7 +20,10 @@
 //     The sites' areas are ~120 functions, 16 us a point for all of them, so they are not asked for 20 thousand props
 //     at the load: a 48 m cell is checked when the camera first comes within CHECK_R (640 m) of it, and a prop a site
 //     clears goes then, with its collider (collision.disable), its wires, its glow and its pool; so does a pole or a
-//     lamp head that turns out to be inside a solid the raster does not know (a site's own walls). Nothing is drawn,
+//     lamp head that turns out to be inside a solid the raster does not know (a site's own walls) and any prop with a
+//     fence or a wall across its foot (the compiler keeps the props off the fences of map_fences.json; this is the
+//     net under it), and a wire span that would pass through a solid is left out. The solids are asked again when the
+//     collision world has grown (fences.js lands its 43 thousand walls from a worker, often after the start). Nothing is drawn,
 //     and no car park is laid out (carparks.js, 420 m), nearer than that.
 //   street.update(dt, camera)   streams the cells round the camera (only when it enters another 48 m cell) and sets
 //     the night uniforms; street.view(camera) is the same for the photo mode's free camera
@@ -30,9 +33,10 @@
 //     sprites toward `glow`
 //   street.checkAll()   checks every cell against the sites now (tests, exact counts)
 //   street.stats() -> { props: { lamps, main, ..., poles, benches, ... } (placed, before the sites' say), solids,
-//     dropped: { site, deck, solid, building, water, region }, checked (cells), ms (the build), checkMs (the sites' checks so
+//     dropped: { site, deck, solid, fence, wire (spans, not props), building, water, region }, checked (cells), rechecks, ms (the build), checkMs (the sites' checks so
 //     far), drawn: { near, far (triangles), wires (segments), pools (triangles), glow (points) }, cells, refreshes, detail }
-//   street.props(kind?) -> [{ x, y, z, ry, kind, alive }]   (tests) kind: 'lamp' | 'pole' | 'bench' | 'bin' | 'stop' | 'cross' | 'container' | 'shelter'
+//   street.props(kind?) -> [{ x, y, z, ry, kind, alive, solid (its collider's id, -1 none), hx, hz (half sizes on the ground, local x / z) }]   (tests) kind: 'lamp' | 'pole' | 'bench' | 'bin' | 'stop' | 'cross' | 'container' | 'shelter'
+//   street.spans() -> [[ax, ay, az, bx, by, bz, sag]]   (tests) the two outer wires of every live utility span
 //   street.root   the group (five meshes: near, far, wires, pools, glow), street.lampCount
 // Draw cost: five draw calls (three by day), +2 for the near mesh in the shadow cascades. Everything is world-space
 // geometry merged per 48 m cell on first use (a cell's arrays are cached) and copied into one buffer per mesh when the
@@ -294,7 +298,7 @@ export function buildStreet({ scene, data, map, heightAt, ground = null, solids 
 
   // ---- where a prop may not stand: the cheap tests now, the sites' own ground when its cell is first needed (check)
   const inside = (x, z, m = 2) => x > R.x0 + m && x < R.x1 - m && z > R.z0 + m && z < R.z1 - m;
-  const dropped = { site: 0, deck: 0, solid: 0, building: 0, water: 0, region: 0 };
+  const dropped = { site: 0, deck: 0, solid: 0, fence: 0, wire: 0, building: 0, water: 0, region: 0 };
   const ok = (x, z) => {
     if (!inside(x, z)) { dropped.region++; return false; }
     if (occ && occ.get(x, z) === 1) { dropped.building++; return false; }
@@ -328,12 +332,14 @@ export function buildStreet({ scene, data, map, heightAt, ground = null, solids 
 
   // ---- the props. Per prop: place, template, its collider and the wire records that hang on it (w0 / w1: first
   // record of the span behind and ahead, -1 none; a utility pole's span is four records, a trolley span one)
-  const P = { x: [], y: [], z: [], ry: [], t: [], kind: [], solid: [], w0: [], w1: [] };
+  const P = { x: [], y: [], z: [], ry: [], t: [], kind: [], solid: [], w0: [], w1: [], hx: [], hz: [] };
   const counts = { lamps: 0, main: 0, main2: 0, street: 0, yard: 0, park: 0, poles: 0, poleLamps: 0, benches: 0, bins: 0, containers: 0, shelters: 0, stops: 0, cross: 0 };
   const KIND = ['lamp', 'pole', 'bench', 'bin', 'stop', 'cross', 'container', 'shelter'];
   let nSolids = 0;
   const groundY = (x, z) => heightAt(x, z) + 0.17;
-  const add = (x, y, z, ry, t, kind, solid = -1) => { P.x.push(x); P.y.push(y); P.z.push(z); P.ry.push(ry); P.t.push(t); P.kind.push(kind); P.solid.push(solid); P.w0.push(-1); P.w1.push(-1); if (solid >= 0) nSolids++; return P.x.length - 1; };
+  // hx, hz: the half sizes of what stands on the ground, along the prop's local x and z (the fence check)
+  const FOOT = [[0.17, 0.17], [0.13, 0.13], [0.92, 0.3], [0.24, 0.24], [0.06, 0.06], [0.06, 0.06]];
+  const add = (x, y, z, ry, t, kind, solid = -1, hx = FOOT[kind][0], hz = FOOT[kind][1]) => { P.x.push(x); P.y.push(y); P.z.push(z); P.ry.push(ry); P.t.push(t); P.kind.push(kind); P.solid.push(solid); P.w0.push(-1); P.w1.push(-1); P.hx.push(hx); P.hz.push(hz); if (solid >= 0) nSolids++; return P.x.length - 1; };
   const heads = []; // x, y, z, ry, prop of every lamp head (the glow sprites and the ground pools), its kind in headKind
   const headKind = [];
   const wires = []; // ax, ay, az, bx, by, bz, sag (< 0: gone)
@@ -439,7 +445,7 @@ export function buildStreet({ scene, data, map, heightAt, ground = null, solids 
   each(data.containers, 3, (x, z, c) => {
     if (!ok(x, z)) return;
     const ry = (c & 63) * Y64, n = Math.max(2, Math.min(4, c >> 6)), y = groundY(x, z), s = Math.sin(ry), co = Math.cos(ry);
-    add(x, y, z, ry, T_CONT[n - 2], 6, solids ? solids.obox(x - s * 0.22, z - co * 0.22, contWidth(n) / 2, 0.73, -ry, y - 0.3, y + 1.3, 'wall') : -1);
+    add(x, y, z, ry, T_CONT[n - 2], 6, solids ? solids.obox(x - s * 0.22, z - co * 0.22, contWidth(n) / 2, 0.73, -ry, y - 0.3, y + 1.3, 'wall') : -1, contWidth(n) / 2, 0.95);
     counts.containers++;
   });
   for (let i = 0; i + 4 < (data.shelters?.length ?? 0); i += 5) {
@@ -447,7 +453,7 @@ export function buildStreet({ scene, data, map, heightAt, ground = null, solids 
     if (!ok(x, z)) continue;
     const y = groundY(x, z), s = Math.sin(ry), co = Math.cos(ry);
     // the back wall collides; the open front stays walkable
-    add(x, y, z, ry, T_SHELTER(L, D), 7, solids ? solids.obox(x - s * (D / 2 - 0.03), z - co * (D / 2 - 0.03), L / 2, 0.06, -ry, y - 0.3, y + 2.4, 'wall') : -1);
+    add(x, y, z, ry, T_SHELTER(L, D), 7, solids ? solids.obox(x - s * (D / 2 - 0.03), z - co * (D / 2 - 0.03), L / 2, 0.06, -ry, y - 0.3, y + 2.4, 'wall') : -1, L / 2, D / 2);
     counts.shelters++;
   }
 
@@ -509,41 +515,76 @@ export function buildStreet({ scene, data, map, heightAt, ground = null, solids 
   root.add(near.obj, far.obj, wireBuf.obj, poolBuf.obj, glow);
   scene.add(root);
 
-  // ---- the sites' say, a cell at a time
-  const checked = new Set();
-  let checkMs = 0, gridFresh = false;
+  // ---- the sites' say, a cell at a time; and what stands in a wall
+  // A cell is checked when the camera first comes near (CHECK_R): the sites' clear / deck areas once, the solids each
+  // time the collision world has grown since (the fences of fences.js land from a worker, often after the start).
+  const checked = new Set(), siteDone = new Set();
+  let checkMs = 0, solidCount = -1, rechecks = -1; // rechecks: how often the collision world grew after the first check
+  const cache = [new Map(), new Map()], poolCache = new Map(), wireCache = new Map();
+  const killSpan = (w, n) => { for (let k = 0; k < n; k++) { const a = (w + k) * 7; if (WR[a + 6] >= 0) { WR[a + 6] = -1; wireCache.delete(cellOf((WR[a] + WR[a + 3]) / 2, (WR[a + 2] + WR[a + 5]) / 2)); } } };
   function drop(i, why) {
     alive[i] = 0; dropped[why]++;
     if (P.solid[i] >= 0) solids.disable(P.solid[i]);
-    for (const w of [P.w0[i], P.w1[i]]) if (w >= 0) for (let k = 0; k < (P.kind[i] === 1 ? 4 : 1); k++) WR[(w + k) * 7 + 6] = -1;
-    const hs = headsOf.get(i);
-    if (hs) { const a = glowGeo.attributes.size; for (const h of hs) a.array[h] = 0; a.needsUpdate = true; }
+    for (const w of [P.w0[i], P.w1[i]]) if (w >= 0) killSpan(w, P.kind[i] === 1 ? 4 : 1);
+    const hs = headsOf.get(i), cell = cellOf(PX[i], PZ[i]);
+    cache[0].delete(cell); cache[1].delete(cell); // (a cell's arrays are rebuilt without it, if they were made already)
+    if (hs) { const a = glowGeo.attributes.size; for (const h of hs) { a.array[h] = 0; poolCache.delete(cellOf(H[h * 5], H[h * 5 + 2])); } a.needsUpdate = true; }
   }
-  // inside a static solid that is not a pole of ours or a tree trunk (the collision world is complete by the first check)
+  // inside a static solid that is not a pole of ours or a tree trunk
   const inSolid = solids?.solidAt ? (x, y, z) => { const id = solids.solidAt(x, y, z); if (id < 0) return false; const k = solids.kindOf(id); return k !== 'pole' && k !== 'tree'; } : null;
+  // which solid of somebody else's a point is in: 'fence' for a wall (a fence, a site's wall), 'solid' for anything
+  // else, null for none – our poles, shelters and container sites and the tree trunks do not count
+  const ownWalls = new Set(); for (let i = 0; i < N; i++) if (P.kind[i] >= 6 && P.solid[i] >= 0) ownWalls.add(P.solid[i]);
+  const foreign = (x, y, z) => { const id = solids.solidAt(x, y, z); if (id < 0) return null; const k = solids.kindOf(id); return k === 'pole' || k === 'tree' || ownWalls.has(id) ? null : k === 'wall' ? 'fence' : 'solid'; };
+  // does one cross what the prop stands on: its outline on the ground (0.06 m out, so its own box is not asked), a
+  // point every 0.15 m – a fence is 0.18 m thick. Near the ground (knee and waist height) only a wall counts: kerbs,
+  // steps and a site's paved terrace are solids too, and a prop may stand on those. At 1.5 m up a post is asked for
+  // any solid: it stands inside a building the raster does not know.
+  const outline = (i, dy, wallsOnly) => {
+    const x = PX[i], z = PZ[i], y = PY[i] + dy, hx = P.hx[i] + 0.06, hz = P.hz[i] + 0.06, c = Math.cos(PR[i]), sn = Math.sin(PR[i]);
+    const at = (lx, lz) => { const w = foreign(x + lx * c + lz * sn, y, z - lx * sn + lz * c); return wallsOnly && w !== 'fence' ? null : w; };
+    const nx = Math.max(2, Math.ceil(2 * hx / 0.15)), nz = Math.max(2, Math.ceil(2 * hz / 0.15));
+    for (let k = 0; k <= nx; k++) { const lx = -hx + 2 * hx * k / nx, w = at(lx, -hz) ?? at(lx, hz); if (w) return w; }
+    for (let k = 1; k < nz; k++) { const lz = -hz + 2 * hz * k / nz, w = at(-hx, lz) ?? at(hx, lz); if (w) return w; }
+    return null;
+  };
+  const footIn = (i) => outline(i, 0.35, true) ?? outline(i, 0.95, true) ?? (P.kind[i] < 2 ? outline(i, 1.5, false) : null);
+  // does a utility pole's span ahead pass through a solid (a house on the inside of a bend, a site's wall): the two
+  // outer wires, a point every half metre
+  const spanInSolid = (w) => {
+    for (const k of [0, 3]) {
+      const a = (w + k) * 7; if (WR[a + 6] < 0) return false;
+      const dx = WR[a + 3] - WR[a], dy = WR[a + 4] - WR[a + 1], dz = WR[a + 5] - WR[a + 2], n = Math.max(2, Math.ceil(Math.hypot(dx, dz) * 2)), sag = WR[a + 6];
+      for (let q = 1; q < n; q++) { const t = q / n; if (inSolid(WR[a] + dx * t, WR[a + 1] + dy * t - 4 * sag * t * (1 - t), WR[a + 2] + dz * t)) return true; }
+    }
+    return false;
+  };
   function check(key) {
     checked.add(key);
     const ids = cellProps.get(key); if (!ids) return;
-    if (inSolid && !gridFresh) { solids.topAt(0, 0); gridFresh = true; } // a query that rebuilds the grid if solids were added since
-    const t = performance.now();
+    const t = performance.now(), sites = !siteDone.has(key);
+    siteDone.add(key);
     for (const i of ids) {
+      if (!alive[i]) continue;
       const x = PX[i], z = PZ[i];
       let why = null;
-      for (const f of clear) if (f(x, z)) { why = 'site'; break; }
-      if (!why) for (const f of decks) if (f(x, z) != null) { why = 'deck'; break; }
-      // a pole or a lamp head inside a solid the building raster does not know (a hand-built site's walls): gone too
-      if (!why && P.kind[i] < 2 && inSolid) {
-        const c = Math.cos(PR[i]), sn = Math.sin(PR[i]);
-        if (inSolid(x + c * 0.5, PY[i] + 1.5, z - sn * 0.5)) why = 'solid';
-        else for (const h of headsOf.get(i) ?? []) if (inSolid(H[h * 5], H[h * 5 + 1], H[h * 5 + 2])) { why = 'solid'; break; }
+      if (sites) {
+        for (const f of clear) if (f(x, z)) { why = 'site'; break; }
+        if (!why) for (const f of decks) if (f(x, z) != null) { why = 'deck'; break; }
+      }
+      if (!why && inSolid) {
+        // anything with a fence or a wall across its foot; a lamp head inside a solid the building raster does not
+        // know (a hand-built site's walls)
+        why = footIn(i);
+        if (!why) for (const h of headsOf.get(i) ?? []) if (inSolid(H[h * 5], H[h * 5 + 1], H[h * 5 + 2])) { why = 'solid'; break; }
       }
       if (why) drop(i, why);
+      else if (inSolid && P.kind[i] === 1 && P.w1[i] >= 0 && spanInSolid(P.w1[i])) { killSpan(P.w1[i], 4); dropped.wire++; }
     }
     checkMs += performance.now() - t;
   }
 
   // ---- a cell's arrays, made on first use
-  const cache = [new Map(), new Map()], poolCache = new Map(), wireCache = new Map();
   function cellGeo(key, lod) {
     let g = cache[lod].get(key);
     if (g !== undefined) return g;
@@ -615,6 +656,7 @@ export function buildStreet({ scene, data, map, heightAt, ground = null, solids 
   function refresh() {
     // the sites first: every cell that may be drawn, hold a wire's far pole or be parked on gets their say
     const rk = Math.ceil(Math.max(CHECK_R, detail.far + 100) / CELL);
+    if (solids && solids.count !== solidCount) { solidCount = solids.count; solids.topAt(0, 0); checked.clear(); rechecks++; } // new solids (the fences landed): the grid is rebuilt by that query, every cell is asked again
     for (let j = -rk; j <= rk; j++) for (let i = -rk; i <= rk; i++) { const key = ckey(ci + i, cj + j); if (!checked.has(key) && Math.hypot(i, j) <= rk) check(key); }
     const lists = [[], [], [], []], rc = Math.ceil(Math.max(detail.far, detail.wires, detail.pools) / CELL) + 1;
     for (let j = -rc; j <= rc; j++) for (let i = -rc; i <= rc; i++) {
@@ -634,7 +676,7 @@ export function buildStreet({ scene, data, map, heightAt, ground = null, solids 
   function update(dt, camera) {
     const p = camera?.position; if (!p) return;
     const i = Math.floor(p.x / CELL), j = Math.floor(p.z / CELL);
-    if (dirty || i !== ci || j !== cj) { ci = i; cj = j; dirty = false; refresh(); }
+    if (dirty || i !== ci || j !== cj || (solids && solids.count !== solidCount)) { ci = i; cj = j; dirty = false; refresh(); }
     const n = nightFactor(), on = n > 0.004;
     poolU.uNight.value = 0.19 * n; glowU.uNight.value = 1.5 * n;
     glow.visible = on && detail.glow > 0; poolBuf.obj.visible = on && detail.pools > 0 && poolBuf.verts > 0;
@@ -648,9 +690,10 @@ export function buildStreet({ scene, data, map, heightAt, ground = null, solids 
       wireU.uReach.value = Math.max(1, detail.wires); poolU.uReach.value = Math.max(1, detail.pools); glowU.uReach.value = Math.max(1, detail.glow);
       dirty = true;
     },
-    checkAll() { for (const key of cellProps.keys()) if (!checked.has(key)) check(key); for (const m of [cache[0], cache[1], poolCache, wireCache]) m.clear(); dirty = true; },
-    props: (kind = null) => { const out = []; for (let i = 0; i < N; i++) if (!kind || KIND[P.kind[i]] === kind) out.push({ x: PX[i], y: PY[i], z: PZ[i], ry: PR[i], kind: KIND[P.kind[i]], alive: !!alive[i] }); return out; },
-    stats: () => ({ props: { ...counts, heads: nHeads, wires: nWires }, solids: nSolids, dropped: { ...dropped }, checked: checked.size, ms, checkMs: +checkMs.toFixed(1), cells: cellProps.size, refreshes,
+    checkAll() { if (solids && solids.count !== solidCount) { solidCount = solids.count; solids.topAt(0, 0); checked.clear(); } for (const key of cellProps.keys()) if (!checked.has(key)) check(key); for (const m of [cache[0], cache[1], poolCache, wireCache]) m.clear(); dirty = true; },
+    spans: () => { const out = []; for (let i = 0; i < N; i++) if (P.kind[i] === 1 && alive[i] && P.w1[i] >= 0) for (const k of [0, 3]) { const a = (P.w1[i] + k) * 7; if (WR[a + 6] >= 0) out.push(Array.from(WR.subarray(a, a + 7))); } return out; },
+    props: (kind = null) => { const out = []; for (let i = 0; i < N; i++) if (!kind || KIND[P.kind[i]] === kind) out.push({ x: PX[i], y: PY[i], z: PZ[i], ry: PR[i], kind: KIND[P.kind[i]], alive: !!alive[i], solid: P.solid[i], hx: P.hx[i], hz: P.hz[i] }); return out; },
+    stats: () => ({ props: { ...counts, heads: nHeads, wires: nWires }, solids: nSolids, dropped: { ...dropped }, checked: checked.size, rechecks: Math.max(0, rechecks), ms, checkMs: +checkMs.toFixed(1), cells: cellProps.size, refreshes,
       drawn: { near: near.count, far: far.count, wires: wireBuf.verts / 2, pools: poolBuf.count, glow: glow.visible ? nHeads : 0 }, detail: { ...detail } }),
   };
 }
