@@ -10,10 +10,17 @@
 //   footprintRaster(footprints, region) -> BitRaster (1 m) of the building footprints (also people.js isBuilding)
 //   BARE_ROADS: Set of OSM road names with no generated street rows
 //   roundaboutIslands(map) -> [{ c: [x, z], r }]   the roundabouts' central islands (closed rings of road pieces)
-//   treeSpots({ map, ground, footprints, occ?, y = 0.15, clear = [], extra = [], sparse = null }) -> spots
-//     ground: { heightAt, onAsphalt, isWater };  clear: [(x, z) -> bool] no generated tree there (hand-built sites);
+//   treeSpots({ map, ground, footprints, occ?, y = 0.15, clear = [], extra = [], sparse = null, plus = true }) -> spots
+//     ground: { heightAt, onAsphalt, isWater, wetSegs? };  clear: [(x, z) -> bool] | (x, z) -> bool: no generated tree
+//     there (hand-built sites);
 //     extra: hand-placed spots appended as given;  sparse(x, z) -> 0..1 thinning of generated trees (the sandy shore)
-//     spot: { x, z, y, kind: 'street' | 'park' | 'elm' | 'small' | 'conifer', sc, pal, s3?, variant? }
+//     spot: { x, z, y, kind: 'street' | 'park' | 'elm' | 'small' | 'conifer', sc, pal, s3?, variant?, wash? }
+//     plus (the greenery upgrade; off = the planting before it, tree for tree, for the ?notreeplus A/B): a street is
+//     an alley of one species picked by its name (lindens, chestnuts - бульвар Шевченка's chestnut alley -, maples,
+//     elms, or the old linden / chestnut mix) in two shapes, with a young tree here and there where an old one was
+//     felled, and on some streets limewashed trunks (wash); Lombardy poplars are full-width columns; the pine woods
+//     are Scots pines in two shapes with few spruces; weeping willows stand along the Dnipro shore and round the
+//     ponds; fruit trees in the private yards are limewashed in places. Shrubs are shrubbery.js.
 import { PARK_GREENS, PARK_PINE, PAL } from '../trees.js';
 import { ringPts, triangulate, BitRaster, rng, bboxOf, inPoly } from './geo.js';
 
@@ -85,7 +92,19 @@ export function footprintRaster(footprints, R) {
   return occ;
 }
 
-export function treeSpots({ map, ground, footprints, occ = null, y = 0.15, clear = [], extra = [], sparse = null }) {
+// weeping willows: lighter, yellower than the park greens
+const WILLOW = [[[0.05, 0.092, 0.02], [0.16, 0.235, 0.05]], [[0.044, 0.085, 0.022], [0.14, 0.215, 0.055]]];
+const hashS = (s) => { let h = 2166136261; for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 16777619); h ^= h >>> 15; h = Math.imul(h, 0x2c1b3c6d); h ^= h >>> 12; return (h >>> 0) / 4294967296; };
+const hash3 = (x, z, k) => { const q = Math.sin(x * 12.9898 + z * 78.233 + k * 37.719) * 43758.5453; return q - Math.floor(q); };
+// the species of a street's rows, by its name (an alley is planted as one): [species, limewashed trunks, only (no
+// stretch of poplars takes its place)]
+function alleyOf(rd) {
+  const name = rd.n ?? '', h = name ? hashS(name) : 1, wash = name ? hashS(name + '#') < 0.42 : false;
+  if (/бульвар.*Шевченка/.test(name)) return ['chestnut', true, true];
+  return [h < 0.36 ? 'linden' : h < 0.58 ? 'chestnut' : h < 0.72 ? 'maple' : h < 0.8 ? 'elm' : 'mix', wash, false];
+}
+
+export function treeSpots({ map, ground, footprints, occ = null, y = 0.15, clear = [], extra = [], sparse = null, plus = true }) {
   const t0 = performance.now();
   const R = map.region, r = rng(7);
   occ ??= footprintRaster(footprints, R);
@@ -114,15 +133,24 @@ export function treeSpots({ map, ground, footprints, occ = null, y = 0.15, clear
     return false;
   };
   const spots = [];
-  const put = (x, z, kind, sc, pal, s3, variant) => {
+  const put = (x, z, kind, sc, pal, s3, variant, wash) => {
     const k = bk(Math.floor(x / B), Math.floor(z / B));
     (buckets.get(k) ?? buckets.set(k, []).get(k)).push(x, z);
-    spots.push({ x, z, y: ground.heightAt(x, z) + y, kind, sc, pal, s3, variant });
+    spots.push({ x, z, y: ground.heightAt(x, z) + y, kind, sc, pal, s3, variant, wash });
   };
   const skip = () => {};
   // urban trees are old and tall: crowns start well above a car roof, so the blocks stay visible under them
   const LIFT = [0.82, 1.3, 0.82];
-  const poplarS3 = () => [0.4, 1.8 + r() * 0.5, 0.4];
+  // Lombardy poplars: 18-28 m columns, 3-4 m wide (before the upgrade: pencils)
+  const poplarS3 = () => (plus ? [0.8, 1.7 + r() * 0.5, 0.8] : [0.4, 1.8 + r() * 0.5, 0.4]);
+  // the upgrade's own picks never touch the planting's random stream: they hash the place
+  const pineOf = (x, z) => { if (!plus) return undefined; const h = hash3(x, z, 11); return h < 0.47 ? 'pine' : h < 0.9 ? 'pine2' : 'spruce'; };
+  const rowTree = (plant, x, z, sc, pal, alley, wash) => {
+    const h = hash3(x, z, 12), g = hash3(x, z, 13);
+    if (g < 0.07) return plant(x, z, 'small', 0.85 + 0.5 * h, pal, null, 'sapling', wash); // a young tree in an old row
+    const sp = alley === 'mix' || g > 0.93 ? (hash3(x, z, 14) < 0.55 ? 'linden' : 'chestnut') : alley;
+    plant(x, z, 'street', sc, pal, LIFT, sp === 'linden' || sp === 'chestnut' ? sp + (h < 0.5 ? '' : '2') : sp, wash);
+  };
   const birchS3 = () => [0.8, 1.2 + r() * 0.15, 0.8];
   const thinned = (x, z) => !!sparse && r() < 0.88 * sparse(x, z); // generated trees only; OSM trees always stay
   const green = () => (r() < 0.12 ? [PAL[Math.floor(r() * 3)]] : PARK_GREENS);
@@ -134,8 +162,8 @@ export function treeSpots({ map, ground, footprints, occ = null, y = 0.15, clear
   let n0 = spots.length;
   for (const [x, z] of map.trees) {
     if (blocked(x, z, 0.8) || crowded(x, z, 3)) continue;
-    const pine = pineAt(x, z);
-    put(x, z, pine && r() < 0.5 ? 'conifer' : 'street', 0.8 + r() * 0.5, pine ? PARK_PINE : green());
+    const pine = pineAt(x, z), kind = pine && r() < 0.5 ? 'conifer' : 'street';
+    put(x, z, kind, 0.8 + r() * 0.5, pine ? PARK_PINE : green(), undefined, kind === 'conifer' ? pineOf(x, z) : undefined);
   }
   mark('osm', n0);
 
@@ -149,6 +177,7 @@ export function treeSpots({ map, ground, footprints, occ = null, y = 0.15, clear
     if (rd.k !== 'm' || !(main || rd.c === 'residential' || rd.c === 'unclassified')) continue;
     const bareRoad = BARE_ROADS.has(rd.n);
     const off = rd.w / 2 + (main ? 2.0 : 1.4), step = main ? 12 : 15, poplar = r() < (main ? 0.3 : 0.15);
+    const [alley, wash, only] = plus ? alleyOf(rd) : ['mix', false, false];
     for (const side of [-1, 1]) {
       if (!main && r() < 0.5) continue;
       let s = r() * step;
@@ -161,7 +190,11 @@ export function treeSpots({ map, ground, footprints, occ = null, y = 0.15, clear
           if (!inRegion(x, z) || blocked(x, z, 1.6) || crowded(x, z, 6) || thinned(x, z)) continue;
           // a bare spot still draws its random numbers: the trees elsewhere keep their places
           const plant = bareRoad || farm.get(x, z) === 1 ? skip : put;
-          if (poplar) plant(x, z, 'conifer', 1.1 + r() * 0.3, green(), poplarS3());
+          if (poplar) {
+            const sc = 1.1 + r() * 0.3, pal = green(), s3 = poplarS3(); // drawn whatever is planted: the stream stays
+            if (only) rowTree(plant, x, z, sc, pal, alley, wash); // the boulevard's chestnut alley has no poplar stretch
+            else plant(x, z, 'conifer', sc, pal, s3, undefined, wash);
+          } else if (plus) rowTree(plant, x, z, 1.0 + r() * 0.4, green(), alley, wash);
           else plant(x, z, 'street', 1.0 + r() * 0.4, green(), LIFT);
         }
         s -= L;
@@ -184,7 +217,7 @@ export function treeSpots({ map, ground, footprints, occ = null, y = 0.15, clear
   };
   for (const rings of map.cover.forest ?? []) scatter(rings, 6.5, (x, z) => {
     if (blocked(x, z, 1.2) || crowded(x, z, 4.2) || thinned(x, z)) return;
-    if (pineAt(x, z) ? r() < 0.85 : r() < 0.25) put(x, z, 'conifer', 1.1 + r() * 0.6, PARK_PINE, [0.85, 1.35 + r() * 0.4, 0.85]);
+    if (pineAt(x, z) ? r() < 0.85 : r() < 0.25) put(x, z, 'conifer', 1.1 + r() * 0.6, PARK_PINE, [0.85, 1.35 + r() * 0.4, 0.85], pineOf(x, z));
     else put(x, z, r() < 0.7 ? 'park' : 'elm', 0.8 + r() * 0.5, green());
   });
   for (const key of ['park', 'grass', 'orchard', 'scrub']) {
@@ -213,7 +246,7 @@ export function treeSpots({ map, ground, footprints, occ = null, y = 0.15, clear
       if (r() > (privateSector ? 0.22 : 0.2) || blocked(x, z, 2.5) || crowded(x, z, privateSector ? 7 : 11) || thinned(x, z)) continue;
       if (r() < 0.6 && indus.get(x, z) === 1) continue;
       const plant = farm.get(x, z) === 1 ? skip : put; // ploughed fields stay open
-      if (privateSector) { plant(x, z, 'small', 0.7 + r() * 0.5, green()); continue; }
+      if (privateSector) { plant(x, z, 'small', 0.7 + r() * 0.5, green(), undefined, undefined, plus && hash3(Math.floor(x / 60), Math.floor(z / 60), 15) < 0.5); continue; }
       // between the blocks: pyramidal poplars and birches are slim, the broad crowns are lifted
       const q = r();
       if (q < 0.3) plant(x, z, 'conifer', 1.1 + r() * 0.35, green(), poplarS3());
@@ -223,12 +256,45 @@ export function treeSpots({ map, ground, footprints, occ = null, y = 0.15, clear
   }
   mark('yards', n0);
 
+  // 5) weeping willows by the water (the upgrade): along the Dnipro shore every 30-60 m, a few metres inland, and
+  // round the ponds. Their own random stream; the sandy beaches stay thin (sparse)
+  n0 = spots.length;
+  if (plus) {
+    const w = rng(91);
+    const willow = (x, z) => {
+      if (!inRegion(x, z) || ground.isWater(x, z) || blocked(x, z, 2) || crowded(x, z, 10) || (sparse && w() < 0.88 * sparse(x, z))) return;
+      put(x, z, 'park', 0.85 + w() * 0.45, WILLOW, undefined, 'willow');
+    };
+    let left = 12;
+    for (const q of ground.wetSegs ?? []) {
+      left -= Math.hypot(q.bx - q.ax, q.bz - q.az);
+      if (left > 0) continue;
+      left = 30 + w() * 30;
+      const t = w(), mx = q.ax + (q.bx - q.ax) * t, mz = q.az + (q.bz - q.az) * t, sgn = ground.isWater(mx + q.nx * 4, mz + q.nz * 4) ? -1 : 1, d = 4 + w() * 6;
+      willow(mx + sgn * q.nx * d, mz + sgn * q.nz * d);
+    }
+    for (const rings of map.cover.pond ?? []) {
+      const P = ringPts(rings[0]), cx = P.reduce((a, q) => a + q[0], 0) / P.length, cz = P.reduce((a, q) => a + q[1], 0) / P.length;
+      let run = w() * 14, n = 0;
+      for (let i = 0; i < P.length && n < 6; i++) {
+        const a = P[i], b = P[(i + 1) % P.length], L = Math.hypot(b[0] - a[0], b[1] - a[1]);
+        for (; run < L && n < 6; run += 16 + w() * 14) {
+          const x = a[0] + (b[0] - a[0]) * run / L, z = a[1] + (b[1] - a[1]) * run / L, dl = Math.hypot(x - cx, z - cz) || 1, d = 3 + w() * 4;
+          const before = spots.length; willow(x + (x - cx) / dl * d, z + (z - cz) / dl * d); n += spots.length - before;
+        }
+        run -= L;
+      }
+    }
+  }
+  mark('willows', n0);
+
   // small roundabout islands are mown lawns: no generated tree in them (the OSM-mapped ones, first in spots, stay)
   const islands = roundaboutIslands(map).filter((q) => q.r <= 22), nOsm = counts.osm;
   const lawn = (s, i) => i >= nOsm && islands.some((q) => Math.hypot(s.x - q.c[0], s.z - q.c[1]) < q.r + 0.5);
   const grown = spots.filter((s, i) => !lawn(s, i));
   counts.islands = spots.length - grown.length;
-  const kept = clear.length ? grown.filter((s) => !clear.some((f) => f(s.x, s.z))) : grown;
+  const cleared = typeof clear === 'function' ? clear : clear.length ? (x, z) => clear.some((f) => f(x, z)) : null;
+  const kept = cleared ? grown.filter((s) => !cleared(s.x, s.z)) : grown;
   counts.cleared = grown.length - kept.length;
   counts.extra = extra.length;
   const out = kept.concat(extra);

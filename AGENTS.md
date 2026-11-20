@@ -62,6 +62,31 @@ See `ARCHITECTURE.md` for the module map. Where things live:
     in a cottage quarter, which also gets no borrowed nine storeys – issue #45, вул. Руставі) are gabled two-storey rows
     that the facade kit gives doors, canopies and party-wall ribs (`tests/townhouses.test.mjs`);
   - `trees.js` – procedural trees with LODs and breakable items;
+    - The species (`nature/treegeo.js RECIPES`): crowns are smooth lobed puffs on limbs, a near and a mid mesh from one
+      layout; linden, chestnut and Scots pine come in two shapes, plus maple, oak, elm, birch, fruit, a young street tree
+      (`sapling`), the Lombardy poplar, the weeping willow (hanging ribbons), spruce and the hedge block. The shader gives
+      every tree its own shape from the shared mesh (a squash, a twist, a crown sweep, a stretch, keyed by the tree's
+      phase and weighted so the trunk foot stays on its collider), flecks leaves and bark from the local position and
+      paints a limewashed trunk foot where a spot says `wash`; the shadow pass draws the same shapes (a depth material
+      with the same warp). One mid pool per variant serves the camera and the shadow pass (rows ordered casters /
+      shadow-only / the rest).
+    - The shrub layer (`nature/shrubs.js`, fed by `cherkasy/shrubbery.js`): ~109 thousand bushes, lilacs, flowering
+      shrubs, thujas and junipers as one instanced bush in two pools (a detailed one near that casts shadows, a plain
+      one to the layer's reach), tapered and flecked per instance. Scenery only: no items, no colliders, nothing to
+      break, nothing the people know of. Its own short draw distances per graphics level (`DETAIL.trees.shrubNear` /
+      `shrubOut` / `shrubShadow` in `city.js`, through `trees.setDetail`): 160 / 105 / 62 m. The city lays the shrubs
+      out after the load, in the frames' idle time (`shrubSteps`, then `trees.shrubJob`: generators run in slices), so
+      they join the picture a few seconds after the start; most of that work is the sites' `clear` tests.
+      Where they grow (`shrubbery.js`): by the walls and in the gardens of private houses (behind the lot's street
+      fence: 3.5 m off a carriageway, 5.3 m off a main street), front gardens of the blocks of flats, thuja rows along
+      public buildings, belts inside park edges, groups on lawns, OSM scrub / flowerbeds / allotments, clipped lines on
+      some main-street verges. OSM `barrier=hedge` ways are hedge blocks of the tree system (`hedges_data.js`, made by
+      `node tools/cherkasy/build_hedges.mjs` from the raw OSM dump; `map.json` does not carry them).
+    - Planting (`cherkasy/greenery.js`): a street is an alley of one species picked by its name (бульвар Шевченка is
+      the chestnut alley), limewashed on some streets and in private yards, a young tree here and there; the pine woods
+      are Scots pines in two shapes; weeping willows along the Dnipro shore and round the ponds.
+    - `?notreeplus` builds the trees as before this upgrade (`nature/treegeo_legacy.js`, the old shader and planting,
+      no shrubs) for A/B checks; `tests/greenery.test.mjs`, `tests/nature.test.mjs`.
   - `farcull.js` – the draw-distance cull of the hand-built sites on the lower graphics levels;
   - `drawdist.js` – draw distances per class for small repeated detail cut into chunks (kerb faces, road paint, sleepers,
     rails, the shore's wet bands and foam): a chunk beyond its class's distance is not drawn. The ground owns the
@@ -575,6 +600,7 @@ See `ARCHITECTURE.md` for the module map. Where things live:
     the Telegram bot's "🚗 Подивитись у грі" links use it.
   - `?noga` – no Google Analytics on the production site;
   - `?noadapt` – no adaptive resolution (steady pixel ratio for perf measurements);
+  - `?notreeplus` – the trees as before the greenery upgrade and no shrub layer (A/B checks of look and cost);
   - `?stilltime` – the clock stands still (the game runs a day per hour of play and skips the night, `startGame` in `main.js`);
   - `?nosound` – no sound at all (no AudioContext, nothing fetched, the radio muted); use it for every dev and test run;
   - `?mobile` / `?desktop` – force the phone map page or the game (`src/mapview.js`).

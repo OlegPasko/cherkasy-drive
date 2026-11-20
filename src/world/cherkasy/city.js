@@ -54,6 +54,7 @@ import { createPeople } from '../../npc/people.js';
 import { createHeightField, buildGroundAsync } from './ground.js';
 import { buildCityBuildings } from './buildings.js';
 import { treeSpots, footprintRaster } from './greenery.js';
+import { shrubSteps, hedgeRows } from './shrubbery.js';
 import { createTreeBreaker } from './treebreak.js';
 import { buildCherkasyTraffic } from './traffic.js';
 import { loadTrafficVehicles } from '../../npc/vehicles.js';
@@ -97,6 +98,8 @@ const nextFrame = () => new Promise((res) => (typeof requestAnimationFrame === '
 // simulation, the collision or what missions use. Measured in the centre (M5 Pro, 1280x760): the sites are ~450-690 of
 // ~800-1000 draw calls, the river mirror re-renders the scene (~550 calls a capture), trees 0.4-1 M triangles.
 //   trees: LOD bands (trees.js setDetail); bld: roof-detail reach, roof / facade shadow reach (buildings.js);
+//   trees.shrubNear / shrubOut / shrubShadow: the shrub layer's own short bands (the detailed bush, how far any shrub
+//   is drawn, whether the near ones cast shadows);
 //   sites: farcull.js (ratio: hidden under ratio x distance, shadow: no shadow beyond); people / traffic: [draw reach m,
 //   LOD distance factor]; proxy: beyond it (m) a hand-built building is drawn as a plain box (proxies.js); water: the
 //   river mirror (on, hz, scale); facade: window-detail distance divisor (facade.js);
@@ -107,13 +110,13 @@ const DETAIL = {
   high: { trees: {}, bld: {}, sites: {}, people: [300, 1], traffic: [700, 1], water: { on: true }, facade: 1,
     ground: { far: 2200, kerbs: 650, paint: 800, sleepers: 500, rails: 1500, wet: 2000, foam: 3000 } },
   medium: {
-    trees: { nearOut: [55, 68], midOut: [220, 250], farOut: [1100, 1250], shadow: 110 },
+    trees: { nearOut: [55, 68], midOut: [220, 250], farOut: [1100, 1250], shadow: 110, shrubNear: [20, 26], shrubOut: [85, 105] },
     bld: { detailFar: 1800, detailShadow: 250, facadeShadow: 600 },
     sites: { ratio: 1 / 150, shadow: 450 }, proxy: 500, people: [220, 0.85], traffic: [500, 0.85], water: { on: true, hz: 8, scale: 0.3 }, facade: 1.4,
     ground: { far: 1100, kerbs: 400, paint: 500, sleepers: 300, rails: 800, wet: 1000, foam: 1500 },
   },
   low: {
-    trees: { nearOut: [40, 50], midOut: [150, 175], farOut: [900, 1050], shadow: 60 },
+    trees: { nearOut: [40, 50], midOut: [150, 175], farOut: [900, 1050], shadow: 60, shrubNear: [13, 17], shrubOut: [48, 62], shrubShadow: false },
     bld: { detailFar: 1100, detailShadow: 150, facadeShadow: 300 },
     sites: { ratio: 1 / 60, shadow: 200 }, proxy: 250, people: [150, 0.7], traffic: [350, 0.7], water: { on: false }, facade: 2,
     ground: { far: 500, kerbs: 250, paint: 320, sleepers: 180, rails: 450, wet: 500, foam: 800 },
@@ -283,10 +286,41 @@ export async function buildCherkasy({ scene, renderer, onProgress = null, params
   // trees: generated spots + the sites' own plantings; trunks become switchable collision cylinders
   const occ = footprintRaster(B.footprints, map.region);
   const shore = strip && S.shore?.shoreStrip ? S.shore.shoreStrip(map) : null;
-  const spots = treeSpots({ map, ground, footprints: B.footprints, occ, clear: [landmarks, ...sites].filter((s) => s.clear).map((s) => s.clear),
-    extra: sites.flatMap((s) => s.spots ?? []), sparse: shore ? (x, z) => shore.lowK(x, heightAt(x, z), z) : null });
+  // ?notreeplus: the trees as before the greenery upgrade (shapes, planting, no shrub layer), for A/B checks
+  const treePlus = !params.has('notreeplus');
+  const cleared = [landmarks, ...sites].filter((s) => s.clear).map((s) => s.clear);
+  const isCleared = (x, z) => { for (let i = 0; i < cleared.length; i++) if (cleared[i](x, z)) return true; return false; };
+  const hedges = treePlus ? guard('hedges', () => hedgeRows({ ground, occ, clear: isCleared }), []) : []; // the OSM hedges (shrubbery.js)
+  const spots = treeSpots({ map, ground, footprints: B.footprints, occ, clear: cleared, plus: treePlus,
+    extra: sites.flatMap((s) => s.spots ?? []).concat(hedges), sparse: shore ? (x, z) => shore.lowK(x, heightAt(x, z), z) : null });
   // floorY: the lowest terrain (carved ravines included) bounds how far a tree shadow can fall
-  const trees = buildTrees({ scene: root, T, spots, maxScale: 3.2, heightAt, floorY: hf.data.grid.reduce((m, h) => Math.min(m, h), Infinity) - 5 });
+  const trees = buildTrees({ scene: root, T, spots, plus: treePlus, maxScale: 3.2, heightAt, floorY: hf.data.grid.reduce((m, h) => Math.min(m, h), Infinity) - 5 });
+  // The shrub layer (shrubbery.js: bushes by the houses, front gardens, park belts) is not waited for: it is laid
+  // out once the world is up, in the frames' idle time (~1 s of work, most of it the sites' clear tests) and joins
+  // the trees a few seconds after the start (trees.shrubJob). A machine with no idle time gives it a tenth of its
+  // time (2-8 ms slices), so it gets there too, later.
+  let shrubStats = null;
+  if (treePlus) {
+    const job = (function* () {
+      const sh = yield* shrubSteps({ map, ground, footprints: B.footprints, occ, clear: isCleared });
+      yield* trees.shrubJob(sh);
+      shrubStats = sh.stats;
+    })();
+    const later = typeof requestIdleCallback === 'function' ? (f) => requestIdleCallback(f, { timeout: 16 }) : (f) => setTimeout(f, 0);
+    let prev = performance.now();
+    const slice = (idle) => {
+      try {
+        const now = performance.now(), room = Math.min(8, Math.max(2, idle && !idle.didTimeout ? idle.timeRemaining() : (now - prev) * 0.1));
+        for (const until = now + room; ;) {
+          if (job.next().done) return;
+          if (performance.now() > until) break;
+        }
+        prev = performance.now();
+        later(slice);
+      } catch (e) { console.error('[cherkasy] shrubs failed', e); }
+    };
+    later(slice);
+  }
   const trunks = new Map();
   trees.addSolids((c) => { trunks.set(c.item, collision.cyl(c.x, c.z, c.y0, c.y1, c.r, c.r, 'tree')); });
   stage('trees', 0.78, 'Машини і люди…');
@@ -409,7 +443,7 @@ export async function buildCherkasy({ scene, renderer, onProgress = null, params
       ground.setDetail(D.ground);
     },
     stats: () => ({ loadMs: world.loadMs, stages, solids: collision.count, zips: zips.count, buildings: Bld.stats(), ground: ground.stats, trees: trees.stats(),
-      spots: spots.stats, carParks: carParks?.stats() ?? null, farCull: farCull.stats(), proxies: proxies?.stats() ?? null, traffic: traffic?.stats() ?? null, people: people?.stats?.() ?? null, treeBreak: treeBreak.stats(), sites: sites.length, modules: Object.keys(S) }),
+      spots: spots.stats, shrubSpots: shrubStats, carParks: carParks?.stats() ?? null, farCull: farCull.stats(), proxies: proxies?.stats() ?? null, traffic: traffic?.stats() ?? null, people: people?.stats?.() ?? null, treeBreak: treeBreak.stats(), sites: sites.length, modules: Object.keys(S) }),
   };
   world.cherkasy.proxies = proxies = guard('proxies', () => createSiteProxies({ parent: root, roots: siteRoots, places: world.places, map, skip, heightAt, facadeMat, detailMat }));
   world.loadMs = Math.round(performance.now() - t0);

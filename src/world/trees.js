@@ -1,12 +1,23 @@
 // Trees: procedural low-poly species, instanced with distance LODs, per-tree tint / scale / pose, breakable items.
+// Under them the shrub layer (nature/shrubs.js): bushes that are scenery only.
 //
-//   buildTrees({ scene, T?, spots, parkPaths?, noPark?, maxScale = 1, shadows = true, heightAt?, floorY? }) -> trees
+//   buildTrees({ scene, T?, spots, shrubs?, plus = true, parkPaths?, noPark?, maxScale = 1, shadows = true, heightAt?,
+//                floorY? }) -> trees
 //     floorY: the lowest height a tree shadow can fall on (default: 5 m under the lowest tree base)
-//     spots: [{ x, z, y?, kind, sc | s, pal?, s3 | scale3?, ry?, rx?, rz?, hedge?, variant? }]
+//     plus: false -> the trees as they were before the greenery upgrade (the ?notreeplus A/B): the old geometry
+//       (nature/treegeo_legacy.js), the old shader, no limewash, no shrubs
+//     shrubs: { data: Float32Array of nature/shrubs.js records, kinds: [name of SHRUBS, ...] } | null; they can also
+//       come later, trees.setShrubs(shrubs | null) (the city lays them out after the load)
+//     spots: [{ x, z, y?, kind, sc | s, pal?, s3 | scale3?, ry?, rx?, rz?, hedge?, variant?, wash? }]
+//       wash: a limewashed trunk foot (the shader paints it, to ~1.15 m)
 //       kind: 'street' | 'park' | 'elm' | 'small' | 'conifer' | 'hedge' (anything else -> 'street')
 //       sc: overall scale (sizes below are at 1), s3: [sx, sy, sz] shape scale; hedge: s3 is its [length, height, depth]
 //       pal: array of palette entries, one is picked per tree; an entry is a pair of linear-RGB crown albedos [A, B]
 //       variant: force a species shape (see RECIPES in nature/treegeo.js), else picked stably from kind / palette / hash
+//     Look (plus): the shader gives every tree its own shape from one mesh per variant (a squash across a random
+//     axis, a twist, a crown sweep, a height stretch, all weighted by aLeaf.z so the trunk foot stays on its
+//     collider) and flecks leaves and bark from the local position. The shadow pass draws the same shapes
+//     (depthMaterial), without the wind.
 //     Only the given spots are rendered (parkPaths / noPark are accepted for the legacy call and ignored).
 //   trees.street | park | elm | small | conifer | hedge : item arrays. Item fields (x, y, z, s, scale3, ry, rx, rz)
 //     are live: assigning one marks the tree dirty and the next update / pool.update re-poses it at every LOD.
@@ -23,12 +34,18 @@
 //   trees.touch(item); trees.setWind(dirX, dirZ, strength); trees.stats(); trees.dispose(); trees.group; trees.palettes.
 //     stats(): near / mid / far count the rows camera passes draw; casters = near + mid rows the shadow pass draws.
 //   trees.setCulling(on = true): view culling on / off (A/B checks; on by default).
-//   trees.setDetail({ nearOut?, midOut?, farOut?, shadow? }) the graphics quality's LOD bands (metres, as LOD below; a
-//     missing key = the default) -> fades and the next repack follow at once; trees.detail reads them. Draw only:
-//     items, trunks and collision never change.
+//   trees.setDetail({ nearOut?, midOut?, farOut?, shadow?, shrubNear?, shrubOut?, shrubShadow? }) the graphics
+//     quality's LOD bands (metres, as LOD below; a missing key = the default) -> fades and the next repack follow at
+//     once; trees.detail reads them. Draw only: items, trunks and collision never change.
+//     shrubNear / shrubOut: [from, to] fade bands of the detailed bushes and of the whole layer; shrubShadow: the
+//     near bushes cast shadows.
+//   trees.setShrubs(shrubs | null): replace the shrub layer; stats().shrubs: its { items, near, far, drawCalls, ... }.
+//   trees.shrubJob(shrubs | null) -> generator: the same in small steps (run it to its end, a few steps a frame).
 // LODs: near detail < ~80 m, mid (simplified, same layout) to ~320 m, one shared far crown per round / cone shape to
 // 1.5 km; dithered cross-fades between them. Near + mid trees within 160 m cast shadows. Repacking is CPU work only
 // when the camera moved 5 m (near / mid) or 30 m (far), or a tree changed.
+// One mid pool per variant holds casters and non-casters: rows are [casters in view | shadow-only | the rest in
+// view], the camera pass draws them all, the shadow pass the first two groups.
 // View culling: a pack leaves out the trees in a wedge behind the camera (conservative crown bounds, padded by the
 // travel allowed before the next repack), and repacks as soon as the view's azimuth range (mirrored river camera
 // included: its wider fov) leaves the kept range. Near / mid shadow casters stay in whenever their shadow, drawn out
@@ -38,9 +55,11 @@
 // world update), else the scene's shadowed light. A culling-only repack keeps the LOD centre of the last move, so
 // LOD and caster bands switch exactly as without culling; a pool that would overflow repacks without culling. The
 // dithered fades depend on distance alone, so a re-included tree shows no fade.
-// Exports: buildTrees, TREE_PALETTES, PARK_GREENS, PARK_PINE, PAL, BARK_REF, hedgeSpots.
-import { BufferGeometry, DynamicDrawUsage, Euler, Group, InstancedInterleavedBuffer, InstancedMesh, InterleavedBufferAttribute, Matrix4, MeshStandardMaterial, Quaternion, Sphere, Vector3, Vector4 } from 'three';
-import { buildTreeGeometries, RECIPES } from './nature/treegeo.js';
+// Exports: buildTrees, TREE_PALETTES, PARK_GREENS, PARK_PINE, PAL, BARK_REF, SHRUBS, hedgeSpots.
+import { BufferGeometry, DynamicDrawUsage, Euler, Group, InstancedInterleavedBuffer, InstancedMesh, InterleavedBufferAttribute, Matrix4, MeshDepthMaterial, MeshStandardMaterial, Quaternion, RGBADepthPacking, Sphere, Vector3, Vector4 } from 'three';
+import { buildTreeGeometries, buildShrubGeometries, RECIPES } from './nature/treegeo.js';
+import { buildTreeGeometries as buildLegacyGeometries, RECIPES as LEGACY_RECIPES } from './nature/treegeo_legacy.js';
+import { createShrubLayer, shrubRecords } from './nature/shrubs.js';
 import { getDaylight } from '../render/daylight.js';
 
 // ---------------------------------------------------------------------------------------------------------- palettes
@@ -68,6 +87,18 @@ export const TREE_PALETTES = {
   hedge: [[[0.022, 0.06, 0.014], [0.07, 0.14, 0.03]]],
 };
 export const BARK_REF = [0.12, 0.085, 0.06];
+// Shrub kinds of the shrub layer: A leaf albedo, B the flecks (fresh tips, or flowers), taper 0 bush .. 1 cone.
+export const SHRUBS = {
+  bush:    { A: [0.032, 0.078, 0.016], B: [0.1, 0.19, 0.035], taper: 0 },      // privet, spirea out of bloom, jasmine
+  lilac:   { A: [0.024, 0.06, 0.02], B: [0.065, 0.135, 0.04], taper: 0 },      // tall, dark, heart leaves
+  olive:   { A: [0.045, 0.07, 0.022], B: [0.13, 0.16, 0.05], taper: 0 },       // dusty roadside scrub
+  bloom:   { A: [0.03, 0.072, 0.018], B: [0.62, 0.6, 0.54], taper: 0 },        // white: hydrangea, spirea
+  rose:    { A: [0.026, 0.062, 0.02], B: [0.5, 0.035, 0.06], taper: 0 },
+  pink:    { A: [0.03, 0.07, 0.02], B: [0.6, 0.2, 0.34], taper: 0 },           // hibiscus, roses, spirea japonica
+  yellow:  { A: [0.034, 0.075, 0.018], B: [0.65, 0.5, 0.06], taper: 0 },
+  thuja:   { A: [0.02, 0.058, 0.022], B: [0.055, 0.12, 0.04], taper: 1 },
+  juniper: { A: [0.022, 0.052, 0.036], B: [0.055, 0.105, 0.075], taper: 0.3 },
+};
 
 // split a hedge line into blocks of <= 3.5 m (hedge items are boxes; long ones would stretch the lumps)
 export function hedgeSpots(ax, az, bx, bz, { y = 0, h = 1.2, w = 0.9, heightAt = null } = {}) {
@@ -83,6 +114,9 @@ const LOD = {
   farOut: [1350, 1500],   // far trees fade away
   shadow: 160,            // mid trees nearer than this still cast shadows
   moveNear: 5, moveFar: 30, // camera travel that triggers a near/mid resp. far repack
+  shrubNear: [26, 34],    // shrubs: the detailed bush fades to the plain one over this band; only the detailed cast
+  shrubOut: [130, 160],   // shrubs fade away
+  shrubShadow: true,
 };
 const DEG = Math.PI / 180;
 const CULL = {
@@ -98,8 +132,8 @@ const BASE_BUDGET = 40000;
 
 const hash2 = (x, z, k) => { const s = Math.sin(x * 12.9898 + z * 78.233 + k * 37.719) * 43758.5453; return s - Math.floor(s); };
 
-function pickVariant(kind, sp, pal, h) {
-  if (sp.variant && RECIPES[sp.variant]) return sp.variant;
+function pickVariant(kind, sp, pal, h, RC) {
+  if (sp.variant && RC[sp.variant]) return sp.variant;
   const s3 = sp.s3 ?? sp.scale3, e = pal[0], bg = (e[0][2] + e[1][2]) / Math.max(1e-4, e[0][1] + e[1][1]);
   switch (kind) {
     case 'hedge': return 'hedge';
@@ -125,7 +159,35 @@ for (const k of LIVE) Object.defineProperty(TreeItem.prototype, k, {
 
 // ---------------------------------------------------------------------------------------------------------- shader
 const U = { uTime: { value: 0 }, uWind: { value: new Vector3(0.8, 0.6, 1) } };
-function treeMaterial(fade, far) {
+// mode: 'N' near / mid tree, 'F' far tree, 'S' shrub. plus: the greenery upgrade's look (off: the picture before it).
+//   Per tree, keyed by its phase and weighted by aLeaf.z (0 at the trunk foot): a squash across a random axis, a
+//   twist, a sweep of the crown and a stretch, so a row of one species is not one stamp. In the fragment: leaf
+//   speckle and bark flakes from the local position (they stick to the tree and fade with distance), and the
+//   limewashed trunk foot of the instances whose bark slot carries +2. A hedge (bark slot < 0) keeps its box.
+//   Shrubs: aTintB.w is the taper (0 bush .. 1 cone); round flecks of tint B, denser where aLeaf.y is high.
+// The shape code is shared with the shadow pass (depthMaterial), so a shadow fits what casts it.
+const WARP = `float wz = aLeaf.z * step(0.0, aTintB.w), pa = aTintA.w * 7.0;
+vec2 ax = vec2(cos(pa), sin(pa));
+transformed.xz += ax * (dot(transformed.xz, ax) * 0.26 * sin(aTintA.w * 13.0) * min(1.0, wz * 1.6));
+float tw = 0.55 * sin(aTintA.w * 5.3) * wz, tc = cos(tw), ts = sin(tw);
+transformed.xz = vec2(tc * transformed.x - ts * transformed.z, ts * transformed.x + tc * transformed.z);
+transformed.xz += vec2(cos(aTintA.w * 3.1), sin(aTintA.w * 3.1)) * (wz * wz * 0.6);
+transformed.y *= 1.0 + 0.1 * sin(aTintA.w * 9.7) * wz;`;
+const TAPER = `transformed.xz *= mix(1.0, 1.42 * (1.0 - clamp(position.y, 0.0, 1.0)) + 0.06, aTintB.w);`;
+function depthMaterial(shrub) {
+  const m = new MeshDepthMaterial({ depthPacking: RGBADepthPacking });
+  m.onBeforeCompile = (sh) => {
+    sh.vertexShader = sh.vertexShader
+      .replace('#include <common>', `#include <common>
+attribute vec3 aLeaf; attribute vec4 aTintA; attribute vec4 aTintB;`)
+      .replace('#include <begin_vertex>', `#include <begin_vertex>
+${shrub ? TAPER : WARP}`);
+  };
+  m.customProgramCacheKey = () => 'tree-depth' + (shrub ? 'S' : '');
+  return m;
+}
+function treeMaterial(fade, mode, plus = true) {
+  const far = mode === 'F', shrub = mode === 'S';
   const m = new MeshStandardMaterial({ vertexColors: true, roughness: 0.82, metalness: 0 });
   const uFade = { value: new Vector4(...fade) };
   m.onBeforeCompile = (sh) => {
@@ -134,30 +196,68 @@ function treeMaterial(fade, far) {
       .replace('#include <common>', `#include <common>
 attribute vec3 aLeaf; attribute vec4 aTintA; attribute vec4 aTintB;
 uniform float uTime; uniform vec3 uWind; uniform vec4 uFade;
-varying float vFadeIn; varying float vFadeOut;`)
+varying float vFadeIn; varying float vFadeOut;
+${plus ? 'varying vec3 vLp; varying vec3 vLk;' : ''}${shrub ? ' varying vec4 vFl;' : ''}`)
       .replace('#include <begin_vertex>', `#include <begin_vertex>
 vec3 iOrg = vec3(instanceMatrix[3]);
 ${far ? `if (aLeaf.x > 0.5) transformed.y = aTintA.w + transformed.y * (1.0 - aTintA.w); else transformed.y *= aTintA.w;` : `
 float ph = aTintA.w + dot(iOrg.xz, vec2(0.071, 0.053));
+${shrub ? `${TAPER}
+float wk = 0.25;` : plus ? `${WARP}
+float wk = 1.0;` : 'float wk = 1.0;'}
 float g = sin(uTime * 1.1 + ph) * 0.6 + sin(uTime * 2.3 + ph * 1.7) * 0.3;
-transformed.xz += uWind.xy * (g * aLeaf.z * uWind.z * 0.1);
-transformed += aLeaf.x * aLeaf.z * uWind.z * 0.03 * vec3(sin(uTime * 4.3 + position.y * 2.1 + ph), sin(uTime * 3.7 + position.x * 1.9), cos(uTime * 4.1 + position.z * 1.7));`}
+transformed.xz += uWind.xy * (g * aLeaf.z * uWind.z * 0.1 * wk);
+transformed += aLeaf.x * aLeaf.z * uWind.z * 0.03 * wk * vec3(sin(uTime * 4.3 + position.y * 2.1 + ph), sin(uTime * 3.7 + position.x * 1.9), cos(uTime * 4.1 + position.z * 1.7));`}
 float dCam = distance(iOrg, cameraPosition);
-vFadeIn = smoothstep(uFade.x, uFade.y, dCam); vFadeOut = 1.0 - smoothstep(uFade.z, uFade.w, dCam);`)
+vFadeIn = smoothstep(uFade.x, uFade.y, dCam); vFadeOut = 1.0 - smoothstep(uFade.z, uFade.w, dCam);
+${plus ? `vec3 iScl = vec3(length(instanceMatrix[0].xyz), length(instanceMatrix[1].xyz), length(instanceMatrix[2].xyz));
+vLp = position * iScl + aTintA.w * 3.0;
+vLk = vec3(aLeaf.x, ${far || shrub ? '1e3' : 'aTintB.w > 1.9 ? position.y * iScl.y : 1e3'}, 1.0 - smoothstep(${shrub ? '25.0, 90.0' : '70.0, 240.0'}, dCam));` : ''}`)
       .replace('#include <color_vertex>', `#include <color_vertex>
-vColor.rgb = mix(color.rgb * aTintB.w, color.rgb * mix(aTintA.rgb, aTintB.rgb, aLeaf.y), aLeaf.x);`)
+${shrub ? `vColor.rgb = color.rgb * aTintA.rgb * (0.9 + 0.5 * aLeaf.y);
+vFl = vec4(aTintB.rgb * (0.5 + 0.7 * color.r), smoothstep(0.2, 0.75, aLeaf.y));`
+    : plus ? `float bw = aTintB.w, bm = abs(bw) - 2.0 * step(1.9, bw);
+vColor.rgb = mix(color.rgb * bm, color.rgb * mix(aTintA.rgb, aTintB.rgb, aLeaf.y), aLeaf.x);`
+      : `vColor.rgb = mix(color.rgb * aTintB.w, color.rgb * mix(aTintA.rgb, aTintB.rgb, aLeaf.y), aLeaf.x);`}`)
       .replace('#include <project_vertex>', `#include <project_vertex>
 if (vFadeIn <= 0.0 || vFadeOut <= 0.0) gl_Position = vec4(2.0, 2.0, 2.0, 1.0);`);
     // dithered cross-fade: the in-band of one LOD uses the complement of the out-band of the other -> no holes
     sh.fragmentShader = sh.fragmentShader
       .replace('#include <common>', `#include <common>
 varying float vFadeIn; varying float vFadeOut;
+${shrub ? 'varying vec4 vFl;' : ''}
+${plus ? `varying vec3 vLp; varying vec3 vLk;
+float thash(vec3 p) { return fract(sin(dot(p, vec3(12.9898, 78.233, 37.719))) * 43758.5453); }` : ''}
 float bayer2(vec2 a) { a = floor(a); return fract(dot(a, vec2(0.5, a.y * 0.75))); }
 float bayer4(vec2 a) { return bayer2(0.5 * a) * 0.25 + bayer2(a) + 0.03125; }`)
       .replace('#include <clipping_planes_fragment>', `#include <clipping_planes_fragment>
 if (vFadeIn < 1.0 || vFadeOut < 1.0) { float th = bayer4(gl_FragCoord.xy); if (vFadeIn < 1.0 - th || vFadeOut <= th) discard; }`);
+    if (plus) sh.fragmentShader = sh.fragmentShader.replace('#include <color_fragment>', `#include <color_fragment>
+// (the detail fades with distance, vLk.z: beyond it no hash is worked out)
+if (vLk.x > 0.5) { // leaves: two skewed cell lattices, small flecks over broad patches
+  if (vLk.z > 0.0) {
+    float n1 = thash(floor(vec3(dot(vLp, vec3(2.3, 1.0, 0.7)), dot(vLp, vec3(-0.8, 2.4, 0.9)), dot(vLp, vec3(-0.6, -1.0, 2.5)))));
+    float n2 = thash(floor(vec3(dot(vLp, vec3(0.8, 0.3, -0.35)), dot(vLp, vec3(-0.2, 0.9, 0.3)), dot(vLp, vec3(0.4, -0.25, 0.85)))));
+    diffuseColor.rgb *= 1.0 + ((n1 - 0.5) * 0.4 + (n2 - 0.5) * 0.26) * vLk.z;
+  }${shrub ? `
+  // flowers / fresh tips: round flecks of the second tint (a skewed lattice of balls cut by the surface), denser up
+  // and out; far away they melt into an even mix of the same share
+  float hit = 0.0;
+  if (vLk.z > 0.0) {
+    vec3 fq = vec3(dot(vLp, vec3(7.9, 2.6, 1.7)), dot(vLp, vec3(-2.2, 7.3, 2.9)), dot(vLp, vec3(-1.6, -3.1, 8.2)));
+    float fh = thash(floor(fq));
+    vec3 ff = fract(fq) - 0.5 - (fract(fh * vec3(17.0, 31.0, 57.0)) - 0.5) * 0.26;
+    hit = step(dot(ff, ff), 0.04 + 0.09 * fract(fh * 91.0)) * step(1.0 - vFl.w * 0.95, fh);
+  }
+  diffuseColor.rgb = mix(diffuseColor.rgb, vFl.rgb, mix(vFl.w * 0.1, hit, vLk.z));` : ''}
+} else if (vLk.z > 0.0 || vLk.y < 1.4) { // bark: long flakes; the limewashed foot
+  float col = thash(floor(vec3(vLp.x * 12.0, 0.0, vLp.z * 12.0)));
+  float n = thash(floor(vec3(vLp.x * 12.0, vLp.y * 1.6 + col * 5.0, vLp.z * 12.0)));
+  diffuseColor.rgb *= 1.0 + (n - 0.5) * 0.5 * vLk.z;
+  diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.74, 0.73, 0.68) * (0.86 + 0.28 * n), 1.0 - smoothstep(1.12, 1.2, vLk.y + (col - 0.5) * 0.16));
+}`);
   };
-  m.customProgramCacheKey = () => 'tree' + (far ? 'F' : 'N');
+  m.customProgramCacheKey = () => 'tree' + mode + (plus ? '+' : '');
   m.userData.uFade = uFade;
   return m;
 }
@@ -176,10 +276,13 @@ function makePool(baseGeo, mat, cap, name, shadow) {
   g.setAttribute('aTintB', new InterleavedBufferAttribute(ib, 4, 4));
   mesh.count = 0; mesh.visible = false; mesh.frustumCulled = false; mesh.name = name;
   mesh.castShadow = shadow; mesh.receiveShadow = true;
-  // rows [0, nv) are in view, [nv, n) only cast a shadow into it: camera passes draw nv, the shadow pass n
-  const P = { mesh, mat: mesh.instanceMatrix.array, misc, ib, cap, n: 0, nv: 0 };
-  mesh.onBeforeRender = () => { mesh.count = P.nv; };
-  mesh.onBeforeShadow = () => { mesh.count = P.n; };
+  // camera passes draw rows [0, nc), the shadow pass rows [0, ns); so of them only cast a shadow into the view.
+  //   near pool: [in view | shadow only]                              nc = in view, ns = n
+  //   mid pool:  [casters in view | shadow only | the rest in view]   nc = n, ns = the first two groups
+  // (the mid pool's shadow-only rows reach the camera passes too: they lie outside the view, the GPU clips them)
+  const P = { mesh, mat: mesh.instanceMatrix.array, misc, ib, cap, n: 0, nc: 0, ns: 0, so: 0 };
+  mesh.onBeforeRender = () => { mesh.count = P.nc; };
+  mesh.onBeforeShadow = () => { mesh.count = P.ns; };
   return P;
 }
 function flush(P) {
@@ -190,9 +293,9 @@ function flush(P) {
 }
 
 // ---------------------------------------------------------------------------------------------------------- build
-export function buildTrees({ scene, spots = [], maxScale = 1, shadows = true, heightAt = null, floorY = Infinity } = {}) {
+export function buildTrees({ scene, spots = [], shrubs = null, plus = true, maxScale = 1, shadows = true, heightAt = null, floorY = Infinity } = {}) {
   const t0 = (globalThis.performance ?? Date).now();
-  const G = buildTreeGeometries();
+  const G = plus ? buildTreeGeometries() : buildLegacyGeometries(), RC = plus ? RECIPES : LEGACY_RECIPES;
   const VN = Object.keys(G.variants), vIndex = Object.fromEntries(VN.map((v, i) => [v, i]));
   const FAR = ['round', 'cone'];
   // conservative extents at scale 1 over every LOD of a variant: horizontal radius, 3D radius, top; leaf sway weight
@@ -207,7 +310,9 @@ export function buildTrees({ scene, spots = [], maxScale = 1, shadows = true, he
   const VB = VN.map((v) => {
     const V = G.variants[v], S = [span(V.near), span(V.mid)];
     if (V.far) S.push(span(G.far[V.far], Math.max(V.fit.hx, V.fit.hz), V.fit.top, 1));
-    return S.reduce((a, b) => ({ rh: Math.max(a.rh, b.rh), r3: Math.max(a.r3, b.r3), top: Math.max(a.top, b.top), lz: Math.max(a.lz, b.lz) }));
+    const e = S.reduce((a, b) => ({ rh: Math.max(a.rh, b.rh), r3: Math.max(a.r3, b.r3), top: Math.max(a.top, b.top), lz: Math.max(a.lz, b.lz) }));
+    // the per-tree warp of the shader (treeMaterial): squash 1.26 (the twist keeps the radius) + sweep 0.6, stretch 1.1
+    return plus && V.far ? { rh: e.rh * 1.26 + 0.6, r3: e.r3 * 1.26 + 0.6, top: e.top * 1.1, lz: e.lz } : e;
   });
   const leafSway = Math.max(...VB.map((b) => b.lz));
   const dirty = new Set();
@@ -227,20 +332,20 @@ export function buildTrees({ scene, spots = [], maxScale = 1, shadows = true, he
     if (!Number.isFinite(y)) y = 0;
     const h = hash2(sp.x, sp.z, 1);
     const pal = Array.isArray(sp.pal) && sp.pal.length && Array.isArray(sp.pal[0]?.[0]) ? sp.pal : DEFAULT_PAL[kind];
-    const variant = pickVariant(kind, sp, pal, h);
+    const variant = pickVariant(kind, sp, pal, h, RC);
     if (variant === 'hedge') kind = 'hedge';
     const e = pal[Math.floor(hash2(sp.x, sp.z, 2) * pal.length) % pal.length];
     // mild per-tree variation around the supplied colours (brightness + a slight warm/cool shift)
     const br = 0.92 + hash2(sp.x, sp.z, 3) * 0.16, wc = (hash2(sp.x, sp.z, 4) - 0.5) * 0.1;
     const tint = (c) => [c[0] * br * (1 + wc), c[1] * br, c[2] * br * (1 - wc)];
-    const bark = RECIPES[variant].bark, bm = 0.85 + hash2(sp.x, sp.z, 5) * 0.3;
+    const bark = RC[variant].bark, bm = 0.85 + hash2(sp.x, sp.z, 5) * 0.3;
     const s = Math.min(6, Math.max(0.05, Number.isFinite(sp.s) ? sp.s : Number.isFinite(sp.sc) ? sp.sc : 1));
     const s3 = sp.s3 ?? sp.scale3;
     const it = new TreeItem();
     Object.assign(it, {
       _x: sp.x, _y: y, _z: sp.z, _s: s, _scale3: Array.isArray(s3) && s3.length === 3 && s3.every(Number.isFinite) ? s3.slice() : null,
       _ry: Number.isFinite(sp.ry) ? sp.ry : hash2(sp.x, sp.z, 6) * Math.PI * 2, _rx: Number.isFinite(sp.rx) ? sp.rx : 0, _rz: Number.isFinite(sp.rz) ? sp.rz : 0,
-      kind, variant, hedge: kind === 'hedge', broken: false,
+      kind, variant, hedge: kind === 'hedge', broken: false, wash: !!sp.wash && plus,
       extra: { aTintA: tint(e[0]), aTintB: tint(e[1]), aBark: [vIndex[variant], bark[0] * bm / BARK_REF[0], bark[1] * bm / BARK_REF[1], bark[2] * bm / BARK_REF[2]] },
       _v: vIndex[variant], _far: G.variants[variant].far ? FAR.indexOf(G.variants[variant].far) : -1, _phase: h * 6.283, _bm: bm,
     });
@@ -287,7 +392,7 @@ export function buildTrees({ scene, spots = [], maxScale = 1, shadows = true, he
     }
     m4.toArray(rec, o);
     rec[o + 16] = A[0]; rec[o + 17] = A[1]; rec[o + 18] = A[2]; rec[o + 19] = it._phase;
-    rec[o + 20] = B[0]; rec[o + 21] = B[1]; rec[o + 22] = B[2]; rec[o + 23] = it._bm;
+    rec[o + 20] = B[0]; rec[o + 21] = B[1]; rec[o + 22] = B[2]; rec[o + 23] = it.hedge ? -1 : it._bm + (it.wash ? 2 : 0);
     if (it._far >= 0) {
       mf.makeScale(V.fit.hx, V.fit.top, V.fit.hz).premultiply(m4);
       const F = farRec[it._far], p = it._fi * 24;
@@ -302,19 +407,35 @@ export function buildTrees({ scene, spots = [], maxScale = 1, shadows = true, he
   const vCount = new Int32Array(VN.length); for (const it of out.items) vCount[it._v]++;
   const cap = (n, lim) => Math.max(1, Math.min(n, Math.floor(lim * Math.max(1, maxScale))));
   const lod = { ...LOD }; // the live distances (setDetail)
-  const matNear = treeMaterial([-2, -1, lod.nearOut[0], lod.nearOut[1]], false);
-  const matMid = treeMaterial([lod.nearOut[0], lod.nearOut[1], lod.midOut[0], lod.midOut[1]], false);
-  const matFar = treeMaterial([lod.midOut[0], lod.midOut[1], lod.farOut[0], lod.farOut[1]], true);
-  const near = [], midA = [], midB = [], far = [];
+  const matNear = treeMaterial([-2, -1, lod.nearOut[0], lod.nearOut[1]], 'N', plus);
+  const matMid = treeMaterial([lod.nearOut[0], lod.nearOut[1], lod.midOut[0], lod.midOut[1]], 'N', plus);
+  const matFar = treeMaterial([lod.midOut[0], lod.midOut[1], lod.farOut[0], lod.farOut[1]], 'F', plus);
+  const near = [], mid = [], far = [];
   VN.forEach((v, i) => {
-    if (!vCount[i]) { near.push(null); midA.push(null); midB.push(null); return; }
+    if (!vCount[i]) { near.push(null); mid.push(null); return; }
     near.push(makePool(G.variants[v].near, matNear, cap(vCount[i], 3000), `trees ${v} near`, shadows));
-    midA.push(makePool(G.variants[v].mid, matMid, cap(vCount[i], 8000), `trees ${v} mid`, shadows));
-    midB.push(makePool(G.variants[v].mid, matMid, cap(vCount[i], 20000), `trees ${v} mid2`, false));
+    mid.push(makePool(G.variants[v].mid, matMid, cap(vCount[i], 28000), `trees ${v} mid`, shadows));
   });
   FAR.forEach((f, i) => far.push(farCount[i] ? makePool(G.far[f], matFar, farCount[i], `trees far ${f}`, false) : null));
-  const NM = [...near, ...midA, ...midB].filter(Boolean), FP = far.filter(Boolean);
+  const NP = near.filter(Boolean), MP = mid.filter(Boolean), NM = [...NP, ...MP], FP = far.filter(Boolean);
   for (const P of [...NM, ...FP]) out.group.add(P.mesh);
+  const matDepth = plus && shadows ? depthMaterial(false) : null; // the warped shapes cast their own shadows
+  if (matDepth) for (const P of NM) P.mesh.customDepthMaterial = matDepth;
+  // the shrub layer: its own records, cells and two pools (nature/shrubs.js); shrubJob builds it in small steps
+  let shrubLayer = null, gone = false;
+  const shrubJob = function* (sh) {
+    shrubLayer?.dispose(); shrubLayer = null;
+    if (!sh?.data?.length) return;
+    const records = yield* shrubRecords(sh.data, (sh.kinds ?? []).map((k) => SHRUBS[k] ?? SHRUBS.bush));
+    yield;
+    if (gone) return; // the trees were disposed while the job ran
+    shrubLayer = createShrubLayer({
+      group: out.group, records, geos: buildShrubGeometries(), shadows, depth: shadows ? depthMaterial(true) : null,
+      near: LOD.shrubNear, out: LOD.shrubOut, material: (fade) => treeMaterial(fade, 'S', true),
+    });
+    shrubLayer.setDetail({ near: lod.shrubNear, out: lod.shrubOut, shadow: lod.shrubShadow });
+  };
+  const setShrubs = (sh) => { for (const job = shrubJob(sh); !job.next().done;); };
   scene?.add?.(out.group);
 
   // ---- view culling state: the current view's azimuth range and the wedge each pack left out
@@ -415,27 +536,28 @@ export function buildTrees({ scene, spots = [], maxScale = 1, shadows = true, he
   let repacks = 0, lastMs = 0, frame = 0, packedFrame = -1;
   const CR = new Int32Array(4), HD = new Float64Array(2), later = new Int32Array(Math.max(1, N));
   const cellRange = (cx, cz, R) => { CR[0] = Math.max(0, Math.floor((cx - R - gx0) / CELL)); CR[1] = Math.min(gnx - 1, Math.floor((cx + R - gx0) / CELL)); CR[2] = Math.max(0, Math.floor((cz - R - gz0) / CELL)); CR[3] = Math.min(gnz - 1, Math.floor((cz + R - gz0) / CELL)); };
-  const hDist = (i, j, x, z) => { const ax = gx0 + i * CELL, az = gz0 + j * CELL; const dx = Math.max(ax - x, 0, x - ax - CELL), dz = Math.max(az - z, 0, z - az - CELL); const fx = Math.max(Math.abs(x - ax), Math.abs(x - ax - CELL)), fz = Math.max(Math.abs(z - az), Math.abs(z - az - CELL)); HD[0] = Math.hypot(dx, dz); HD[1] = Math.hypot(fx, fz); };
+  const hDist = (i, j, x, z) => { const ax = gx0 + i * CELL, az = gz0 + j * CELL; const dx = Math.max(ax - x, 0, x - ax - CELL), dz = Math.max(az - z, 0, z - az - CELL); const fx = Math.max(Math.abs(x - ax), Math.abs(x - ax - CELL)), fz = Math.max(Math.abs(z - az), Math.abs(z - az - CELL)); HD[0] = Math.sqrt(dx * dx + dz * dz); HD[1] = Math.sqrt(fx * fx + fz * fz); };
+  const lateM = new Int32Array(Math.max(1, N));
   function packNear(c) {
-    for (const P of NM) P.n = 0;
+    for (const P of NM) P.n = P.so = 0;
     spill = false;
-    const M = lod.moveNear + 3, R = lod.midOut[1] + M, pad = swayPad();
-    let nl = 0; culledView = 0;
+    const M = lod.moveNear + 3, R = lod.midOut[1] + M, pad = swayPad(), nIn = lod.nearOut[1] + M, mIn = lod.nearOut[0] - M, sh = shadows ? lod.shadow : -1;
+    let nl = 0, nm = 0; culledView = 0;
     cellRange(c.x, c.z, R);
     for (let j = CR[2]; j <= CR[3]; ++j) for (let i = CR[0]; i <= CR[1]; ++i) {
       hDist(i, j, c.x, c.z); if (HD[0] > R) continue;
       const cell = j * gnx + i;
       for (let k = cellStart[cell]; k < cellStart[cell + 1]; ++k) {
         const it = order[k]; if (it.hidden) continue;
-        const d = Math.hypot(it._x - c.x, it._y - c.y, it._z - c.z), o = k * 24;
-        const inNear = d < lod.nearOut[1] + M, inMid = d > lod.nearOut[0] - M && d < R;
+        const px = it._x - c.x, py = it._y - c.y, pz = it._z - c.z, d = Math.sqrt(px * px + py * py + pz * pz), o = k * 24;
+        const inNear = d < nIn, inMid = d > mIn && d < R;
         if (!inNear && !inMid) continue;
         if (WN.on) {
-          const px = it._x - c.x, pz = it._z - c.z, x3 = k * 3, r = ext[x3] + pad * ext[x3 + 2] + M;
+          const x3 = k * 3, r = ext[x3] + pad * ext[x3 + 2] + M;
           const a = WN.n1x * px + WN.n1z * pz, b = WN.n2x * px + WN.n2z * pz;
           if (a >= r && b >= r) { // out of view; a caster stays while its shadow can reach the view
             culledView++;
-            if (!shadows || !(inNear || d < lod.shadow)) continue;
+            if (!(inNear || d < lod.shadow) || sh < 0) continue;
             if (sun.known && !sun.long) {
               const h = ext[x3 + 1] + Math.max(0, it._y - yLow);
               if (a + h * WN.s1 >= r && b + h * WN.s2 >= r) continue;
@@ -444,16 +566,19 @@ export function buildTrees({ scene, spots = [], maxScale = 1, shadows = true, he
           }
         }
         if (inNear) copy(near[it._v], rec, o);
-        if (inMid) copy(d < lod.shadow ? midA[it._v] : midB[it._v], rec, o);
+        if (inMid) { if (d < sh) copy(mid[it._v], rec, o); else lateM[nm++] = k; }
       }
     }
-    for (const P of NM) P.nv = P.n;
-    // shadow-only rows go after the visible ones
+    for (const P of NP) P.nc = P.n;
+    // shadow-only rows go after the visible ones (near) / the visible casters (mid); the other mid rows last
     for (let q2 = 0; q2 < nl; ++q2) {
-      const k = later[q2], it = order[k], d = Math.hypot(it._x - c.x, it._y - c.y, it._z - c.z);
-      if (d < lod.nearOut[1] + M) copy(near[it._v], rec, k * 24);
-      if (d > lod.nearOut[0] - M && d < lod.shadow) copy(midA[it._v], rec, k * 24);
+      const k = later[q2], it = order[k], px = it._x - c.x, py = it._y - c.y, pz = it._z - c.z, d = Math.sqrt(px * px + py * py + pz * pz);
+      if (d < nIn) copy(near[it._v], rec, k * 24);
+      if (d > mIn && d < sh) { const P = mid[it._v]; if (P.n < P.cap) P.so++; copy(P, rec, k * 24); }
     }
+    for (const P of NM) P.ns = P.n;
+    for (let q2 = 0; q2 < nm; ++q2) copy(mid[order[lateM[q2]]._v], rec, lateM[q2] * 24);
+    for (const P of MP) P.nc = P.n;
     shadowOnly = nl;
     if (spill && WN.on) { WN.on = false; WN.H = Math.PI; packNear(c); return; } // full pool: keep the unculled pick
     for (const P of NM) flush(P);
@@ -465,7 +590,7 @@ export function buildTrees({ scene, spots = [], maxScale = 1, shadows = true, he
     cellRange(c.x, c.z, R);
     for (let j = CR[2]; j <= CR[3]; ++j) for (let i = CR[0]; i <= CR[1]; ++i) {
       hDist(i, j, c.x, c.z); const cell = j * gnx + i;
-      if (HD[0] > R || Math.hypot(HD[1], Math.abs(c.y - cellY[cell]) + 30) < lod.midOut[0] - M) continue;
+      if (HD[0] > R || Math.sqrt(HD[1] * HD[1] + (Math.abs(c.y - cellY[cell]) + 30) ** 2) < lod.midOut[0] - M) continue;
       if (WF.on) { // the whole cell (its centre +- half a diagonal, the widest crown in it) behind the camera
         const px = gx0 + i * CELL + half - c.x, pz = gz0 + j * CELL + half - c.z, r = half * Math.SQRT2 + cellRh[cell] + pad * cellSm[cell] + M;
         if (WF.n1x * px + WF.n1z * pz >= r && WF.n2x * px + WF.n2z * pz >= r) continue;
@@ -479,7 +604,7 @@ export function buildTrees({ scene, spots = [], maxScale = 1, shadows = true, he
         P.n += n;
       }
     }
-    for (const P of FP) { P.nv = P.n; flush(P); }
+    for (const P of FP) { P.nc = P.n; flush(P); }
     lastF.copy(c);
   }
   const cam = new Vector3();
@@ -496,6 +621,7 @@ export function buildTrees({ scene, spots = [], maxScale = 1, shadows = true, he
     if (cam.distanceTo(lastF) > lod.moveFar) moveF = true;
     // a turn (or a snap) that brings the left-out wedge into view repacks before this frame renders
     measureView(viewCam);
+    shrubLayer?.update(cam, view);
     const lit = sunMoved(), cullN = cullDirty || lit || !covers(WN), cullF = cullDirty || !covers(WF);
     cullDirty = false;
     if (!moveN && !moveF && !cullN && !cullF) return;
@@ -514,8 +640,9 @@ export function buildTrees({ scene, spots = [], maxScale = 1, shadows = true, he
     update(dt, camPos, camera) { frame++; U.uTime.value += Number.isFinite(dt) ? dt : 0; if (camera) viewCam = camera; refresh(camPos, false); },
     setCulling(on = true) { if (cullOn !== !!on) { cullOn = !!on; cullDirty = true; } },
     // the graphics quality's draw distances: nothing given = the defaults (LOD); repacks on the next update
-    setDetail({ nearOut = LOD.nearOut, midOut = LOD.midOut, farOut = LOD.farOut, shadow = LOD.shadow } = {}) {
-      Object.assign(lod, { nearOut, midOut, farOut, shadow });
+    setDetail({ nearOut = LOD.nearOut, midOut = LOD.midOut, farOut = LOD.farOut, shadow = LOD.shadow, shrubNear = LOD.shrubNear, shrubOut = LOD.shrubOut, shrubShadow = LOD.shrubShadow } = {}) {
+      Object.assign(lod, { nearOut, midOut, farOut, shadow, shrubNear, shrubOut, shrubShadow });
+      shrubLayer?.setDetail({ near: shrubNear, out: shrubOut, shadow: shrubShadow });
       matNear.userData.uFade.value.set(-2, -1, nearOut[0], nearOut[1]);
       matMid.userData.uFade.value.set(nearOut[0], nearOut[1], midOut[0], midOut[1]);
       matFar.userData.uFade.value.set(midOut[0], midOut[1], farOut[0], farOut[1]);
@@ -537,19 +664,22 @@ export function buildTrees({ scene, spots = [], maxScale = 1, shadows = true, he
     },
     blockers: () => out.items.filter(it => !it.hedge && !it.broken).map(trunkOf),
     stats() {
-      const sum = (A, k = 'nv') => A.reduce((s, P) => s + (P ? P[k] : 0), 0), calls = [...NM, ...FP].filter(P => P.nv).length;
+      const sum = (A, k = 'nc') => A.reduce((s, P) => s + (P ? P[k] : 0), 0), calls = [...NM, ...FP].filter(P => P.nc).length;
       const cull = { on: cullOn, keepNear: WN.on ? Math.round(WN.H / DEG) : 180, keepFar: WF.on ? Math.round(WF.H / DEG) : 180, culled: culledView, shadowOnly, light: sun.known, lightSlackDeg: +(sun.tol / DEG).toFixed(2) };
-      return { items: N, skipped, overBudget: over, near: sum(near), mid: sum(midA) + sum(midB), far: sum(far), drawCalls: calls, casters: sum(near, 'n') + sum(midA, 'n'), cull, repacks, lastRepackMs: +lastMs.toFixed(2), buildMs: +buildMs.toFixed(1) };
+      return { items: N, skipped, overBudget: over, near: sum(near), mid: sum(mid) - sum(mid, 'so'), far: sum(far), drawCalls: calls, casters: sum(near, 'ns') + sum(mid, 'ns'), cull, repacks, lastRepackMs: +lastMs.toFixed(2), buildMs: +buildMs.toFixed(1), plus, shrubs: shrubLayer?.stats() ?? null };
     },
     dispose() {
       out.group.removeFromParent();
-      for (const P of [...near, ...midA, ...midB, ...far]) if (P) { P.mesh.geometry.dispose(); P.mesh.dispose?.(); }
+      for (const P of [...near, ...mid, ...far]) if (P) { P.mesh.geometry.dispose(); P.mesh.dispose?.(); }
+      shrubLayer?.dispose(); shrubLayer = null; gone = true; matDepth?.dispose();
       for (const V of Object.values(G.variants)) { V.near.dispose(); V.mid.dispose(); }
       G.far.round.dispose(); G.far.cone.dispose(); matNear.dispose(); matMid.dispose(); matFar.dispose();
     },
     setWind(dirX, dirZ, strength = 1) { U.uWind.value.set(dirX, dirZ, strength); cullDirty = true; }, // sway pads the bounds
   });
-  Object.defineProperty(out, 'detail', { get: () => ({ nearOut: lod.nearOut, midOut: lod.midOut, farOut: lod.farOut, shadow: lod.shadow }) });
+  Object.defineProperty(out, 'detail', { get: () => ({ nearOut: lod.nearOut, midOut: lod.midOut, farOut: lod.farOut, shadow: lod.shadow, shrubNear: lod.shrubNear, shrubOut: lod.shrubOut, shrubShadow: lod.shrubShadow }) });
+  out.setShrubs = setShrubs; out.shrubJob = shrubJob;
+  setShrubs(shrubs);
   const buildMs = (globalThis.performance ?? Date).now() - t0;
   if (skipped || over) console.warn(`[trees] skipped ${skipped} invalid spots, ${over} over the ${budget} budget`);
   return out;

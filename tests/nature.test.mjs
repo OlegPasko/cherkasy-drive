@@ -111,7 +111,7 @@ ok(tBuild < 4000 && tPack < 80, `90k trees: build ${tBuild.toFixed(0)} ms, first
     cam.position.set(x, y, z); cam.lookAt(x + Math.cos(yaw) * Math.cos(pitch), y + Math.sin(pitch), z + Math.sin(yaw) * Math.cos(pitch)); cam.updateMatrixWorld();
     tv.update(1 / 60, cam.position, cam); tv.update(1 / 60, cam.position, cam); // a light that jumped widens the slack once
     const view = {}, cast = {};
-    for (const m of tv.group.children) { if (!m.visible) continue; m.onBeforeShadow(); cast[m.name] = rowsOf(m, m.count); m.onBeforeRender(); view[m.name] = rowsOf(m, m.count); shadowOnly += cast[m.name].size - view[m.name].size; }
+    for (const m of tv.group.children) { if (!m.visible) continue; m.onBeforeShadow(); cast[m.name] = rowsOf(m, m.count); m.onBeforeRender(); view[m.name] = rowsOf(m, m.count); for (const q of cast[m.name]) if (!view[m.name].has(q)) shadowOnly++; }
     const o = sun.position.clone().normalize(), off = [-o.x / o.y, -o.z / o.y];
     for (const it of tv.items) {
       const d = Math.hypot(it._x - x, it._y - y, it._z - z), B = hb[it.variant];
