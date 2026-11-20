@@ -9,6 +9,7 @@ import { buildStreet } from '../src/world/cherkasy/street.js';
 import { footprintRaster } from '../src/world/cherkasy/greenery.js';
 import { createCollisionWorld } from '../src/world/collision.js';
 import { ringPts } from '../src/world/cherkasy/geo.js';
+import { parseFences } from '../src/world/cherkasy/fencework.js';
 
 const root = new URL('../', import.meta.url);
 let fails = 0;
@@ -92,13 +93,42 @@ for (const kind of ['shelter', 'container', 'bench', 'bin', 'stop', 'cross']) {
   const L = street.props(kind), bad = L.filter((p) => kerb(p.x, p.z) < 0.2 || occ.get(p.x, p.z) === 1).length;
   ok(bad === 0, `${L.length} x ${kind}: off the carriageways and the buildings`);
 }
+{ // no prop of the data stands in a fence of map_fences.json: a fence is 0.18 m thick, and the prop's reach toward the
+  // nearest point of every fence segment stays short of it (the props as the data has them: no trunks to step round)
+  const F = parseFences(JSON.parse(readFileSync(new URL('public/assets/cherkasy/map_fences.json', root))));
+  const G = 16, fg = new Map(), S = [];
+  for (let k = 0; k < F.n; k++) for (let q = F.start[k]; q < F.start[k] + F.count[k] - 1; q++) {
+    const ax = F.pts[2 * q], az = F.pts[2 * q + 1], bx = F.pts[2 * q + 2], bz = F.pts[2 * q + 3], id = S.length / 4;
+    S.push(ax, az, bx, bz);
+    for (let i = Math.floor((Math.min(ax, bx) - 1) / G); i <= Math.floor((Math.max(ax, bx) + 1) / G); i++) for (let j = Math.floor((Math.min(az, bz) - 1) / G); j <= Math.floor((Math.max(az, bz) + 1) / G); j++) { const kk = key(i, j); (fg.get(kk) ?? fg.set(kk, []).get(kk)).push(id); }
+  }
+  const plain = buildStreet({ scene: new THREE.Group(), data, map, heightAt: () => 0, detailMat });
+  const bad = {}; let n = 0, tight = Infinity;
+  for (const p of plain.props()) {
+    const c = Math.cos(p.ry), sn = Math.sin(p.ry), R = Math.hypot(p.hx, p.hz) + 0.3; n++;
+    for (let i = Math.floor((p.x - R) / G); i <= Math.floor((p.x + R) / G); i++) for (let j = Math.floor((p.z - R) / G); j <= Math.floor((p.z + R) / G); j++) for (const id of fg.get(key(i, j)) ?? []) {
+      const ax = S[4 * id], az = S[4 * id + 1], dx = S[4 * id + 2] - ax, dz = S[4 * id + 3] - az, l2 = dx * dx + dz * dz;
+      const t = l2 > 0 ? Math.max(0, Math.min(1, ((p.x - ax) * dx + (p.z - az) * dz) / l2)) : 0;
+      let nx = p.x - ax - dx * t, nz = p.z - az - dz * t; const d = Math.hypot(nx, nz); if (d > R) continue;
+      if (d > 1e-3) { nx /= d; nz /= d; } else { nx = 1; nz = 0; }
+      const air = d - 0.09 - Math.abs(p.hx * (c * nx - sn * nz)) - Math.abs(p.hz * (sn * nx + c * nz));
+      if (air < tight) tight = air;
+      if (air < 0) { bad[p.kind] = (bad[p.kind] || 0) + 1; i = j = Infinity; break; }
+    }
+  }
+  ok(Object.keys(bad).length === 0, `${n} props against ${S.length / 4} fence segments: none in a fence (the tightest keeps ${tight.toFixed(2)} m of air)${Object.keys(bad).length ? ' ' + JSON.stringify(bad) : ''}`);
+}
 // a pole stops a body
 const hit = (p) => solids.pushCylinder({ x: p.x + 0.3, y: p.y + 1, z: p.z }, 0.5, 1.5, 0.3) != null;
 ok(posts.filter((_, i) => i % 97 === 0).every(hit), 'poles collide');
 
 // a wall the building raster does not know (a hand-built site's): the lamp whose head it swallows goes when its cell is checked (below)
-const walled = street.props('lamp').filter((p) => p.alive && p.x > 1500 && p.kind === 'lamp')[7];
-{ const c = Math.cos(walled.ry), sn = Math.sin(walled.ry); solids.obox(walled.x + c * 1.2, walled.z - sn * 1.2, 0.9, 3, -walled.ry, 0, 14, 'wall'); }
+// (and a fence – a thin low 'wall' as fences.js registers them – through a pole and through a bench)
+const far = (kind) => street.props(kind).filter((p) => p.alive && p.x > 1100);
+const walled = far('lamp')[7], fenced = far('lamp')[40], fencedBench = far('bench')[3];
+solids.box(walled.x - 1, 0, walled.z - 1, walled.x + 1, 14, walled.z + 1, 'building');
+solids.obox(fenced.x, fenced.z, 6, 0.09, 0.7, -0.5, 1.8, 'wall');
+solids.obox(fencedBench.x + 0.5, fencedBench.z, 6, 0.09, 2.1, -0.5, 1.8, 'wall');
 
 // ---- streaming
 const cam = (x, z, y = 2) => ({ position: new THREE.Vector3(x, y, z) });
@@ -142,7 +172,12 @@ for (let x = R.x0 + 200; x < R.x1; x += 240) for (let z = R.z0 + 200; z < R.z1; 
 ok(worstTris < 150000, `worst spot ${at?.slice(0, 2)}: ${at?.[2]} near x 3 + ${at?.[3]} far + pools = ${worstTris} triangles a frame`);
 street.checkAll();
 ok(street.stats().checked >= street.stats().cells, 'checkAll covers every cell');
-{ const p = street.props('lamp').find((q) => q.x === walled.x && q.z === walled.z); ok(!p.alive && street.stats().dropped.solid >= 1, `a lamp whose arm is inside a site's wall is dropped (dropped.solid = ${street.stats().dropped.solid})`); }
+{
+  const now = (q) => street.props(q.kind).find((p) => p.x === q.x && p.z === q.z), d = street.stats().dropped;
+  ok(!now(walled).alive && d.solid >= 1, `a lamp inside a building the raster does not know is dropped (dropped.solid = ${d.solid})`);
+  ok(!now(fenced).alive && !now(fencedBench).alive && d.fence >= 2, `a pole and a bench with a fence through them are dropped (dropped.fence = ${d.fence})`);
+  ok(solids.pushCylinder({ x: fenced.x + 0.3, y: 2.5, z: fenced.z }, 0.5, 1.5, 0.3) == null, 'and the pole\'s collider is off');
+}
 { // no stray glow: every lit sprite hangs on a live pole (within its arm's reach), outside every building; the lamps
   // the stand-in site cleared have theirs switched off
   const glow = street.root.children.find((c) => c.isPoints), pos = glow.geometry.attributes.position, size = glow.geometry.attributes.size;
@@ -164,6 +199,22 @@ ok(street.stats().checked >= street.stats().cells, 'checkAll covers every cell')
   ok(lit > 13000 && orphan === 0, `${lit} glow sprites, each on a live pole (${orphan} orphans)`);
   ok(inWall === 0 && low === 0, `no lamp head inside a building footprint (${inWall}) or under 3 m (${low})`);
   ok(inSiteLit === 0, 'the lamps a site cleared do not glow');
+}
+
+{ // solids that arrive late (the fences land from a worker, often after the start): the cells are asked again, without
+  // the sites' part, and a pole that now stands in a fence leaves the picture and the collision world
+  street.setDetail({});
+  street.update(0, cam(-1308, 2117));
+  const s0 = street.stats(), late = street.props('pole').filter((p) => p.alive && Math.hypot(p.x + 1308, p.z - 2117) < 100)[0], asked0 = asked;
+  solids.obox(late.x, late.z, 5, 0.09, 1.1, -0.5, 1.9, 'wall');
+  const t = performance.now();
+  street.update(1 / 60, cam(-1308, 2117));
+  const ms = performance.now() - t, s1 = street.stats();
+  const gone = !street.props('pole').find((p) => p.x === late.x && p.z === late.z).alive;
+  ok(gone && s1.rechecks === s0.rechecks + 1 && s1.drawn.near < s0.drawn.near && s1.drawn.wires < s0.drawn.wires, `a fence that lands later: the pole in it goes (${s0.drawn.near} -> ${s1.drawn.near} near triangles, ${s0.drawn.wires} -> ${s1.drawn.wires} wire pieces), ${ms.toFixed(1)} ms`);
+  ok(asked === asked0, 'the sites are not asked again');
+  street.update(1 / 60, cam(-1308, 2117));
+  ok(street.stats().refreshes === s1.refreshes, 'and nothing more happens on the next frame');
 }
 
 console.log(fails ? `\n${fails} FAILED` : '\nall ok');

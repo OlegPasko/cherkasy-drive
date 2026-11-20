@@ -31,9 +31,12 @@
 //     trolley: [[off, x, z, dx, dz, ...]]   off: lateral offset of the wire pair, dm
 //     benches: [dx, dz, yaw | back << 6], bins: [dx, dz], containers: [dx, dz, yaw | n << 6],
 //     shelters: [x, z, yaw, len, depth], stops: [dx, dz, yaw], cross: [dx, dz, yaw] }
+// The props are checked against the fences of map_fences.json (build_fences.mjs: run it first when the fences change):
+// one that would stand in a fence is stepped clear of it, or dropped.
 // Run: node tools/cherkasy/build_street.mjs   (RAW=<dir> reads the raw extracts from another checkout). Deterministic.
 import { readFileSync, writeFileSync } from 'node:fs';
 import { pointInRing, minAreaRect } from './geom2d.mjs';
+import { parseFences } from '../../src/world/cherkasy/fencework.js';
 
 const RAWDIR = process.env.RAW ? process.env.RAW.replace(/\/?$/, '/') : new URL('./raw/', import.meta.url).pathname;
 const RAW = (n) => JSON.parse(readFileSync(RAWDIR + n + '.json')).elements;
@@ -435,6 +438,87 @@ for (const e of street.filter((e) => e.type === 'node' && e.tags?.highway === 'c
     const fwd = m.r.ow ? 1 : side;
     const sx = x + -m.tz * side * (m.r.w / 2 + 0.7) - m.tx * fwd * 1.6, sz = z + m.tx * side * (m.r.w / 2 + 0.7) - m.tz * fwd * 1.6;
     if (clearOfRoads(sx, sz, 0.45) && !inBuilding(sx, sz, 0.3)) cross.push({ x: sx, z: sz, c: yaw64(Math.atan2(-m.tx * fwd, -m.tz * fwd)) });
+  }
+}
+
+// ------------------------------------------------------------------------------------------------ fences
+// No prop stands in a fence (map_fences.json, tools/cherkasy/build_fences.mjs: the OSM barriers and the generated
+// street fronts, gates included): one that would is stepped clear of the line – to the road's side first when the
+// road is near, else to the side its middle is on – and dropped when neither side has room off the carriageways and
+// the buildings. The game's fence solids are 0.18 m thick; a prop keeps 0.15 m of air to them.
+{
+  let F = null;
+  try { F = parseFences(JSON.parse(readFileSync(ASSET('map_fences.json'), 'utf8'))); } catch { console.warn('map_fences.json not found: the props are not checked against the fences'); }
+  if (F) {
+    const G = 16, grid = new Map(), S = [], T = 0.09, GAP = 0.15;
+    for (let k = 0; k < F.n; k++) for (let q = F.start[k]; q < F.start[k] + F.count[k] - 1; q++) {
+      const ax = F.pts[2 * q], az = F.pts[2 * q + 1], bx = F.pts[2 * q + 2], bz = F.pts[2 * q + 3], id = S.length / 4;
+      S.push(ax, az, bx, bz);
+      for (let i = Math.floor((Math.min(ax, bx) - 1) / G); i <= Math.floor((Math.max(ax, bx) + 1) / G); i++) for (let j = Math.floor((Math.min(az, bz) - 1) / G); j <= Math.floor((Math.max(az, bz) + 1) / G); j++) { const kk = key(i, j); let b = grid.get(kk); if (!b) grid.set(kk, b = []); b.push(id); }
+    }
+    // the deepest overlap of a footprint with a fence: half sizes hx, hz along the prop's local axes (local +x ->
+    // (cos ry, -sin ry), +z -> (sin ry, cos ry)). A segment is clear of it when the footprint's reach toward the
+    // segment's nearest point stays short of that point.
+    const worst = (x, z, hx, hz, ry) => {
+      const c = Math.cos(ry), sn = Math.sin(ry), R = Math.hypot(hx, hz) + T + GAP; let best = null;
+      for (let i = Math.floor((x - R) / G); i <= Math.floor((x + R) / G); i++) for (let j = Math.floor((z - R) / G); j <= Math.floor((z + R) / G); j++) for (const id of grid.get(key(i, j)) ?? []) {
+        const ax = S[4 * id], az = S[4 * id + 1], dx = S[4 * id + 2] - ax, dz = S[4 * id + 3] - az, l2 = dx * dx + dz * dz;
+        const t = l2 > 0 ? Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / l2)) : 0, px = ax + dx * t, pz = az + dz * t;
+        let nx = x - px, nz = z - pz; const d = Math.hypot(nx, nz);
+        if (d > R) continue;
+        if (d > 1e-3) { nx /= d; nz /= d; } else { const l = Math.sqrt(l2) || 1; nx = -dz / l; nz = dx / l; }
+        const need = Math.abs(hx * (c * nx - sn * nz)) + Math.abs(hz * (sn * nx + c * nz)) + T + GAP - d;
+        if (need > 0 && (!best || need > best.need)) best = { need, nx, nz, px, pz, d };
+      }
+      return best;
+    };
+    // -> [x, z] clear of every fence (the same point when it already is), or null
+    const settle = (x, z, hx, hz, ry, fine) => {
+      const w = worst(x, z, hx, hz, ry); if (!w) return [x, z];
+      const road = nearest(x, z, 12, isDrive);
+      const away = () => { // on from where it is, away from the line
+        let qx = x, qz = z;
+        for (let it = 0; it < 4; it++) { const v = worst(qx, qz, hx, hz, ry); if (!v) return fine(qx, qz) ? [qx, qz] : null; qx += v.nx * (v.need + 0.03); qz += v.nz * (v.need + 0.03); }
+        return null;
+      };
+      const across = () => { // over the line, then on
+        let qx = w.px - w.nx * (w.need + w.d + 0.03), qz = w.pz - w.nz * (w.need + w.d + 0.03);
+        for (let it = 0; it < 4; it++) { const v = worst(qx, qz, hx, hz, ry); if (!v) return fine(qx, qz) ? [qx, qz] : null; qx += v.nx * (v.need + 0.03); qz += v.nz * (v.need + 0.03); }
+        return null;
+      };
+      const roadSide = road ? (road.px - x) * w.nx + (road.pz - z) * w.nz >= 0 : true; // is its own side the road's
+      return roadSide ? away() ?? across() : across() ?? away();
+    };
+    counts.fenceMoved = 0; counts.fenceDropped = 0;
+    const pass = (list, hx, hz, ryOf, fine) => {
+      const keep = [];
+      for (const p of list) {
+        const HX = typeof hx === 'function' ? hx(p) : hx, HZ = typeof hz === 'function' ? hz(p) : hz;
+        const q = settle(p.x, p.z, HX, HZ, ryOf(p), (x, z) => fine(x, z, p));
+        if (!q) { counts.fenceDropped++; continue; }
+        if (q[0] !== p.x || q[1] !== p.z) { counts.fenceMoved++; p.x = q[0]; p.z = q[1]; }
+        keep.push(p);
+      }
+      list.length = 0; list.push(...keep);
+    };
+    const c64 = (p) => (p.c & 63) * TAU / 64;
+    const post = (x, z) => clearOfRoads(x, z, 0.5) && !inBuilding(x, z, 0.4), small = (x, z) => clearOfRoads(x, z, 0.3) && !inBuilding(x, z, 0.3);
+    pass(lamps, 0.2, 0.2, (p) => p.yaw, post);
+    for (const c of chains) pass(c, 0.16, 0.16, (p) => p.yaw, post);
+    for (let i = chains.length - 1; i >= 0; i--) if (!(chains[i].length > 1 || chains[i][0]?.lamp)) chains.splice(i, 1); // what a dropped pole left: no lone plain pole
+    pass(benches, 0.92, 0.32, c64, small);
+    pass(bins, 0.24, 0.24, () => 0, small);
+    pass(stops, 0.08, 0.08, c64, small);
+    pass(cross, 0.08, 0.08, c64, small);
+    pass(containers, (p) => ((p.c >> 6) * 1.5 + 0.4) / 2, 0.95, c64, (x, z) => clearOfRoads(x, z, 1.5) && !inBuilding(x, z, 1.2));
+    pass(shelters, (p) => p.len / 2 + 0.15, (p) => p.depth / 2, (p) => p.yaw * TAU / 64, (x, z, p) => {
+      const ry = p.yaw * TAU / 64, fx = Math.sin(ry), fz = Math.cos(ry), ux = Math.cos(ry), uz = -Math.sin(ry);
+      for (const a of [-1, -0.5, 0, 0.5, 1]) for (const b of [-1, 1]) if (!clearOfRoads(x + ux * a * p.len / 2 + fx * b * p.depth / 2, z + uz * a * p.len / 2 + fz * b * p.depth / 2, 0.25)) return false;
+      return !inBuilding(x, z, 0.8);
+    });
+    counts.chains = chains.length;
+    counts.chainPoles = chains.reduce((n, c) => n + c.length, 0);
+    counts.chainLamps = chains.reduce((n, c) => n + c.filter((p) => p.lamp).length, 0);
   }
 }
 
