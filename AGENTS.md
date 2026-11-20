@@ -466,17 +466,24 @@ See `ARCHITECTURE.md` for the module map. Where things live:
     `node tools/cherkasy/build_fences.mjs` from the raw OSM barriers (`poi.json`) and `map.json`: OSM fronts on a
     pavement band move back to its edge, lots are split at side fences or between houses, and house lots with no OSM
     fence get a generated front; nothing stands on a carriageway, a driveway, a footway crossing or in a building, and
-    a house on the street line is its own front. A worker (`fencework.js`, no three: it also runs in node) fetches the
+    a house on the street line is its own front. A stub the cuts leave joined to nothing (under 4 m of fence, not
+    between buildings) is dropped; an open gate's leaves swing into the lot, clear of roads, pavements and buildings,
+    else the gate keeps its posts only. A worker (`fencework.js`, no three: it also runs in node) fetches the
     file and builds the atlas and the 512 m chunks while the city loads; `fences.js` drops the pieces on hand-built
     sites' lots (a site's `clear`, footprints, `lot.ring`, the OSM buildings it replaces), draws a chunk within `far`
     (700 / 450 / 260 m at high / medium / low), its posts, plinths and open gates within `near`, shadows within
     `shadow` (panels only), and keeps the fences out of the river mirror (`water.reflectSkip`). Every fence is a `wall`
-    solid, one per straight run (~43k, each within 0.25 m of the line and 1.2 m of ground rise). `?nofences` turns them
-    off. Rerun the compiler after every map rebuild (`build_map.mjs` does not). `tests/fences.test.mjs`.
+    solid, one per straight run (~41k, each within 0.25 m of the line and 1.2 m of ground rise). `?nofences` turns them
+    off. Rerun the compiler after every map rebuild (`build_map.mjs` does not), then `build_hedges.mjs` (the hedge
+    blocks stand on its hedge pieces). `tests/fences.test.mjs`.
   - The generated private sector's houses (`facadekit.js dressHouse` / `dressShed`): a front door in a pier between
-    windows – at the floor line over a stoop or a porch slab, or at ground level –, a frame and a pent canopy on some, a
-    brick chimney through some pitched roofs, a gas pipe; a door on most sheds. About 9 triangles a house on purpose:
-    the roof-detail mesh has no LOD inside a tile and is drawn to 2.6 km and in the river mirror. No solids.
+    windows (the facade shader's own window layout, `piers`) – at the floor line over a stoop or a porch slab with a
+    step, or flush at ground level where a carriageway is within ~4 m (`roadAt`) –, a frame and a pent canopy on some,
+    sunk panels and a handle on the street wall's door; a brick chimney through some pitched roofs, a gas pipe; a door
+    on two sheds in five. The doors and steps are in the tile's near builder (`t.near`, drawn within 220 m), the
+    chimney and the pipe in the far detail. About 8 near and 4 far triangles a house on purpose: the far detail is
+    drawn to 2.6 km and in the river mirror, and a 512 m group draws its near part as a whole and again in the shadow
+    cascades (~2.3 frame triangles each). No solids.
   - Requests #28–#30: `atb26` rebuilds the supermarket at Остафія Дашковича 26 with a charcoal shopfront beneath
     the three-storey tiled street block; `school7` builds both school №7 blocks at Добровольчих батальйонів 13 and
     the yellow-railed Odeska pedestrian bridge over the roads, garages and railway. Both schools and ATB are
