@@ -30,6 +30,8 @@ the Dnipro, +z south-east, origin at Soborna square).
         facade.js             building facade material: window grid, floors, lit windows at night, per-building style
         buildings.js          extruded OSM footprints -> walls + roofs using facade.js
         trees.js              procedural low-poly trees, instanced LODs, breakable items
+        nature/               treegeo.js: the species' meshes (treegeo_legacy.js: the old ones, ?notreeplus);
+                              shrubs.js: the shrub layer (instanced bushes, scenery only, its own short draw distance)
         farcull.js            draw-distance cull of the hand-built sites on the lower graphics levels (layer 0 off)
         drawdist.js           draw distances per class for chunked small detail (kerb faces, road paint, sleepers, rails,
                               the shore's wet bands and foam); the ground owns the registry (ground.drawDist)
