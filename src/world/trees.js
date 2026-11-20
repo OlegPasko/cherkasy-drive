@@ -39,8 +39,12 @@
 //     once; trees.detail reads them. Draw only: items, trunks and collision never change.
 //     shrubNear / shrubOut: [from, to] fade bands of the detailed bushes and of the whole layer; shrubShadow: the
 //     near bushes cast shadows.
-//   trees.setShrubs(shrubs | null): replace the shrub layer; stats().shrubs: its { items, near, far, drawCalls, ... }.
-//   trees.shrubJob(shrubs | null) -> generator: the same in small steps (run it to its end, a few steps a frame).
+//   trees.setShrubs(shrubs | null, opts?): replace the shrub layer; stats().shrubs: its { items, near, far, drawCalls, ... }.
+//   trees.shrubJob(shrubs | null, { drop?, fadeIn = 0 }?) -> generator: the same in small steps (run it to its end,
+//     a few steps a frame). drop(x, z, width, taper): the layer's own late filter (nature/shrubs.js); fadeIn: seconds over
+//     which the new layer's bushes dither in, each from its own moment (their shadows grow with them), driven by
+//     trees.update's dt – 0: they are there at once. The old layer is replaced in the step the new one is ready.
+//   trees.shrubSpots() -> Float32Array [x, z, width, taper, ...] | null, trees.shrubCheckAll(): the layer's spots() / checkAll()
 // LODs: near detail < ~80 m, mid (simplified, same layout) to ~320 m, one shared far crown per round / cone shape to
 // 1.5 km; dithered cross-fades between them. Near + mid trees within 160 m cast shadows. Repacking is CPU work only
 // when the camera moved 5 m (near / mid) or 30 m (far), or a tree changed.
@@ -174,28 +178,33 @@ transformed.xz = vec2(tc * transformed.x - ts * transformed.z, ts * transformed.
 transformed.xz += vec2(cos(aTintA.w * 3.1), sin(aTintA.w * 3.1)) * (wz * wz * 0.6);
 transformed.y *= 1.0 + 0.1 * sin(aTintA.w * 9.7) * wz;`;
 const TAPER = `transformed.xz *= mix(1.0, 1.42 * (1.0 - clamp(position.y, 0.0, 1.0)) + 0.06, aTintB.w);`;
-function depthMaterial(shrub) {
+// a shrub layer's arrival (uGrow 0 -> 1): each bush has its own moment, 0 before it and 1 once it is in
+const GROW = 'clamp(uGrow * 1.6 - 0.6 * fract(aTintA.w * 0.618), 0.0, 1.0)';
+function depthMaterial(shrub, uGrow = null) {
   const m = new MeshDepthMaterial({ depthPacking: RGBADepthPacking });
   m.onBeforeCompile = (sh) => {
+    if (shrub) sh.uniforms.uGrow = uGrow ?? { value: 1 };
     sh.vertexShader = sh.vertexShader
       .replace('#include <common>', `#include <common>
-attribute vec3 aLeaf; attribute vec4 aTintA; attribute vec4 aTintB;`)
+attribute vec3 aLeaf; attribute vec4 aTintA; attribute vec4 aTintB;${shrub ? ' uniform float uGrow;' : ''}`)
       .replace('#include <begin_vertex>', `#include <begin_vertex>
-${shrub ? TAPER : WARP}`);
+${shrub ? `${TAPER}
+transformed *= ${GROW};` : WARP}`); // (the shadow grows from the bush's foot while the bush dithers in)
   };
   m.customProgramCacheKey = () => 'tree-depth' + (shrub ? 'S' : '');
   return m;
 }
-function treeMaterial(fade, mode, plus = true) {
+function treeMaterial(fade, mode, plus = true, uGrow = null) {
   const far = mode === 'F', shrub = mode === 'S';
   const m = new MeshStandardMaterial({ vertexColors: true, roughness: 0.82, metalness: 0 });
   const uFade = { value: new Vector4(...fade) };
   m.onBeforeCompile = (sh) => {
     Object.assign(sh.uniforms, U, { uFade });
+    if (shrub) sh.uniforms.uGrow = uGrow ?? { value: 1 };
     sh.vertexShader = sh.vertexShader
       .replace('#include <common>', `#include <common>
 attribute vec3 aLeaf; attribute vec4 aTintA; attribute vec4 aTintB;
-uniform float uTime; uniform vec3 uWind; uniform vec4 uFade;
+uniform float uTime; uniform vec3 uWind; uniform vec4 uFade;${shrub ? ' uniform float uGrow;' : ''}
 varying float vFadeIn; varying float vFadeOut;
 ${plus ? 'varying vec3 vLp; varying vec3 vLk;' : ''}${shrub ? ' varying vec4 vFl;' : ''}`)
       .replace('#include <begin_vertex>', `#include <begin_vertex>
@@ -209,7 +218,8 @@ float g = sin(uTime * 1.1 + ph) * 0.6 + sin(uTime * 2.3 + ph * 1.7) * 0.3;
 transformed.xz += uWind.xy * (g * aLeaf.z * uWind.z * 0.1 * wk);
 transformed += aLeaf.x * aLeaf.z * uWind.z * 0.03 * wk * vec3(sin(uTime * 4.3 + position.y * 2.1 + ph), sin(uTime * 3.7 + position.x * 1.9), cos(uTime * 4.1 + position.z * 1.7));`}
 float dCam = distance(iOrg, cameraPosition);
-vFadeIn = smoothstep(uFade.x, uFade.y, dCam); vFadeOut = 1.0 - smoothstep(uFade.z, uFade.w, dCam);
+vFadeIn = smoothstep(uFade.x, uFade.y, dCam); vFadeOut = 1.0 - smoothstep(uFade.z, uFade.w, dCam);${shrub ? `
+vFadeOut *= ${GROW};` : ''}
 ${plus ? `vec3 iScl = vec3(length(instanceMatrix[0].xyz), length(instanceMatrix[1].xyz), length(instanceMatrix[2].xyz));
 vLp = position * iScl + aTintA.w * 3.0;
 vLk = vec3(aLeaf.x, ${far || shrub ? '1e3' : 'aTintB.w > 1.9 ? position.y * iScl.y : 1e3'}, 1.0 - smoothstep(${shrub ? '25.0, 90.0' : '70.0, 240.0'}, dCam));` : ''}`)
@@ -427,20 +437,23 @@ export function buildTrees({ scene, spots = [], shrubs = null, plus = true, maxS
   const matDepth = plus && shadows ? depthMaterial(false) : null; // the warped shapes cast their own shadows
   if (matDepth) for (const P of NM) P.mesh.customDepthMaterial = matDepth;
   // the shrub layer: its own records, cells and two pools (nature/shrubs.js); shrubJob builds it in small steps
-  let shrubLayer = null, gone = false;
-  const shrubJob = function* (sh) {
-    shrubLayer?.dispose(); shrubLayer = null;
-    if (!sh?.data?.length) return;
+  let shrubLayer = null, gone = false, growRate = 0;
+  const uGrow = { value: 1 }; // the layer's arrival, 0 -> 1 (GROW)
+  const shrubJob = function* (sh, { drop = null, fadeIn = 0 } = {}) {
+    if (!sh?.data?.length) { shrubLayer?.dispose(); shrubLayer = null; return; }
     const records = yield* shrubRecords(sh.data, (sh.kinds ?? []).map((k) => SHRUBS[k] ?? SHRUBS.bush));
     yield;
     if (gone) return; // the trees were disposed while the job ran
-    shrubLayer = createShrubLayer({
-      group: out.group, records, geos: buildShrubGeometries(), shadows, depth: shadows ? depthMaterial(true) : null,
-      near: LOD.shrubNear, out: LOD.shrubOut, material: (fade) => treeMaterial(fade, 'S', true),
+    const layer = createShrubLayer({
+      group: out.group, records, geos: buildShrubGeometries(), shadows, depth: shadows ? depthMaterial(true, uGrow) : null, drop,
+      near: LOD.shrubNear, out: LOD.shrubOut, material: (fade) => treeMaterial(fade, 'S', true, uGrow),
     });
+    shrubLayer?.dispose(); // the old layer goes in the step the new one is in: no frame without shrubs
+    shrubLayer = layer;
     shrubLayer.setDetail({ near: lod.shrubNear, out: lod.shrubOut, shadow: lod.shrubShadow });
+    uGrow.value = fadeIn > 0 ? 0 : 1; growRate = fadeIn > 0 ? 1 / fadeIn : 0;
   };
-  const setShrubs = (sh) => { for (const job = shrubJob(sh); !job.next().done;); };
+  const setShrubs = (sh, opts) => { for (const job = shrubJob(sh, opts); !job.next().done;); };
   scene?.add?.(out.group);
 
   // ---- view culling state: the current view's azimuth range and the wedge each pack left out
@@ -642,7 +655,7 @@ export function buildTrees({ scene, spots = [], shrubs = null, plus = true, maxS
     return { x: it._x, z: it._z, y0: it._y - 0.3, y1: it._y + V.trunk.h * it._s * s3[1], r, kind: it.kind, item: it };
   };
   Object.assign(out, {
-    update(dt, camPos, camera) { frame++; U.uTime.value += Number.isFinite(dt) ? dt : 0; U.uNight.value = Math.min(1, (getDaylight()?.state?.night ?? 0) * 1.6); if (camera) viewCam = camera; refresh(camPos, false); },
+    update(dt, camPos, camera) { frame++; U.uTime.value += Number.isFinite(dt) ? dt : 0; if (uGrow.value < 1) uGrow.value = Math.min(1, uGrow.value + (Number.isFinite(dt) ? dt : 0) * growRate); U.uNight.value = Math.min(1, (getDaylight()?.state?.night ?? 0) * 1.6); if (camera) viewCam = camera; refresh(camPos, false); },
     setCulling(on = true) { if (cullOn !== !!on) { cullOn = !!on; cullDirty = true; } },
     // the graphics quality's draw distances: nothing given = the defaults (LOD); repacks on the next update
     setDetail({ nearOut = LOD.nearOut, midOut = LOD.midOut, farOut = LOD.farOut, shadow = LOD.shadow, shrubNear = LOD.shrubNear, shrubOut = LOD.shrubOut, shrubShadow = LOD.shrubShadow } = {}) {
@@ -684,6 +697,7 @@ export function buildTrees({ scene, spots = [], shrubs = null, plus = true, maxS
   });
   Object.defineProperty(out, 'detail', { get: () => ({ nearOut: lod.nearOut, midOut: lod.midOut, farOut: lod.farOut, shadow: lod.shadow, shrubNear: lod.shrubNear, shrubOut: lod.shrubOut, shrubShadow: lod.shrubShadow }) });
   out.setShrubs = setShrubs; out.shrubJob = shrubJob;
+  out.shrubSpots = () => shrubLayer?.spots() ?? null; out.shrubCheckAll = () => shrubLayer?.checkAll();
   setShrubs(shrubs);
   const buildMs = (globalThis.performance ?? Date).now() - t0;
   if (skipped || over) console.warn(`[trees] skipped ${skipped} invalid spots, ${over} over the ${budget} budget`);

@@ -11,12 +11,14 @@
 // Nothing here is a real light: a lamp is an emissive lens (the detail material's LIGHT part), a glow sprite whose
 // pixel size and brightness shrink with distance, and a soft additive pool on the ground under it, all by nightFactor().
 //
-//   buildStreet({ scene, data, map, heightAt, ground?, solids?, occ?, clear? = [], decks? = [], spots? = [], detailMat }) -> street | null
+//   buildStreet({ scene, data, map, heightAt, ground?, solids?, occ?, clear? = [], decks? = [], spots? = [], doors? = null, detailMat }) -> street | null
 //     data: the parsed map_street.json; heightAt(x, z) -> terrain y; ground { isWater(x, z) }; solids: the collision
 //     world (poles become cylinders, a shelter's back wall and a container site boxes; nothing else collides);
 //     occ: the building raster (greenery.js footprintRaster) – a prop inside a footprint is dropped; clear: the sites'
 //     clear(x, z) areas and decks: their deckAt(x, z) – no generated prop there (a site has its own); spots: the tree
-//     spots, a pole steps aside from a trunk.
+//     spots, a pole steps aside from a trunk; doors: the entrances' index (doorways.js doorIndex) – a prop that
+//     would stand in a door's approach steps along its street to the nearest free spot beside it (up to 6 m, off the
+//     carriageways, buildings and water; a pole off the trunks too), else it is left out (stats().door).
 //     The sites' areas are ~120 functions, 16 us a point for all of them, so they are not asked for 20 thousand props
 //     at the load: a 48 m cell is checked when the camera first comes within CHECK_R (640 m) of it, and a prop a site
 //     clears goes then, with its collider (collision.disable), its wires, its glow and its pool; so does a pole or a
@@ -32,7 +34,8 @@
 //     sites, no shadow; the wires fade out toward `wires`, the ground pools toward `pools` (0 = none), the glow
 //     sprites toward `glow`
 //   street.checkAll()   checks every cell against the sites now (tests, exact counts)
-//   street.stats() -> { props: { lamps, main, ..., poles, benches, ... } (placed, before the sites' say), solids,
+//   street.doorHits(index) -> how many live props stand in an approach of that index (tests, the A/B census)
+//   street.stats() -> { props: { lamps, main, ..., poles, benches, ... } (placed, before the sites' say), solids, door: { moved, dropped },
 //     dropped: { site, deck, solid, fence, wire (spans, not props), building, water, region }, checked (cells), rechecks, ms (the build), checkMs (the sites' checks so
 //     far), drawn: { near, far (triangles), wires (segments), pools (triangles), glow (points) }, cells, refreshes, detail }
 //   street.props(kind?) -> [{ x, y, z, ry, kind, alive, solid (its collider's id, -1 none), hx, hz (half sizes on the ground, local x / z) }]   (tests) kind: 'lamp' | 'pole' | 'bench' | 'bin' | 'stop' | 'cross' | 'container' | 'shelter'
@@ -280,7 +283,7 @@ function ringBuffer(make, attrs) {
   };
 }
 
-export function buildStreet({ scene, data, map, heightAt, ground = null, solids = null, occ = null, clear = [], decks = [], spots = [], detailMat }) {
+export function buildStreet({ scene, data, map, heightAt, ground = null, solids = null, occ = null, clear = [], decks = [], spots = [], doors = null, detailMat }) {
   if (!data?.lamps || !scene || !detailMat) return null;
   const t0 = performance.now(), R = map.region;
   // ---- templates: [full model, far stand-in | null]
@@ -320,6 +323,33 @@ export function buildStreet({ scene, data, map, heightAt, ground = null, solids 
     return [x, z];
   };
 
+  // the entrances' approaches: a prop is asked over its whole footprint, the oriented hx x hz rectangle – a grid of
+  // points at most 0.5 m apart, edges and corners included, each with a 0.25 m disc (a pole: one point of its radius)
+  const sweep = (x, z, ry, hx, hz, f) => {
+    if (Math.max(hx, hz) < 0.3) return f(x, z, Math.max(hx, hz));
+    const c = Math.cos(ry), sn = Math.sin(ry), nx = Math.max(1, Math.ceil(hx * 4)), nz = Math.max(1, Math.ceil(hz * 4)); // local +x -> (cos, -sin), +z -> (sin, cos)
+    for (let i = 0; i <= nx; i++) for (let j = 0; j <= nz; j++) {
+      const u = hx * (2 * i / nx - 1), v = hz * (2 * j / nz - 1);
+      if (f(x + c * u + sn * v, z - sn * u + c * v, 0.25)) return true;
+    }
+    return false;
+  };
+  const inDoor = (D, x, z, ry, hx, hz) => sweep(x, z, ry, hx, hz, (px, pz, r) => D.at(px, pz, r) >= 0);
+  const door = { moved: 0, dropped: 0 };
+  // -> where the prop may stand: its place, or the nearest spot beside the approach along its street (a bench, a
+  // shelter and a container site lie along it: local x; the others face along it: local z; a bin has no side, it
+  // tries both), or null
+  const offDoor = (x, z, ry, kind, hx = FOOT[kind][0], hz = FOOT[kind][1]) => {
+    if (!doors?.n || !inDoor(doors, x, z, ry, hx, hz)) return [x, z];
+    const c = Math.cos(ry), sn = Math.sin(ry), X = [c, -sn], Z = [sn, c], axes = kind === 2 || kind >= 6 ? [X] : kind === 3 ? [Z, X] : [Z];
+    for (let d = 0.5; d <= 6; d += 0.5) for (const a of axes) for (const sg of [1, -1]) {
+      const qx = x + a[0] * d * sg, qz = z + a[1] * d * sg;
+      if (inDoor(doors, qx, qz, ry, hx, hz) || sweep(qx, qz, ry, hx, hz, (px, pz) => !free(px, pz) || (kind < 2 && atTrunk(px, pz)))) continue;
+      door.moved++; return [qx, qz];
+    }
+    door.dropped++; return null;
+  };
+
   // a lamp arm that would reach into a building (a pole tight against a wall, its street on the far side of the house)
   // turns about, or to a side: no head, lens or glow sprite ends up inside a footprint
   const aim = (x, z, ry, reach, turns, both = false) => {
@@ -353,6 +383,8 @@ export function buildStreet({ scene, data, map, heightAt, ground = null, solids 
       let x = px / 10, z = pz / 10;
       if (!ok(x, z)) continue;
       [x, z] = stepAside(x, z, ry0);
+      const q = offDoor(x, z, ry0, 0); if (!q) continue;
+      [x, z] = q;
       const [kind, t] = LAMP_OF[type] ?? LAMP_OF[2], y = groundY(x, z);
       const ry = aim(x, z, ry0, LAMPS[kind].head[0], TURNS, type === 1), span = ry === ry0 ? (code >> 9) / 10 : 0; // a turned arm holds no span wire
       const id = add(x, y, z, ry, t, 0, pole(x, y, z, LAMPS[kind]));
@@ -374,6 +406,8 @@ export function buildStreet({ scene, data, map, heightAt, ground = null, solids 
       let x = px / 10, z = pz / 10;
       if (!ok(x, z)) continue;
       [x, z] = stepAside(x, z, ry0);
+      const q = offDoor(x, z, ry0, 1); if (!q) continue;
+      [x, z] = q;
       const ry = lamp ? aim(x, z, ry0, LAMPS.util.head[0], ABOUT) : ry0;
       const y = groundY(x, z), id = add(x, y, z, ry, lamp ? (solo ? T_UTIL_SOLO : T_UTIL_LAMP) : T_UTIL, 1, pole(x, y, z, LAMPS.util));
       if (lamp) { headAt(id, 'util'); counts.poleLamps++; }
@@ -438,20 +472,23 @@ export function buildStreet({ scene, data, map, heightAt, ground = null, solids 
     }
   }
   const each = (list, n, f) => { let px = 0, pz = 0; for (let i = 0; i < (list?.length ?? 0); i += n) { px += list[i]; pz += list[i + 1]; f(px / 10, pz / 10, list[i + 2]); } };
-  each(data.benches, 3, (x, z, c) => { if (!ok(x, z)) return; add(x, groundY(x, z), z, (c & 63) * Y64, (c & 64 ? T_BENCH_BACK : T_BENCH)[Math.floor(x * 7 + z * 13) & 3], 2); counts.benches++; });
-  each(data.bins, 2, (x, z) => { if (!ok(x, z)) return; add(x, groundY(x, z), z, 0, T_BIN, 3); counts.bins++; });
-  each(data.stops, 3, (x, z, c) => { if (!ok(x, z)) return; add(x, groundY(x, z), z, c * Y64, T_STOP, 4); counts.stops++; });
-  each(data.cross, 3, (x, z, c) => { if (!ok(x, z)) return; add(x, groundY(x, z), z, c * Y64, T_CROSS, 5); counts.cross++; });
-  each(data.containers, 3, (x, z, c) => {
-    if (!ok(x, z)) return;
-    const ry = (c & 63) * Y64, n = Math.max(2, Math.min(4, c >> 6)), y = groundY(x, z), s = Math.sin(ry), co = Math.cos(ry);
+  // (the bench's template is picked by where the data has it, so a bench that steps aside keeps its look)
+  each(data.benches, 3, (x, z, c) => { if (!ok(x, z)) return; const q = offDoor(x, z, (c & 63) * Y64, 2); if (!q) return; add(q[0], groundY(q[0], q[1]), q[1], (c & 63) * Y64, (c & 64 ? T_BENCH_BACK : T_BENCH)[Math.floor(x * 7 + z * 13) & 3], 2); counts.benches++; });
+  each(data.bins, 2, (x, z) => { if (!ok(x, z)) return; const q = offDoor(x, z, 0, 3); if (!q) return; add(q[0], groundY(q[0], q[1]), q[1], 0, T_BIN, 3); counts.bins++; });
+  each(data.stops, 3, (x, z, c) => { if (!ok(x, z)) return; const q = offDoor(x, z, c * Y64, 4); if (!q) return; add(q[0], groundY(q[0], q[1]), q[1], c * Y64, T_STOP, 4); counts.stops++; });
+  each(data.cross, 3, (x, z, c) => { if (!ok(x, z)) return; const q = offDoor(x, z, c * Y64, 5); if (!q) return; add(q[0], groundY(q[0], q[1]), q[1], c * Y64, T_CROSS, 5); counts.cross++; });
+  each(data.containers, 3, (x0, z0, c) => {
+    if (!ok(x0, z0)) return;
+    const ry = (c & 63) * Y64, n = Math.max(2, Math.min(4, c >> 6)), q = offDoor(x0, z0, ry, 6, contWidth(n) / 2, 0.95); if (!q) return;
+    const [x, z] = q, y = groundY(x, z), s = Math.sin(ry), co = Math.cos(ry);
     add(x, y, z, ry, T_CONT[n - 2], 6, solids ? solids.obox(x - s * 0.22, z - co * 0.22, contWidth(n) / 2, 0.73, -ry, y - 0.3, y + 1.3, 'wall') : -1, contWidth(n) / 2, 0.95);
     counts.containers++;
   });
   for (let i = 0; i + 4 < (data.shelters?.length ?? 0); i += 5) {
-    const x = data.shelters[i] / 10, z = data.shelters[i + 1] / 10, ry = data.shelters[i + 2] * Y64, L = Math.round(data.shelters[i + 3] / 5) / 2, D = Math.round(data.shelters[i + 4] / 2) / 5;
-    if (!ok(x, z)) continue;
-    const y = groundY(x, z), s = Math.sin(ry), co = Math.cos(ry);
+    const x0 = data.shelters[i] / 10, z0 = data.shelters[i + 1] / 10, ry = data.shelters[i + 2] * Y64, L = Math.round(data.shelters[i + 3] / 5) / 2, D = Math.round(data.shelters[i + 4] / 2) / 5;
+    if (!ok(x0, z0)) continue;
+    const q = offDoor(x0, z0, ry, 7, L / 2, D / 2); if (!q) continue;
+    const [x, z] = q, y = groundY(x, z), s = Math.sin(ry), co = Math.cos(ry);
     // the back wall collides; the open front stays walkable
     add(x, y, z, ry, T_SHELTER(L, D), 7, solids ? solids.obox(x - s * (D / 2 - 0.03), z - co * (D / 2 - 0.03), L / 2, 0.06, -ry, y - 0.3, y + 2.4, 'wall') : -1, L / 2, D / 2);
     counts.shelters++;
@@ -692,8 +729,9 @@ export function buildStreet({ scene, data, map, heightAt, ground = null, solids 
     },
     checkAll() { if (solids && solids.count !== solidCount) { solidCount = solids.count; solids.topAt(0, 0); checked.clear(); } for (const key of cellProps.keys()) if (!checked.has(key)) check(key); for (const m of [cache[0], cache[1], poolCache, wireCache]) m.clear(); dirty = true; },
     spans: () => { const out = []; for (let i = 0; i < N; i++) if (P.kind[i] === 1 && alive[i] && P.w1[i] >= 0) for (const k of [0, 3]) { const a = (P.w1[i] + k) * 7; if (WR[a + 6] >= 0) out.push(Array.from(WR.subarray(a, a + 7))); } return out; },
+    doorHits: (D) => { let n = 0; if (D?.n) for (let i = 0; i < N; i++) if (alive[i] && inDoor(D, PX[i], PZ[i], PR[i], P.hx[i], P.hz[i])) n++; return n; },
     props: (kind = null) => { const out = []; for (let i = 0; i < N; i++) if (!kind || KIND[P.kind[i]] === kind) out.push({ x: PX[i], y: PY[i], z: PZ[i], ry: PR[i], kind: KIND[P.kind[i]], alive: !!alive[i], solid: P.solid[i], hx: P.hx[i], hz: P.hz[i] }); return out; },
-    stats: () => ({ props: { ...counts, heads: nHeads, wires: nWires }, solids: nSolids, dropped: { ...dropped }, checked: checked.size, rechecks: Math.max(0, rechecks), ms, checkMs: +checkMs.toFixed(1), cells: cellProps.size, refreshes,
+    stats: () => ({ props: { ...counts, heads: nHeads, wires: nWires }, solids: nSolids, door: { ...door }, dropped: { ...dropped }, checked: checked.size, rechecks: Math.max(0, rechecks), ms, checkMs: +checkMs.toFixed(1), cells: cellProps.size, refreshes,
       drawn: { near: near.count, far: far.count, wires: wireBuf.verts / 2, pools: poolBuf.count, glow: glow.visible ? nHeads : 0 }, detail: { ...detail } }),
   };
 }

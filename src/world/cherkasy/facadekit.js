@@ -1,6 +1,12 @@
 // OWNER: cherkasy (facade kit). Per-building street-level / facade dressing for the Cherkasy typology, called once per
 // extruded building by buildings.js after its walls and roof are emitted.
-//   dressBuilding({ t, S, Z, b, A, outer, holes, base, H, r, pitched, heightAt?, roadAt? })
+//   dressBuilding({ t, S, Z, b, A, outer, holes, base, H, r, pitched, heightAt?, roadAt?, doors? })
+//     doors: a plain array the kit appends the entrances it builds to, six numbers each (doorways.js DOOR_STRIDE): x, z on the
+//     wall line, the outward normal nx, nz, the door's half width and how far out its approach reaches (4 m; 5.5 m
+//     past a public stair, 8 m for a gate). Apartment entrances, public doors, industrial gates and staff doors,
+//     townhouse doors, a private house's door on a wall that faces a road, and one per main-street shop unit (its
+//     porch, else the middle of its glazing); not sheds or garages.
+//     The other layers keep that approach clear (cherkasy/doorways.js: street props, generated trees, shrubs).
 //     t.fac: FacadeBuilder of the building's tile (facade shader), t.det: MB of the tile (detail material, DP parts),
 //     t.near: MB for what only reads up close (drawn within ~220 m, cherkasy/buildings.js)
 //     S: Solids (collision), Z: ZipPoints, b: map building record, A: archetype (buildings.js), outer / holes: rings
@@ -11,7 +17,8 @@
 // wall AC units and satellite dishes; TV / cell antenna forests on flat roofs; concrete entrance canopies + doors on
 // the courtyard side; shop porches ("ганок"), fascia panels and awnings on main-street ground floors; coloured steel
 // doors on garage rows; yellow gas pipes on private houses;
-// front doors, canopies and party-wall ribs on townhouse rows (A.row). Everything is built in edge-local frames (edge direction u,
+// front doors (in the pier between a unit's two windows), canopies and party-wall ribs on townhouse rows (A.row).
+// Everything is built in edge-local frames (edge direction u,
 // outward normal n) since the OSM footprints come in any orientation.
 // Budget (55k buildings): ~1.2 M vertices, ~40 k solids city-wide, so the loggia fronts are one vertex "ladder" per
 // stripe: 2 vertices per level, parapet + glass quads share rows and the flat 'part' varying is taken from each
@@ -27,6 +34,7 @@
 // the AC units and dishes, goes to t.near; only the canopies, porches and public stairs collide. An entrance is built
 // only where its whole footprint is free (`fits`: no other building, no carriageway by roadAt(x, z), ground its steps
 // can meet); a porch or a public stair that does not fit falls back to a plain door, else the wall stays blank.
+// The old kit's shop porches follow the same rule for carriageways: a doorstep where a driveway runs along the wall.
 // ?nokit skips the kit (A/B); the build prints one '[cherkasy] facadekit:' summary line (vertices / solids / ms).
 // The private sector (dressHouse, dressShed): a house gets a front door in a pier between two windows – over a stoop
 // or a porch slab with a step, or flush at ground level where a carriageway is near; a frame and a pent canopy on
@@ -62,10 +70,10 @@ const DISH = [[3, hexL('#D8D8D2')], [1, hexL('#9FA3A6')], [0.4, hexL('#3A3C3E')]
 let cur = null;
 function begin(S) {
   if (cur && cur.S === S) return cur;
-  cur = { S, grid: new Map(), n: 0, v: 0, vn: 0, s: 0, ms: 0, c: { bal: 0, loggia: 0, ac: 0, dish: 0, ant: 0, ent: 0, shop: 0, gar: 0, gas: 0, ins: 0, pub: 0, gate: 0, bench: 0, lamp: 0 } };
+  cur = { S, grid: new Map(), n: 0, v: 0, vn: 0, s: 0, ms: 0, c: { bal: 0, loggia: 0, ac: 0, dish: 0, ant: 0, ent: 0, shop: 0, gar: 0, gas: 0, ins: 0, pub: 0, gate: 0, bench: 0, lamp: 0, road: 0, step: 0, doors: 0, shopDoor: 0 } };
   const C = cur;
   setTimeout(() => console.log(`[cherkasy] facadekit: ${C.n} buildings dressed, +${(C.v / 1e3).toFixed(0)}k verts, +${C.s} solids, ${C.ms.toFixed(0)} ms `
-    + `(${C.c.bal} stripes / ${C.c.loggia} loggias, ${C.c.ac} AC, ${C.c.dish} dishes, ${C.c.ant} antennas, ${C.c.ent} entrances, ${C.c.shop} shop units, ${C.c.gar} garage doors, ${C.c.gas} gas pipes, ${C.c.ins} insulated flats`
+    + `(${C.c.bal} stripes / ${C.c.loggia} loggias, ${C.c.ac} AC, ${C.c.dish} dishes, ${C.c.ant} antennas, ${C.c.ent} entrances, ${C.c.shop} shop units, ${C.c.gar} garage doors, ${C.c.gas} gas pipes, ${C.c.ins} insulated flats, ${C.c.road} shop porches off a carriageway (${C.c.step} doorsteps), ${C.c.doors} entrances handed out (${C.c.shopDoor} of them shop units)`
     + (C.vn ? `; near: ${(C.vn / 1e3).toFixed(0)}k of the verts, ${C.c.pub} public doors, ${C.c.gate} gates, ${C.c.bench} benches, ${C.c.lamp} door lamps)` : ')')), 0);
   return C;
 }
@@ -135,6 +143,17 @@ function segBays(e, A) {
   seg(e.L);
   return { c: c.reverse(), bw: bw.reverse() };
 }
+
+// an entrance for the other layers (dressBuilding's `doors`): its place on the wall line, the way out, the door's half
+// width and how far out its approach reaches (doorways.js DOOR_STRIDE)
+const DOOR_OUT = 4, STAIR_OUT = 5.5, GATE_OUT = 8, SHOP_HW = 0.8;
+function mark(C, e, s, hw, out = DOOR_OUT) {
+  if (!C.doors) return;
+  C.doors.push(e.ax + e.ux * s, e.az + e.uz * s, e.nx, e.nz, hw, out); C.c.doors++;
+}
+// the door of an entrance kind (entrance() below): [half width, reach of its approach] – the reach from the wall line,
+// so the deep porches (REACH: N 2.6 m, P 3.5 m) get more than the plain 4 m and keep ~2 m clear past their steps
+const DOORWAY = { K: () => [0.8, DOOR_OUT], S: () => [0.82, DOOR_OUT], N: () => [1.0, DOOR_OUT + 1], M: () => [1.0, DOOR_OUT], P: (q) => [q.w / 2 - 0.15, STAIR_OUT], p: (q) => [Math.max(0.5, Math.min(0.85, q.w / 2 - 0.35)) + 0.08, DOOR_OUT] };
 
 // ---------------------------------------------------------------------------------------------- loggia stripe
 // Vertex ladder in front (rows: parapet bottom / parapet top per floor + the glass top), fin walls on both sides, a
@@ -263,7 +282,7 @@ function dressApt(C, D, Dn, S, b, A, outer, sg, base, H, r, pitched, fl, gAt) {
       const e = E[q0.i], q = e && fitted(C, e, outer, q0, base, gAt);
       if (!q) continue;
       const cw = entrance(C, Dn, S, e, q, A, base, gAt, r, dcol);
-      C.c.ent++;
+      C.c.ent++; mark(C, e, q.s, ...DOORWAY[q.kind](q));
       const sd = r() < 0.5 ? -1 : 1, sb = q.s + sd * (cw + 1.3);
       if (q.kind !== 'M' && r() < 0.4 && sb > 1.5 && sb < e.L - 1.5 && !A.entr.some((o) => o !== q0 && o.i === q.i && Math.abs(o.s - sb) < 4)) {
         if (fits(C, e, outer, sb, 0.85, 0.7, base, gAt)) { bench(Dn, e, sb, 0.22, groundAt(gAt, e, sb, base), r); C.c.bench++; }
@@ -285,11 +304,14 @@ function dressApt(C, D, Dn, S, b, A, outer, sg, base, H, r, pitched, fl, gAt) {
         D.setPart(DP.CONC).setColor(jit(CONC, r));
         ebox(D, e, s - 1.05, s + 1.05, 0, 1.25, yc, yc + 0.16, 1 | 4 | 8 | 16 | 32); // canopy slab
         eprism(S, e, s - 1.05, s + 1.05, -0.05, 1.25, yc, yc + 0.16, 'awning', 1);
-        C.c.ent++;
+        C.c.ent++; mark(C, e, s, 0.6);
       }
     }
   }
   // ---- main-street ground floors: porches, fascia panels, awnings (units match the shader's 6.5 m storefront bays)
+  // (glazed: where buildings.js gives the wall its storefront floor – an apartment or public block of two storeys
+  // and up; only those units are entrances for the other layers)
+  const glazed = (b.k === 'apt' || b.k === 'public') && A.lv >= 2;
   for (const e of E) {
     if (e.f !== '2' || e.L < 5 || b.k === 'indus') continue;
     const gH = base + Math.max(A.gH, 3.6), nb2 = Math.max(1, Math.floor(e.L / 6.5 + 0.5)), bw2 = e.L / nb2;
@@ -303,14 +325,27 @@ function dressApt(C, D, Dn, S, b, A, outer, sg, base, H, r, pitched, fl, gAt) {
       D.setPart(DP.PAINT).setColor(jit(bcol, r, 0.05));
       ebox(D, e, s0, s1, 0, 0.14, gH - 0.58, gH - 0.02, 1 | 16);        // composite fascia over the cornice band
       const u = r();
+      let ds = sc, dhw = SHOP_HW; // the unit's way in for the other layers: the middle of its glazing, or its porch
       if (u < 0.35 && bw2 > 3.2) { // porch: landing + step, granite / tile
         const hP = Math.min(1.0, Math.max(0.35, A.plinth)), w = 1.1, ps = sc + (r() - 0.5) * (bw2 - 2 * w - 0.8);
         D.setPart(DP.CONC).setColor(jit(r() < 0.5 ? GRANITE : TILE, r));
-        ebox(D, e, ps - w, ps + w, 0, 1.3, base - 1.2, base + hP, 1 | 4 | 8 | 16); // (deep: terrain falls away from the footprint)
-        ebox(D, e, ps - w, ps + w, 1.3, 1.65, base - 1.2, base + hP / 2, 1 | 4 | 8 | 16);
-        D.setPart(DP.STEEL).setColor(hexL('#2E3134'));
-        for (const sg2 of [-1, 1]) ebox(D, e, ps + sg2 * w - 0.03, ps + sg2 * w + 0.03, 0.05, 1.6, base + hP + 0.9, base + hP + 0.95, 1 | 16); // handrails
-        eprism(S, e, ps - w, ps + w, -0.05, 1.3, base - 0.2, base + hP, 'ledge', 2);
+        // not on a carriageway (as the new entrances, `fits`): where a driveway runs along the wall the porch is a
+        // doorstep, nothing on the ground past 0.55 m and no handrails; where even that would stand on it, none
+        const road = onRoad(C, e, ps, w, 1.65);
+        if (road) C.c.road++;
+        if (!road) {
+          ds = ps; dhw = w;
+          ebox(D, e, ps - w, ps + w, 0, 1.3, base - 1.2, base + hP, 1 | 4 | 8 | 16); // (deep: terrain falls away from the footprint)
+          ebox(D, e, ps - w, ps + w, 1.3, 1.65, base - 1.2, base + hP / 2, 1 | 4 | 8 | 16);
+          D.setPart(DP.STEEL).setColor(hexL('#2E3134'));
+          for (const sg2 of [-1, 1]) ebox(D, e, ps + sg2 * w - 0.03, ps + sg2 * w + 0.03, 0.05, 1.6, base + hP + 0.9, base + hP + 0.95, 1 | 16); // handrails
+          eprism(S, e, ps - w, ps + w, -0.05, 1.3, base - 0.2, base + hP, 'ledge', 2);
+        } else if (!onRoad(C, e, ps, w, 0.55)) {
+          const hS = Math.min(hP, 0.3); C.c.step++;
+          ds = ps; dhw = w;
+          ebox(D, e, ps - w, ps + w, 0, 0.55, base - 1.2, base + hS, 1 | 4 | 8 | 16);
+          eprism(S, e, ps - w, ps + w, -0.05, 0.55, base - 0.2, base + hS, 'ledge', 2);
+        }
       } else if (u < 0.6) { // awning over the glass: sloped canvas + valance, both sides visible
         const ya = gH - 1.6, dA = 1.0, s0a = s0 + 0.1, s1a = s1 - 0.1;
         D.setPart(DP.CANVAS).setColor(jit(pick(r, AWN), r, 0.05));
@@ -320,7 +355,14 @@ function dressApt(C, D, Dn, S, b, A, outer, sg, base, H, r, pitched, fl, gAt) {
         ebox(D, e, s0a, s1a, dA - 0.02, dA, ya - 0.25, ya, 1 | 2);
       }
       C.c.shop++;
+      if (glazed) { C.c.shopDoor++; mark(C, e, ds, dhw); }
     }
+  }
+  // a storefront wall too short for a unit (the shader glazes it all the same): its middle is the way in
+  if (glazed) for (const e of E) {
+    if (e.f !== '2' || e.L < 2.5 || e.L >= 5) continue;
+    const p = W(e, e.L / 2, 1.6, 0);
+    if (!blocked(C, p[0], p[2])) { C.c.shopDoor++; mark(C, e, e.L / 2, Math.min(SHOP_HW, e.L / 2 - 0.4)); }
   }
   // ---- roof antenna forest on flat roofs of 5-16 storey blocks (thin masts + Yagi booms; WIRE fades out at range)
   if (!pitched && b.lv >= 5 && b.lv <= 17) {
@@ -389,6 +431,15 @@ function fits(C, e, outer, s, hw, dep, base, gAt) {
   }
   const p = W(e, s, 0.9, 0), y = gAt ? gAt(p[0], p[2]) : NaN;
   return !Number.isFinite(y) || (y > base - 2.2 && y < base + 1.5);
+}
+// does a footprint s +- hw along the wall, out to dep, touch a carriageway (C.roadAt; without it, never)
+function onRoad(C, e, s, hw, dep) {
+  if (!C.roadAt) return false;
+  for (let k = Math.max(2, Math.ceil(dep / 0.45)), j = 1; j <= k; j++) for (const ds of [-hw, 0, hw]) {
+    const p = W(e, s + ds, dep * j / k, 0);
+    if (C.roadAt(p[0], p[2])) return true;
+  }
+  return false;
 }
 // [half width, depth] an entrance kind takes up in front of the wall, with its steps
 const REACH = { K: () => [1.3, 1.3], S: () => [1.3, 1.3], N: () => [2.0, 2.6], M: (q) => [Math.min(1.7, q.w / 2) + 0.5, 1.9], P: (q) => [q.w / 2 + 1.1, 3.5], p: () => [1.4, 1.2] };
@@ -541,7 +592,7 @@ function dressPublic(C, D, S, A, outer, sg, base, r, fl, gAt) {
     const e = E[q0.i], q = e && fitted(C, e, outer, q0, base, gAt);
     if (!q) continue;
     entrance(C, D, S, e, q, A, base, gAt, r, null);
-    C.c.pub++;
+    C.c.pub++; mark(C, e, q.s, ...DOORWAY[q.kind](q));
   }
 }
 // industrial: steel gates (two leaves in a channel frame, a brace, a wicket) on the street-most long wall, with a
@@ -572,6 +623,7 @@ function dressIndus(C, D, A, outer, sg, base, H, r, fl, gAt) {
     D.setColor(gcol.map((v) => v * 0.6)); ebox(D, e, s - hw, s + hw, 0.05, 0.09, yg + hG * 0.55 - 0.05, yg + hG * 0.55 + 0.05, 1 | 16);
     if (r() < 0.6) ebox(D, e, s + 0.3, s + 1.15, 0.05, 0.065, yg + 0.15, yg + Math.min(2.05, hG * 0.55 - 0.1), 1);
     C.c.gate++; sDoor = s + (r() < 0.5 ? -1 : 1) * (hw + 1.7);
+    mark(C, e, s, hw, GATE_OUT);
   }
   if (!clear(sDoor, 0.8) || H - base < 2.6) return;
   const s = sDoor, yg = groundAt(gAt, e, s, base, 0.25), yT = yg + 0.12;
@@ -580,7 +632,7 @@ function dressIndus(C, D, A, outer, sg, base, H, r, fl, gAt) {
   D.setColor(jit(gcol, r, 0.06)); ebox(D, e, s - 0.45, s + 0.45, 0.06, 0.08, yT, yT + 2.06, 1);
   D.setPart(DP.GALV).setColor(hexL('#8e9296')); ebox(D, e, s - 0.75, s + 0.75, 0, 0.7, yT + 2.3, yT + 2.36, 1 | 16 | 32);
   if (r() < 0.7) { D.setPart(DP.LIGHT).setColor(LAMP); ebox(D, e, s - 0.12, s + 0.12, 0.06, 0.15, yT + 2.17, yT + 2.26, 1 | 32); C.c.lamp++; }
-  C.c.ent++;
+  C.c.ent++; mark(C, e, s, 0.53);
 }
 
 function dressGarage(C, D, b, A, outer, sg, base, H, r, fl) {
@@ -612,9 +664,11 @@ function dressGarage(C, D, b, A, outer, sg, base, H, r, fl) {
   }
 }
 
-// townhouse row (A.row: OSM terrace or an untagged row in a cottage quarter, issue #45): per unit of two bays, mirrored in
-// pairs, a front door with a sidelight on a step under a small canopy (it covers that bay's ground-floor window), and
-// a party-wall rib up to the eaves between units, on both long sides; doors on the street-most long side
+// townhouse row (A.row: OSM terrace or an untagged row in a cottage quarter, issue #45): a unit is two of the wall's
+// bays, as the facade shader lays them (wallBays, the layout `piers` reads: the kit's margin-inset bays() put the
+// doors across the windows). Per unit a front door with a glazed strip in the pier between its two windows, on a
+// step under a small canopy, and a party-wall rib up to the eaves in the pier between units, on both long sides;
+// doors on the street-most long side. Units count from the edge's far end; an odd last bay has no door.
 const ROWDOOR = [[3, hexL('#2E3134')], [2, hexL('#5B3A2E')], [1.5, hexL('#7A5536')], [1, hexL('#3F5F86')], [1, hexL('#3F6147')]];
 function dressRow(C, D, S, A, outer, sg, base, H, r, fl) {
   const E = ringFrames(outer, sg, fl), maxL = Math.max(0, ...E.map((e) => e.L));
@@ -623,28 +677,28 @@ function dressRow(C, D, S, A, outer, sg, base, H, r, fl) {
   const front = longE.reduce((m, e) => (!m || e.f > m.f || (e.f === m.f && e.L > m.L) ? e : m), null);
   const dcol = pick(r, ROWDOOR), rib = jit(hexL('#D9D6CE'), r, 0.05), yf = base + A.plinth;
   for (const e of longE) {
-    const { c, bw } = bays(e, A);
-    if (c.length < 2) continue;
-    for (let k = 0; k + 1 < c.length; k += 2) { // c runs from s = L downwards: bays k, k+1 are one unit
-      if (k + 2 < c.length) { // party wall between this unit and the next
-        const s = c[k + 1] - bw / 2;
-        D.setPart(DP.PAINT).setColor(rib);
-        ebox(D, e, s - 0.14, s + 0.14, 0, 0.14, base - 0.3, H, 1 | 4 | 8);
-      }
-      if (e !== front) continue;
-      const s = c[(k >> 1) % 2 ? k + 1 : k], hw = Math.min(0.85, bw * 0.3); // mirrored pairs: doors meet at the party wall
+    const { nb, bw, hw: win } = wallBays(e, A);
+    if (nb < 2) continue;
+    D.setPart(DP.PAINT).setColor(rib);
+    for (let k = 2; k < nb; k += 2) ebox(D, e, e.L - k * bw - 0.14, e.L - k * bw + 0.14, 0, 0.14, base - 0.3, H, 1 | 4 | 8); // party walls
+    if (e !== front) continue;
+    const hw = Math.min(0.55, bw / 2 - win - 0.03); // the door and its frame, inside the pier
+    for (const s of piers(e, A, 1.0)) {
+      const k = Math.round((e.L - s) / bw);
+      if (!(k & 1) || Math.abs(e.L - k * bw - s) > 0.01) continue; // a unit's middle pier only (not a party wall, not an end)
       const p = W(e, s, 1.3, 0);
       if (inPoly(outer, p[0], p[2]) || blocked(C, p[0], p[2])) continue;
+      const sd = (k >> 1) & 1 ? -1 : 1; // the glazed strip on alternate sides, unit by unit
       D.setPart(DP.CONC).setColor(jit(CONC, r));
-      ebox(D, e, s - hw - 0.25, s + hw + 0.25, 0, 0.9, base - 0.3, yf, 1 | 4 | 8 | 16);       // step
+      ebox(D, e, s - hw - 0.2, s + hw + 0.2, 0, 0.9, base - 0.3, yf, 1 | 4 | 8 | 16);           // step
       D.setPart(DP.PAINT).setColor(jit(dcol, r, 0.05));
-      ebox(D, e, s - hw, s + hw, 0, 0.05, yf, yf + 2.3, 1 | 4 | 8);                             // door + sidelight frame
+      ebox(D, e, s - hw, s + hw, 0, 0.05, yf, yf + 2.3, 1 | 4 | 8);                             // door in its frame
       D.setPart(DP.GLASS);
-      ebox(D, e, s + hw * 0.3, s + hw - 0.08, 0, 0.06, yf + 0.1, yf + 2.2, 1);                  // sidelight
+      ebox(D, e, s + sd * (hw - 0.19) - 0.11, s + sd * (hw - 0.19) + 0.11, 0, 0.06, yf + 0.1, yf + 2.2, 1); // glazed strip
       D.setPart(DP.PAINT).setColor(jit(dcol, r, 0.05));
-      ebox(D, e, s - hw - 0.3, s + hw + 0.3, 0, 1.0, yf + 2.45, yf + 2.57, 1 | 4 | 8 | 16 | 32); // canopy
-      eprism(S, e, s - hw - 0.3, s + hw + 0.3, -0.05, 1.0, yf + 2.45, yf + 2.57, 'awning', 1);
-      C.c.ent++;
+      ebox(D, e, s - hw - 0.2, s + hw + 0.2, 0, 1.0, yf + 2.45, yf + 2.57, 1 | 4 | 8 | 16 | 32); // canopy
+      eprism(S, e, s - hw - 0.2, s + hw + 0.2, -0.05, 1.0, yf + 2.45, yf + 2.57, 'awning', 1);
+      C.c.ent++; mark(C, e, s, hw);
     }
   }
 }
@@ -663,10 +717,15 @@ const HWOOD = [[3, hexL('#5B3A2E')], [2.5, hexL('#3A2A22')], [1.5, hexL('#7A5536
 // the piers of a windowed wall (between two windows, and at its two ends) wide enough for a door: [s of the pier's
 // middle]. The windows are where the facade shader puts them (facade.js quad, punched style): round(L / bayW) bays over
 // the whole wall, a window winW of its bay wide in the middle of each – not the margin-inset bays() of the flats' kit.
+// wallBays(e, A) -> { nb (bays, 0: a blank wall), bw (a bay's width), hw (half a window with its frame) }
+function wallBays(e, A) {
+  const nb = e.L >= A.bayW * 0.62 ? Math.max(1, Math.round(e.L / A.bayW)) : 0, bw = nb ? e.L / nb : e.L;
+  return { nb, bw, hw: A.winW * bw / 2 + 0.12 }; // + 0.12: the window's frame
+}
 function piers(e, A, need) {
-  const nb = e.L >= A.bayW * 0.62 ? Math.max(1, Math.round(e.L / A.bayW)) : 0, out = [];
+  const { nb, bw, hw } = wallBays(e, A), out = [];
   if (!nb) { if (e.L >= need + 0.3) out.push(e.L / 2); return out; } // a blank wall
-  const bw = e.L / nb, hw = A.winW * bw / 2 + 0.12, end = bw / 2 - hw; // + 0.12: the window's frame
+  const end = bw / 2 - hw;
   if (bw - 2 * hw >= need) for (let k = 1; k < nb; k++) out.push(k * bw);
   if (end >= need + 0.15) out.push(end / 2 + 0.07, e.L - end / 2 - 0.07);
   return out;
@@ -740,6 +799,7 @@ function dressHouse(C, D, N, b, A, outer, sg, base, H, r, fl, pitched) {
       q4(N, a, bq, cq, dq, e.nx * sl, cs, e.nz * sl); q4(N, a, bq, cq, dq, -e.nx * sl, -cs, -e.nz * sl);
     }
     C.c.hdoor = (C.c.hdoor ?? 0) + 1;
+    if (e.f !== '0') mark(C, e, s, hw); // a door on a wall that faces a road: its approach reaches the verge
   }
   // ---- the chimney: a brick stack through the roof slope near the ridge (the roof of buildings.js pitchedRoof)
   if (pitched && r() < 0.27) {
@@ -797,11 +857,11 @@ function dressShed(C, D, outer, sg, base, H, r, fl) {
 // ---------------------------------------------------------------------------------------------- entry
 const INS_K = typeof location !== 'undefined' && /[?&]insdbg\b/.test(location.search) ? 8 : 1; // debug: ?insdbg = 8x the insulated flats
 const OFF = typeof location !== 'undefined' && /[?&]nokit\b/.test(location.search); // A/B: ?nokit skips the kit
-export function dressBuilding({ t, S, Z, b, A, outer, holes, base, H, r, pitched, heightAt = null, roadAt = null }) {
+export function dressBuilding({ t, S, Z, b, A, outer, holes, base, H, r, pitched, heightAt = null, roadAt = null, doors = null }) {
   void Z; void holes;
   if (OFF) return;
   const C = begin(S), t0 = performance.now(), D = t.det, v0 = D.v, n0 = S.count ?? 0;
-  C.roadAt = roadAt;
+  C.roadAt = roadAt; C.doors = doors;
   const sg = area2(outer) >= 0 ? 1 : -1, fl = b.f ?? '';
   // the generator's `plus` pass ran on this building (A.entr): small things go to the near builder
   const Dn = A.entr && t.near ? t.near : D, vn0 = Dn.v;

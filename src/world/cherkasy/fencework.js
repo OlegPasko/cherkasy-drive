@@ -348,7 +348,10 @@ if (typeof WorkerGlobalScope !== 'undefined' && globalThis instanceof WorkerGlob
         const t0 = performance.now();
         F = parseFences(await (await fetch(e.data.url)).json());
         const samples = samplePoints(F), atlas = makeFenceAtlas();
-        self.postMessage({ samples, n: F.n, atlas, loadMs: Math.round(performance.now() - t0) }, [samples.buffer, atlas.data.buffer, ...atlas.mips.map((m) => m.data.buffer)]);
+        // (lines: a copy of the pieces' lines for the shrub layout, which keeps its bushes off them – the worker goes on needing its own)
+        const lines = { n: F.n, kinds: F.kinds, kind: F.kind.slice(), start: F.start.slice(), count: F.count.slice(), pts: F.pts.slice() };
+        self.postMessage({ samples, n: F.n, atlas, lines, loadMs: Math.round(performance.now() - t0) },
+          [samples.buffer, atlas.data.buffer, ...atlas.mips.map((m) => m.data.buffer), lines.kind.buffer, lines.start.buffer, lines.count.buffer, lines.pts.buffer]);
       } else if (e.data.hf) {
         const res = buildFenceChunks(F, gridHeight(e.data.hf), e.data.dead);
         const transfer = [res.solids.buffer];

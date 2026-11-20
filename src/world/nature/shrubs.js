@@ -4,14 +4,19 @@
 //
 //   SHRUB_STRIDE = 8: x, y, z, yaw, width, height, kind (index into kinds), tone (0..1, per-shrub variation)
 //   createShrubLayer({ group, data: Float32Array, kinds: [{ A, B, taper }], geos: { near, far }, material(fade),
-//                      depth?, records?, near = [26, 34], out = [130, 160], shadows = true }) -> layer
+//                      depth?, records?, near = [26, 34], out = [130, 160], shadows = true, drop = null }) -> layer
 //     depth: the near pool's shadow-pass material (the taper); records: shrubRecords(data, kinds)'s result, when the
 //     caller built them in steps (then data / kinds are not read)
+//     drop(x, z, width, taper) -> bool: a shrub the caller does not want after all (a hand-built site's cleared
+//       ground, a door's approach; taper: its kind's, 0 bush .. 1 cone, whose foot spreads). It is asked once per shrub, a 32 m cell at a time when the cell first comes into the
+//       layer's reach, so a test too slow for a hundred thousand shrubs at once costs a few dozen calls a repack
+//     layer.checkAll()   asks `drop` for every cell now (tests, exact counts)
+//     layer.spots() -> Float32Array [x, z, width, taper, ...] of the shrubs as they stand (minus those dropped so far)
 //   shrubRecords(data, kinds) -> generator; the heavy part of the set-up in small steps
 //     layer.update(camPos, view)   view: { full, fc, h } the camera's azimuth range (trees.js measureView), or null
 //     layer.setDetail({ near, out, shadow })   bands in metres, never beyond the ones given at creation (the pools
 //       are sized for those); shadow: the detailed bushes cast or not
-//     layer.stats() -> { items, near, far, drawCalls, repacks, lastRepackMs }, layer.dispose()
+//     layer.stats() -> { items, dropped, checked (cells asked), near, far, drawCalls, repacks, lastRepackMs }, layer.dispose()
 // Detail: the detailed bush within `near` (dithered cross-fade to the plain one over the band), the plain one to `out`.
 // Only the detailed bushes cast shadows. The plain pool leaves out the 32 m cells that lie outside the view's azimuth
 // range (+ a turn allowance) and is repacked when the camera moved 6 m or turned past the allowance.
@@ -51,10 +56,24 @@ export function* shrubRecords(data, kinds) {
   return { N, gx0, gz0, gnx, gnz, start, mats, misc, cellY };
 }
 
-export function createShrubLayer({ group, data, kinds, records = null, geos, material, depth = null, near = [26, 34], out = [130, 160], shadows = true }) {
+export function createShrubLayer({ group, data, kinds, records = null, geos, material, depth = null, near = [26, 34], out = [130, 160], shadows = true, drop = null }) {
   const now = () => (globalThis.performance ?? Date).now();
   if (!records) { const job = shrubRecords(data, kinds); for (let q = job.next(); ; q = job.next()) if (q.done) { records = q.value; break; } }
   const { N, gx0, gz0, gnx, gnz, start, mats, misc, cellY } = records;
+  // a cell's shrubs are rows [start, end) of mats / misc; `drop` thins a cell the first time it is used (sift)
+  const end = start.slice(1), seen = drop ? new Uint8Array(gnx * gnz) : null;
+  let dropped = 0, checked = 0;
+  const sift = (cell) => {
+    seen[cell] = 1; checked++;
+    let k = start[cell];
+    for (let i = k, e = end[cell]; i < e; i++) {
+      const m = i * 16;
+      if (drop(mats[m + 12], mats[m + 14], Math.hypot(mats[m], mats[m + 2]), misc[i * 8 + 7])) { dropped++; continue; }
+      if (k !== i) { mats.copyWithin(k * 16, m, m + 16); misc.copyWithin(k * 8, i * 8, i * 8 + 8); }
+      k++;
+    }
+    end[cell] = k;
+  };
   // the most shrubs any disc of radius R can hold (a summed-area table over the cells) -> pool sizes
   const sat = new Int32Array((gnx + 1) * (gnz + 1));
   for (let j = 0; j < gnz; ++j) for (let i = 0; i < gnx; ++i) sat[(j + 1) * (gnx + 1) + i + 1] = start[j * gnx + i + 1] - start[j * gnx + i] + sat[j * (gnx + 1) + i + 1] + sat[(j + 1) * (gnx + 1) + i] - sat[j * (gnx + 1) + i];
@@ -106,9 +125,12 @@ export function createShrubLayer({ group, data, kinds, records = null, geos, mat
     const i0 = Math.max(0, Math.floor((c.x - Rf - gx0) / CELL)), i1 = Math.min(gnx - 1, Math.floor((c.x + Rf - gx0) / CELL));
     const j0 = Math.max(0, Math.floor((c.z - Rf - gz0) / CELL)), j1 = Math.min(gnz - 1, Math.floor((c.z + Rf - gz0) / CELL));
     for (let j = j0; j <= j1; ++j) for (let i = i0; i <= i1; ++i) {
-      const cell = j * gnx + i, a = start[cell], b = start[cell + 1];
-      if (b <= a) continue;
+      const cell = j * gnx + i, a = start[cell];
+      if (end[cell] <= a) continue;
       const px = gx0 + i * CELL + half - c.x, pz = gz0 + j * CELL + half - c.z, py = cellY[cell] - c.y, dh = Math.sqrt(px * px + pz * pz), d = Math.sqrt(dh * dh + py * py);
+      if (d - diag > Rf) continue;
+      if (seen && !seen[cell]) sift(cell);
+      const b = end[cell];
       if (d - diag < Rn) for (let k = a; k < b && PN.n < PN.cap; ++k) { // the detailed bushes: per shrub
         const m = k * 16, qx = mats[m + 12] - c.x, qy = mats[m + 13] - c.y, qz = mats[m + 14] - c.z;
         if (qx * qx + qy * qy + qz * qz >= Rn * Rn) continue;
@@ -118,7 +140,7 @@ export function createShrubLayer({ group, data, kinds, records = null, geos, mat
         PN.n++;
       }
       // the plain bushes: whole cells in the band and (roughly) in view
-      if (d - diag > Rf || d + diag < skip) continue;
+      if (d + diag < skip) continue;
       if (W.on && dh > diag + 4 && Math.abs(wrapA(Math.atan2(pz, px) - W.f)) - Math.asin(Math.min(1, (diag + 4) / dh)) > W.H) continue;
       const n = Math.min(b - a, PF.cap - PF.n);
       PF.mat.set(mats.subarray(a * 16, (a + n) * 16), PF.n * 16); PF.misc.set(misc.subarray(a * 8, (a + n) * 8), PF.n * 8);
@@ -131,6 +153,12 @@ export function createShrubLayer({ group, data, kinds, records = null, geos, mat
 
   return {
     count: N,
+    checkAll() { if (seen) for (let c = 0; c < seen.length; c++) if (!seen[c]) sift(c); dirty = true; },
+    spots() {
+      const o = new Float32Array((N - dropped) * 4); let k = 0;
+      for (let c = 0; c < gnx * gnz; c++) for (let i = start[c]; i < end[c]; i++) { const m = i * 16; o[k++] = mats[m + 12]; o[k++] = mats[m + 14]; o[k++] = Math.hypot(mats[m], mats[m + 2]); o[k++] = misc[i * 8 + 7]; }
+      return o;
+    },
     update(camPos, view = null) {
       if (!N || !camPos) return;
       if (dirty || last.distanceTo(camPos) > MOVE || !covers(view)) pack(camPos, view);
@@ -142,7 +170,7 @@ export function createShrubLayer({ group, data, kinds, records = null, geos, mat
       PN.mesh.castShadow = shadows && lod.shadow;
       dirty = true;
     },
-    stats: () => ({ items: N, near: PN.n, far: PF.n, drawCalls: (PN.n > 0) + (PF.n > 0), repacks, lastRepackMs: +lastMs.toFixed(3) }),
+    stats: () => ({ items: N - dropped, dropped, checked, near: PN.n, far: PF.n, drawCalls: (PN.n > 0) + (PF.n > 0), repacks, lastRepackMs: +lastMs.toFixed(3) }),
     dispose() { for (const P of [PN, PF]) { P.mesh.removeFromParent(); P.mesh.geometry.dispose(); P.mesh.dispose?.(); } matNear.dispose(); matFar.dispose(); depth?.dispose(); },
   };
 }
