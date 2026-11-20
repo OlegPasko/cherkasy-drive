@@ -69,6 +69,7 @@ import { createSiteProxies } from './proxies.js';
 import { buildCarParks } from './carparks.js';
 import { buildStreet } from './street.js';
 import { startFences } from './fences.js';
+import { parseFences } from './fencework.js';
 
 // Oleg's site modules, resolved at build time; a file that does not exist yet is simply absent
 const SITE_MODULES = import.meta.glob(['./landmarks.js', './frame.js', './restinn.js', './yalynka.js', './pagorb.js', './rosevalley.js',
@@ -318,11 +319,15 @@ export async function buildCherkasy({ scene, renderer, onProgress = null, params
   // The shrub layer (shrubbery.js: bushes by the houses, front gardens, park belts) is not waited for: it is laid
   // out once the world is up, in the frames' idle time (~1 s of work, most of it the sites' clear tests) and joins
   // the trees a few seconds after the start (trees.shrubJob). A machine with no idle time gives it a tenth of its
-  // time (2-8 ms slices), so it gets there too, later.
-  let shrubStats = null;
-  if (treePlus) {
+  // time (2-8 ms slices), so it gets there too, later. The shrubs keep off the fences (their lines are read here
+  // again, parsed on this thread: the fences' worker keeps its own copy) and the street props; the job waits for
+  // both files, six seconds at most, and goes with what has landed by then.
+  let shrubStats = null, startShrubs = null;
+  if (treePlus) startShrubs = (fences, streetP, street) => {
+    let fenceLines = null;
+    const linesP = fences && typeof fetch === 'function' ? fetch(url('map_fences.json')).then((r) => (r.ok ? r.json() : null)).then((j) => { fenceLines = j ? parseFences(j) : null; }).catch(() => {}) : null;
     const job = (function* () {
-      const sh = yield* shrubSteps({ map, ground, footprints: B.footprints, occ, clear: isCleared });
+      const sh = yield* shrubSteps({ map, ground, footprints: B.footprints, occ, clear: isCleared, obstacles: () => ({ fences: fenceLines, props: street()?.props() ?? null }) });
       yield* trees.shrubJob(sh);
       shrubStats = sh.stats;
     })();
@@ -339,8 +344,8 @@ export async function buildCherkasy({ scene, renderer, onProgress = null, params
         later(slice);
       } catch (e) { console.error('[cherkasy] shrubs failed', e); }
     };
-    later(slice);
-  }
+    Promise.race([Promise.all([linesP, streetP]), new Promise((res) => setTimeout(res, 6000))]).then(() => later(slice));
+  };
   const trunks = new Map();
   trees.addSolids((c) => { trunks.set(c.item, collision.cyl(c.x, c.z, c.y0, c.y1, c.r, c.r, 'tree')); });
   stage('trees', 0.78, 'Машини і люди…');
@@ -483,6 +488,7 @@ export async function buildCherkasy({ scene, renderer, onProgress = null, params
   if (streetP && streetData === undefined) streetP.then((d) => { world.street = street = mkStreet(d); if (streetDetail) street?.setDetail(streetDetail); });
   { const stats = world.stats; world.stats = () => Object.assign(stats(), { street: street?.stats() ?? null }); }
   world.cherkasy.fences = fences;
+  startShrubs?.(fences, streetP, () => street); // the shrub layer's layout (see the trees above): now that the fences and the street props are on their way
   { const plain = world.stats; world.stats = () => ({ ...plain(), fences: fences?.stats() ?? null }); }
   world.loadMs = Math.round(performance.now() - t0);
   console.log(`[cherkasy] built in ${world.loadMs} ms: ${B.footprints.length} buildings, ${collision.count} solids, ${spots.length} trees, ${sites.length} sites | ${Object.entries(stages).map(([k, v]) => k + ' ' + v).join(', ')}`);

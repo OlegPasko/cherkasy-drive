@@ -61,6 +61,17 @@ See `ARCHITECTURE.md` for the module map. Where things live:
   - `buildings.js` – OSM building extrusion; townhouse rows (OSM `terrace`, or `row` from the map build: untagged outlines
     in a cottage quarter, which also gets no borrowed nine storeys – issue #45, вул. Руставі) are gabled two-storey rows
     that the facade kit gives doors, canopies and party-wall ribs (`tests/townhouses.test.mjs`);
+    - Building types and entrances (`docs/cherkasy-facades.md` is the reference; `tests/facadeplus.test.mjs`): with
+      `plus` (only the city pass sets it, `cherkasy/buildings.js`; `?nofacadeplus` turns it off) `typify` gives an
+      apartment, public or industrial building a type and plans its entrances (`A.entr`: one per section on the yard
+      side, toward the street on public ones). The type rides in the facade vertex's spare byte (`PLUS` in
+      `facade.js`) and the shader draws it only where window detail shows: panel joints, brick lintel courses and
+      aprons, a pre-war block's rustication, string course and cornice, a mix of old brown and new white frames,
+      downpipes. The stair column over an entrance is its own one-bay quad (`STYLE.STAIR`). Walls without the byte
+      (the hand-built sites, `proxies.js`) come out byte for byte as before. `facadekit.js` builds the doors: portals
+      with canopies, porches, glazed lobbies, public stairs under a slab on piers, industrial gates, lamps, plates,
+      benches. That small geometry goes to the tile's `near` builder, merged behind the detail of its 512 m group
+      and drawn through the draw range only within 220 m (less on the lower levels), so it adds no mesh.
   - `trees.js` – procedural trees with LODs and breakable items;
     - The species (`nature/treegeo.js RECIPES`): crowns are smooth lobed puffs on limbs, a near and a mid mesh from one
       layout; linden, chestnut and Scots pine come in two shapes, plus maple, oak, elm, birch, fruit, a young street tree
@@ -80,8 +91,15 @@ See `ARCHITECTURE.md` for the module map. Where things live:
       Where they grow (`shrubbery.js`): by the walls and in the gardens of private houses (behind the lot's street
       fence: 3.5 m off a carriageway, 5.3 m off a main street), front gardens of the blocks of flats, thuja rows along
       public buildings, belts inside park edges, groups on lawns, OSM scrub / flowerbeds / allotments, clipped lines on
-      some main-street verges. OSM `barrier=hedge` ways are hedge blocks of the tree system (`hedges_data.js`, made by
-      `node tools/cherkasy/build_hedges.mjs` from the raw OSM dump; `map.json` does not carry them).
+      some main-street verges. A bush's mesh foot reaches below its origin and it is set into the lowest ground under
+      it, so none floats on a slope; the flower flecks dim with `daylight.state.night`.
+      The shrubs keep off the other layers (`obstacleIndex` in `shrubbery.js`): one that would touch a fence
+      (`map_fences.json`, which the shrub job fetches and parses itself) or a street prop (`street.props()`) is pushed
+      off it by up to 3 m, one in a gate's mouth is left out; the job waits up to 6 s for both to land and uses what is
+      there. The hedges are hedge blocks of the tree system on the fences' own `hedge` pieces, cut where a block would
+      touch another fence, a gate's mouth or a street prop (`hedges_data.js`, made by
+      `node tools/cherkasy/build_hedges.mjs` from `map_fences.json` and `map_street.json`: run it again after
+      `build_fences.mjs` or `build_street.mjs`).
     - Planting (`cherkasy/greenery.js`): a street is an alley of one species picked by its name (бульвар Шевченка is
       the chestnut alley), limewashed on some streets and in private yards, a young tree here and there; the pine woods
       are Scots pines in two shapes; weeping willows along the Dnipro shore and round the ponds.
@@ -639,6 +657,7 @@ See `ARCHITECTURE.md` for the module map. Where things live:
   - `?noadapt` – no adaptive resolution (steady pixel ratio for perf measurements);
   - `?nofences` – no fences (`fences.js`; A/B for perf measurements);
   - `?notreeplus` – the trees as before the greenery upgrade and no shrub layer (A/B checks of look and cost);
+  - `?nofacadeplus` – the generated buildings without their type detail and entrances (the A/B switch for `plus`);
   - `?stilltime` – the clock stands still (the game runs a day per hour of play and skips the night, `startGame` in `main.js`);
   - `?nostreet` – no street furniture (`street.js`): the A/B switch for its cost;
   - `?nosound` – no sound at all (no AudioContext, nothing fetched, the radio muted); use it for every dev and test run;
