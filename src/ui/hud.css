@@ -145,15 +145,11 @@
   padding: 5px 11px 5px 5px; border-radius: 8px; border: 1px solid rgba(255, 255, 255, .16); background: rgba(12, 16, 26, .62);
   color: #dfe6f0; font: 600 12px system-ui, sans-serif; letter-spacing: .06em; transition: background .15s, border-color .15s; }
 .hud-homekey:hover { background: rgba(22, 30, 46, .85); border-color: rgba(255, 255, 255, .32); }
-/* the car switch (V): the Roadster chip, locked until every sight is found (game/garage.js) */
+/* the car switch (V): names the other car (game/garage.js) */
 .hud-carkey { position: absolute; left: calc(2.2vw + 300px); top: 2.4vh; pointer-events: auto; cursor: pointer; display: flex; align-items: center; gap: 7px;
   padding: 5px 11px 5px 5px; border-radius: 8px; border: 1px solid rgba(242, 193, 78, .5); background: rgba(12, 16, 26, .62);
   color: #f2c14e; font: 600 12px system-ui, sans-serif; letter-spacing: .06em; white-space: nowrap; transition: background .15s, border-color .15s; }
 .hud-carkey:hover { background: rgba(22, 30, 46, .85); border-color: rgba(242, 193, 78, .9); }
-.hud-carkey.locked { border-color: rgba(255, 255, 255, .16); color: #aab4c4; }
-.hud-carkey.locked:hover { border-color: rgba(255, 255, 255, .32); }
-.hud-carkey.fresh { animation: hudCarNew 1s ease-in-out 4; }
-@keyframes hudCarNew { 50% { background: rgba(242, 193, 78, .35); border-color: #f2c14e; } }
 .hud-radiokey { position: absolute; left: calc(2.2vw + 320px); top: 2.4vh; pointer-events: auto; cursor: pointer; display: flex; align-items: center; gap: 7px;
   padding: 5px 11px 5px 5px; border-radius: 8px; border: 1px solid rgba(255, 255, 255, .16); background: rgba(12, 16, 26, .62); max-width: 260px;
   color: #dfe6f0; font: 600 12px system-ui, sans-serif; letter-spacing: .06em; transition: background .15s, border-color .15s; }

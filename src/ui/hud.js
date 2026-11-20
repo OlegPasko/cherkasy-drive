@@ -5,7 +5,7 @@
 // stays on screen even with the HUD hidden; the "Бот" chip next to it opens the game's Telegram bot, the camera chip
 // "P – Фото" after it calls hud.onPhoto (the photo mode, ui/photomode.js; it stays on screen under F2 too), the "B – На старт"
 // chip after it calls hud.onHome (a stuck car goes back to the start), the "V – Roadster" chip after that calls hud.onCar
-// (the car switch, game/garage.js; a lock while the Roadster is not yet earned), the "🔔 Оновлення" chip opens the bot's daily updates
+// (the car switch, game/garage.js), the "🔔 Оновлення" chip opens the bot's daily updates
 // subscription (t.me/…?start=sub), the "Q – Радіо" chip after that calls hud.onRadio and
 // shows what plays (hud.setRadio), and while it plays an "E – Далі" chip next to it calls hud.onRadioNext; an "M – Велика мапа"
 // chip over the minimap opens the big map, and the "J – Місії" chip beside it calls hud.onMissions and shows whether
@@ -39,8 +39,7 @@
 //   hud.map = { open(), close(), toggle(), isOpen }   the full-screen map (M in main.js; Esc closes it too)
 //   hud.onHome = fn                      set by main: the "На старт" chip calls it
 //   hud.onPhoto = fn                     set by main: the camera chip opens the photo mode
-//   hud.onCar = fn, hud.setGarage({ kind, unlocked, left, total, fresh? })   the car chip (game/garage.js): the car
-//                                        you would switch to, or a lock with the sights left; fresh pulses it
+//   hud.onCar = fn, hud.setGarage({ kind })   the car chip (game/garage.js): names the car you would switch to
 //   hud.onGo = fn(place)                 set by main: the big map's "Переміститись сюди?" – move the car beside that place
 //   hud.getZones = fn -> [{ x, z, r, label }]   set by main: the active quest's search circles on the big map (game/quests.js)
 //   hud.onMissions = fn, hud.setMissionsOn(on)   the missions on / off chip over the minimap
@@ -69,7 +68,7 @@ const HELP = [
   ['Їзда', [['W / S', 'газ / гальмо, задній хід'], ['A / D', 'кермо'], ['Space', 'ручник'], ['F', 'сигнал: люди попереду розбігаються'], ['R', 'поставити авто на дорогу'], ['B / Home', 'застряг? повернутись на старт']]],
   ['Політ', [['Shift', 'тримай: крила + реактивна тяга, відрив ~150 км/год'], ['W', 'крейсерська тяга'], ['S', 'повітряне гальмо'],
     ['↑ / ↓', 'ніс вниз / вгору'], ['Space / Ctrl', 'набір висоти / пікірування'], ['A / D', 'віраж']]],
-  ['Roadster', [['V', 'пересісти: Cybertruck / Roadster (Roadster – коли відкриєш усі пам’ятки)'], ['Shift', 'на землі тримай – тиск газу (до 10 с), відпусти – стрибок: повний заряд ≈ 48 м, над 15-поверхівкою'],
+  ['Roadster', [['V', 'пересісти: Cybertruck / Roadster'], ['Shift', 'на землі тримай – тиск газу (до 10 с), відпусти – стрибок: повний заряд ≈ 48 м, над 15-поверхівкою'],
     ['Shift / Space', 'у повітрі: газові струмені тримають авто, повільний набір'], ['W', 'тяга вперед (задні сопла)'], ['S', 'гальмо, швидше вниз'], ['↑ / Ctrl', 'вниз швидше'], ['A / D', 'поворот']]],
   ['Камера', [['C', 'кабіна / вид ззаду'], ['Миша', 'огляд (клік по грі захоплює курсор)'], ['Esc', 'відпустити курсор']]],
   ['Місії', [['', 'заїдь у стовп світла, щоб узяти виклик'], ['J', 'приймати виклики / вимкнути місії (просто кататись)'], ['N', 'інший виклик'], ['Backspace', 'скасувати місію'], ['Enter', 'ще раз після невдачі']]],
@@ -113,7 +112,7 @@ export function createHud({ player, world, camera, container = globalThis.docume
     <a class="hud-botkey" href="${botLink()}" target="_blank" rel="noopener" title="Telegram-бот гри"><i>✈</i><span>Бот</span></a>
     <button class="hud-photokey" type="button" title="Фото (P)"><kbd>P</kbd>${CAMERA_ICON}<span>Фото</span></button>
     <button class="hud-homekey" type="button" title="Повернутись на старт (B)"><kbd>B</kbd><span>На старт</span></button>
-    <button class="hud-carkey locked" type="button" title="Пересісти в інше авто (V)"><kbd>V</kbd><span>🔒 Roadster</span></button>
+    <button class="hud-carkey" type="button" title="Пересісти в Roadster (V)"><kbd>V</kbd><span>Roadster</span></button>
     <a class="hud-botkey hud-newskey" href="${botLink('sub')}" target="_blank" rel="noopener" title="Раз на день, о 21:00, оновлення гри в Telegram – лише коли вони є"><i>🔔</i><span>Оновлення</span></a>
     <button class="hud-radiokey" type="button" title="Радіо: Q – увімк. / вимк., E – наступний трек"><kbd>Q</kbd><span>Радіо</span></button>
     <button class="hud-radionext off" type="button" title="Наступний трек (E)"><kbd>E</kbd><span>Далі</span></button>
@@ -166,7 +165,7 @@ export function createHud({ player, world, camera, container = globalThis.docume
     placeCar();
     placeRadio();
   }
-  function placeCar() { // the car chip's text changes length with the lock: the chips after it follow
+  function placeCar() { // the car chip's text changes length with the car: the chips after it follow
     el.carKey.style.left = `${el.homeKey.offsetLeft + el.homeKey.offsetWidth + 8}px`;
     el.newsKey.style.left = `${el.carKey.offsetLeft + el.carKey.offsetWidth + 8}px`;
     placeRadio();
@@ -490,11 +489,10 @@ export function createHud({ player, world, camera, container = globalThis.docume
 
   const hud = {
     mission, setTelemetry, onHome: null, onCar: null, onGo: null, getZones: null, onRadio: null, onRadioNext: null, onMissions: null,
-    setGarage({ kind, unlocked, left, total, fresh = false }) {
-      setClass(el.carKey, 'locked', !unlocked);
-      setText(el.carT, !unlocked ? `🔒 Roadster · ${total - left} / ${total}` : kind === 'roadster' ? 'Cybertruck' : 'Roadster');
-      el.carKey.title = !unlocked ? `Roadster відкриється, коли знайдеш усі пам’ятки: залишилось ${left} (V)` : `Пересісти в ${kind === 'roadster' ? 'Cybertruck' : 'Roadster'} (V)`;
-      if (fresh) { el.carKey.classList.remove('fresh'); void el.carKey.offsetWidth; el.carKey.classList.add('fresh'); }
+    setGarage({ kind }) {
+      const other = kind === 'roadster' ? 'Cybertruck' : 'Roadster';
+      setText(el.carT, other);
+      el.carKey.title = `Пересісти в ${other} (V)`;
       placeCar();
     },
     setMissionsOn(on) { setClass(el.missKey, 'act', !!on); setText(el.missT, on ? 'Місії: увімк.' : 'Місії: вимк.'); },

@@ -17,11 +17,10 @@
 //     while the pick is the game's (qualityBy 'auto') ui/perfhint.js steps it down by itself when the game stays slow.
 //   startGame({ container, overlay? }) -> Promise<ctx>   the game page: world (Cherkasy, or the test world with ?testworld
 //     or when src/world/cherkasy/city.js is absent), the car, HUD and missions as systems (car -> traffic player sync ->
-//     world.update(dt, camera) -> missions -> partners -> explore -> garage -> quests -> audio -> perf -> hud -> photo). ctx gains { world, car, hud, missions, partners, explore, garage, quests, audio, perf, photo }.
+//     world.update(dt, camera) -> missions -> partners -> explore -> quests -> audio -> perf -> hud -> photo). ctx gains { world, car, hud, missions, partners, explore, garage, quests, audio, perf, photo }.
 //     P (or the HUD's camera chip) opens the photo mode (ui/photomode.js: ctx.frozen, a free camera, the HUD hidden,
 //     a watermarked PNG to save or share); not over the map, the quest book or the Roadster's news card.
-//     V switches the car (game/garage.js: the Roadster once every sight is found; ?roadster unlocks it in dev builds
-//     only); the Roadster's one-time news card (ui/roadsternews.js) follows the consent card. M opens the city map
+//     V switches the car (game/garage.js: the Cybertruck or the Roadster, both from the start); the Roadster's one-time news card (ui/roadsternews.js) follows the consent card. M opens the city map
 //     (hud.map) and K the quest book (game/quests.js); either pauses the game until it closes. The loading screen carries the consent card (ui/consent.js): the
 //     loop starts once it is accepted, at once for a returning player. window.__game = ctx;
 //     window.tick(n, dt = 1/60) steps n fixed frames with the real-time loop paused (ctx.start() resumes). ?paused
@@ -269,7 +268,7 @@ export async function startGame({ container = document.getElementById('app') || 
   const missions = createMissions({ world, player: car, hud, scene, input });
   const partners = createPartners({ world, player: car, scene, isBlocked: () => hud.map.isOpen });
   const explore = createExplore({ world, player: car, hud, reward: (n) => missions.addMoney(n) });
-  const garage = createGarage({ car, explore, hud, force: !!import.meta.env?.DEV && params.has('roadster') });
+  const garage = createGarage({ car, hud });
   hud.onCar = () => garage.toggle();
   const quests = createQuests({ world, player: car, scene, hud, reward: (n) => missions.addMoney(n) });
   hud.getZones = () => quests.zones();
@@ -355,7 +354,6 @@ export async function startGame({ container = document.getElementById('app') || 
   ctx.addSystem((dt) => missions.update(dt), 'missions');
   ctx.addSystem((dt) => partners.update(dt), 'partners');
   ctx.addSystem((dt) => explore.update(dt), 'explore');
-  ctx.addSystem((dt) => garage.update(dt), 'garage');
   ctx.addSystem((dt) => quests.update(dt), 'quests');
   ctx.addSystem((dt) => audio.update(dt), 'audio');
   ctx.addSystem(() => { if (input.pressed('simpler')) perf.cycle(); perf.update(); }, 'perf');
@@ -394,8 +392,8 @@ export async function startGame({ container = document.getElementById('app') || 
     if (!params.has('paused')) ctx.start();
     overlay?.classList.add('done');
     setTimeout(() => overlay?.remove(), 700);
-    // the Roadster's news, once (any key closes it; V there switches at once when it is earned)
-    const showNews = () => { news = showRoadsterNews({ visited: explore.visited, total: explore.total, unlocked: garage.unlocked, onSwitch: () => { if (garage.kind !== 'roadster') garage.toggle(); } }); };
+    // the Roadster's news, once (any key closes it; V or the button there switches at once)
+    const showNews = () => { news = showRoadsterNews({ onSwitch: () => { if (garage.kind !== 'roadster') garage.toggle(); } }); };
     // software rendering: say how to turn the graphics acceleration on first (?softwarn shows the card in dev builds)
     if (software || (!!import.meta.env?.DEV && params.has('softwarn'))) {
       warn = showSoftwareWarning({ gpu, lowered: ctx.quality === 'low', onClose: showNews });

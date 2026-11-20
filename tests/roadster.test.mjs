@@ -1,4 +1,4 @@
-// The Roadster (the second player car): unlock and choice (game/garage.js), the swap keeping the car's state, the gas
+// The Roadster (the second player car): the choice (game/garage.js, both cars open from the start), the swap keeping the car's state, the gas
 // jump (a full charge clears ~48 m), the hover, the top speed (~1.5x the Cybertruck's limiter), the wedge ram that throws
 // struck cars up, the rear wing (up while driving, folded when stopped or flying) and the model's budget. Run: node tests/roadster.test.mjs   (headless: canvas / storage stubs)
 import * as THREE from 'three';
@@ -10,7 +10,7 @@ globalThis.localStorage = { getItem: (k) => store.get(k) ?? null, setItem: (k, v
 
 const { createTestWorld } = await import('../src/game/testworld.js');
 const { createCar, CARS, jumpHeight } = await import('../src/game/car/car.js');
-const { createGarage, isUnlocked, CAR_KEY } = await import('../src/game/garage.js');
+const { createGarage, CAR_KEY } = await import('../src/game/garage.js');
 const { createWrecks } = await import('../src/npc/wrecks.js');
 const { buildRoadsterModel, WING_UP, WING_DOWN } = await import('../src/game/car/roadster.js');
 const { buildCarModel } = await import('../src/game/car/model.js');
@@ -29,32 +29,24 @@ const S = car.state, V = (x, y, z) => new THREE.Vector3(x, y, z);
 const run = (sec, fn) => { for (let t = 0; t < sec; t += 1 / 60) { fn?.(); car.update(1 / 60); world.update(1 / 60); } };
 const hs = () => Math.hypot(S.v.x, S.v.z);
 
-// ---------------------------------------------------------------- unlock and choice
-check('isUnlocked follows the sights', !isUnlocked({ visited: 3, total: 4 }) && isUnlocked({ visited: 4, total: 4 }) && !isUnlocked({ visited: 0, total: 0 }));
-const ex = { visited: 38, total: 40 }, banners = [], chips = [];
+// ---------------------------------------------------------------- the choice
+const banners = [], chips = [];
 const hud = { mission: { banner: (t, sub) => banners.push(`${t} | ${sub}`) }, setGarage: (g) => chips.push(g) };
-let gar = createGarage({ car, explore: ex, hud, storage: localStorage });
-check('starts in the Cybertruck', car.kind === 'cybertruck' && gar.kind === 'cybertruck');
-check('locked: V does not switch', gar.toggle() === false && car.kind === 'cybertruck');
-check('locked: says to find every sight, with the count left', /усі пам’ятки/.test(banners.at(-1)) && /Залишилось 2 з 40/.test(banners.at(-1)), banners.at(-1));
-check('the chip shows the lock', chips.at(-1)?.unlocked === false && chips.at(-1)?.left === 2);
-ex.visited = 40; banners.length = 0;
-for (let t = 0; t < 4; t += 0.1) gar.update(0.1);
-check('the last sight announces the unlock at once (after the sights banner)', banners.some((b) => /Roadster відкрито/.test(b)), banners.join(' / '));
-check('the chip pulses on unlock', chips.some((c) => c.unlocked && c.fresh));
+let gar = createGarage({ car, hud, storage: localStorage });
+check('starts in the Cybertruck, the chip offers the Roadster', car.kind === 'cybertruck' && gar.kind === 'cybertruck' && chips.at(-1)?.kind === 'cybertruck');
 car.teleport(V(3, 0, 12), 0);
 input.set({ throttle: 1 }); run(2);
 const p0 = S.p.clone(), v0 = S.v.clone(), yaw0 = S.yaw;
-check('unlocked: V switches to the Roadster', gar.toggle() === true && car.kind === 'roadster' && car.model.object.name === 'PlayerRoadster');
+check('V switches to the Roadster from the start, no sights needed', gar.toggle() === true && car.kind === 'roadster' && car.model.object.name === 'PlayerRoadster');
+check('the switch says how the gas jump works', /Roadster/.test(banners.at(-1)) && /Shift/.test(banners.at(-1)), banners.at(-1));
 check('the swap keeps position, velocity and heading', S.p.distanceTo(p0) < 1e-9 && S.v.distanceTo(v0) < 1e-9 && S.yaw === yaw0, `v ${v0.length().toFixed(1)}`);
 check('the choice is stored', store.get(CAR_KEY) === 'roadster');
 check('one car node in the scene, the gas puffs added', scene.children.filter((o) => o.name === 'PlayerCar').length === 1 && !!car.model.fx?.parent);
-gar = createGarage({ car: createCar({ scene: new THREE.Scene(), world, camera, input }), explore: ex, storage: localStorage });
-check('a new start restores the Roadster while it stays earned', gar.kind === 'roadster');
-ex.visited = 39;
-gar = createGarage({ car: createCar({ scene: new THREE.Scene(), world, camera, input }), explore: ex, storage: localStorage });
-check('a new sight added later locks it again (back in the Cybertruck)', gar.kind === 'cybertruck' && !gar.unlocked);
-ex.visited = 40;
+gar = createGarage({ car: createCar({ scene: new THREE.Scene(), world, camera, input }), storage: localStorage });
+check('a new start restores the Roadster', gar.kind === 'roadster');
+const c2 = createCar({ scene: new THREE.Scene(), world, camera, input }), g2 = createGarage({ car: c2, storage: localStorage });
+check('V goes back to the Cybertruck', g2.toggle() === true && c2.kind === 'cybertruck' && store.get(CAR_KEY) === 'cybertruck');
+store.set(CAR_KEY, 'roadster');
 
 // ---------------------------------------------------------------- the gas jump
 input.set({ throttle: 0 });

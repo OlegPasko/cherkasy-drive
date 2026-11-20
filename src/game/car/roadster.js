@@ -1,5 +1,5 @@
-// Procedural Roadster (the second player car, after the 2026 Tesla Roadster shown on 2026-10-16), unlocked once every
-// sight is found (src/game/garage.js). The same contract as the Cybertruck's model.js:
+// Procedural Roadster (the second player car, after the 2026 Tesla Roadster shown on 2026-10-16), open from the start
+// (V switches, src/game/garage.js). The same contract as the Cybertruck's model.js:
 //   buildRoadsterModel() -> { object, body, set(state, dt), eye, interior, driver, materials, fx, gas, wing (getter, 0..1) }
 //   WING_UP / WING_DOWN: the rear wing's deploy / fold speeds (m/s)
 //   RDIM: { len, wid, wb, track, wheelR, wheelZ, wheelX, height } (car.js reads it like model.js's DIM)

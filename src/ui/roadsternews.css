@@ -15,9 +15,6 @@
 .rd-goal { padding: 10px 12px; border-radius: 10px; background: rgba(255, 255, 255, .06); color: #dfe6f0; }
 .rd-goal.open { background: rgba(242, 193, 78, .14); }
 .rd-goal b { color: #f2c14e; }
-.rd-bar { height: 8px; margin: 8px 0 4px; border-radius: 4px; background: rgba(255, 255, 255, .12); overflow: hidden; }
-.rd-bar i { display: block; height: 100%; border-radius: 4px; background: #f2c14e; }
-.rd-n { display: block; margin-bottom: 4px; font-size: 13px; color: #aab4c4; }
 .rd-card button { display: block; margin: 16px auto 0; padding: 10px 26px; border: 0; border-radius: 999px; cursor: pointer;
   font: 700 15px system-ui, sans-serif; color: #0d1117; background: #f2c14e; transition: transform .15s; }
 .rd-card button:hover { transform: translateY(-1px); }

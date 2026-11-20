@@ -28,7 +28,7 @@
 // Controls: W / S gas / brake-reverse, A / D steer, Space handbrake, Shift wings + jet, C camera (cockpit / chase),
 // F horn (state.horn; the sound is src/audio/game.js), R reset (upright, back on the road), mouse look.
 // Two cars (CARS: physics P, model, collision circles, ram box, camera): the Cybertruck above (model.js) and the
-// Roadster (roadster.js, unlocked by game/garage.js): a low wedge, ~1.5x the top speed (87 m/s limiter), a hard launch,
+// Roadster (roadster.js, switched to by game/garage.js): a low wedge, ~1.5x the top speed (87 m/s limiter), a hard launch,
 // ~1.5 g of grip; no wings: cold-gas thrusters. On the ground Shift charges the jump (state.charge 0..1 over 10 s,
 // state.jumpH the height it gives, jumpHeight(c) = 1.5..48 m); letting go leaps straight up (the road speed kept; a
 // 'takeoff' event with gas: true). In the air the belly jets only push up: the climb is ballistic, then they catch the
