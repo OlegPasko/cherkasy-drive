@@ -8,13 +8,18 @@
 //   - parks: a loose belt of shrubs inside the edge and small groups on the lawns; lawns (grass) get a few groups;
 //   - OSM scrub is filled with tall bushes, flowerbeds with low blooming ones, allotments with berry bushes;
 //   - main streets: on some stretches a low clipped line of bushes along the lawn's edge, past the paving;
-//   - OSM hedges (barrier=hedge, hedges_data.js): clipped hedge blocks of the tree system (hedgeRows).
+//   - OSM hedges (barrier=hedge; hedges_data.js: the fences' hedge lines, cut off other fences, gates and street
+//     props by tools/cherkasy/build_hedges.mjs): clipped hedge blocks of the tree system round the thin hedge face
+//     and the wall solid fences.js builds there (hedgeRows).
 // Nothing stands on a building, a carriageway, a footway, a railway track, paving, a pitch, a playground, water, or
-// where a hand-built site keeps the ground clear.
+// where a hand-built site keeps the ground clear; nothing touches a fence or a street prop or blocks a gate.
 //
-//   shrubSpots({ map, ground, footprints, occ, clear = null }) -> { data, kinds, stats }
+//   shrubSpots({ map, ground, footprints, occ, clear = null, obstacles = null }) -> { data, kinds, stats }
 //     ground: { heightAt, onAsphalt, isWater };  occ: the buildings' 1 m raster (greenery.js footprintRaster);
 //     clear(x, z) -> bool: no shrub there (the hand-built sites' clear tests)
+//     obstacles: { fences?, props? } | () -> that, asked when the layout starts (see obstacleSteps below): a shrub
+//       that would touch a fence or a street prop is pushed off it, one in a gate's mouth is left out
+//       (stats.moved / stats.dropped)
 //     data: Float32Array of nature/shrubs.js records; kinds: the names its kind indices point at (trees.js SHRUBS);
 //     stats: counts per rule and the time
 //   shrubSteps(same) -> generator of the same work in small steps (it yields about every 3 ms of work; the last
@@ -42,13 +47,87 @@ const MIX = {
   bed: [['rose', 35], ['pink', 25], ['yellow', 20], ['bloom', 20]],
   allot: [['bush', 60], ['rose', 10], ['pink', 10], ['bloom', 10], ['lilac', 10]],
 };
+// the radius a shrub takes on the ground, in widths (a cone spreads at its foot: the shrub shader's taper)
+export const FOOT = KINDS.map((k) => (k === 'thuja' ? 0.6 : k === 'juniper' ? 0.55 : 0.48));
 const table = (mix) => { const sum = mix.reduce((a, q) => a + q[1], 0); let acc = 0; return mix.map(([k, w]) => [KINDS.indexOf(k), (acc += w) / sum]); };
 const PICK = Object.fromEntries(Object.entries(MIX).map(([k, m]) => [k, table(m)]));
 
+// What the other layers put on the ground, as the shrubs see it: the fences' lines (fencework.js parseFences: a wall
+// 0.18 m thick each; a gate also keeps its mouth free, the driveway or the path through it) and the street props
+// (street.js props(): poles, lamps, signs, benches, bins, shelters, container sites). 8 m cells; an entry lies in
+// every cell a shrub that touches it can stand in.
+//   obstacleSteps({ fences?, props?, skipKinds? = [] }) -> generator (it yields now and then) of
+//     { n, hit(x, z, r) -> 0 | 1 fence | 2 gate mouth | 3 prop, settle(x, z, r) -> [x, z] | null }
+//     settle: where a shrub of radius r may stand, at most 3 m from (x, z), pushed off the fence (to its own side) or
+//     the prop it touches; null: nowhere near (in a gate's mouth, or boxed in)
+//   obstacleIndex(same) -> the same at once
+const PROP_R = { lamp: 0.3, pole: 0.3, cross: 0.2, stop: 0.25, bin: 0.4, bench: 1.0, shelter: 2.3, container: 2.6 };
+const MOUTH = { gate: 2.2, oldgate: 2.2, gateopen: 2.6, wicket: 0.9, oldwicket: 0.9 }; // kept free round a gate (m)
+const REACH = 2.4; // the widest shrub's radius and the gap it keeps
+export function obstacleIndex(opts) { const job = obstacleSteps(opts); for (;;) { const q = job.next(); if (q.done) return q.value; } }
+export function* obstacleSteps({ fences: F = null, props = null, skipKinds = [] } = {}) {
+  const C = 8, cells = new Map(), key = (i, j) => (i + 4096) * 8192 + (j + 4096);
+  const seg = [], mouth = [], P = [];
+  const add = (id, x0, z0, x1, z1, pad) => {
+    for (let i = Math.floor((Math.min(x0, x1) - pad) / C), i1 = Math.floor((Math.max(x0, x1) + pad) / C); i <= i1; i++)
+      for (let j = Math.floor((Math.min(z0, z1) - pad) / C), j1 = Math.floor((Math.max(z0, z1) + pad) / C); j <= j1; j++) { const k = key(i, j), L = cells.get(k); if (L) L.push(id); else cells.set(k, [id]); }
+  };
+  if (F) {
+    const skip = new Set(skipKinds), gap = F.kinds.map((name) => (skip.has(name) ? -1 : MOUTH[name] ?? 0));
+    for (let k = 0; k < F.n; k++) {
+      if ((k & 2047) === 2047) yield;
+      const g = gap[F.kind[k]]; if (g < 0) continue;
+      for (let i = F.start[k] + 1, e = F.start[k] + F.count[k]; i < e; i++) {
+        const ax = F.pts[2 * i - 2], az = F.pts[2 * i - 1], bx = F.pts[2 * i], bz = F.pts[2 * i + 1], n = Math.max(1, Math.ceil(Math.hypot(bx - ax, bz - az) / 12));
+        for (let q = 0; q < n; q++) { // a long run in pieces, so it does not fill the cells of its whole box
+          const x0 = ax + (bx - ax) * q / n, z0 = az + (bz - az) * q / n, x1 = ax + (bx - ax) * (q + 1) / n, z1 = az + (bz - az) * (q + 1) / n;
+          add(seg.length / 4, x0, z0, x1, z1, REACH + g); seg.push(x0, z0, x1, z1); mouth.push(g);
+        }
+      }
+    }
+  }
+  if (props) for (let i = 0; i < props.length; i++) {
+    const q = props[i]; if (q.alive === false) continue;
+    const r = PROP_R[q.kind] ?? 0.3;
+    add(-1 - P.length / 3, q.x, q.z, q.x, q.z, REACH + r); P.push(q.x, q.z, r);
+  }
+  // the deepest thing a disc touches: its kind, how deep, and the way out (nx, nz)
+  let depth = 0, nx = 0, nz = 0;
+  const hit = (x, z, r) => {
+    const L = cells.get(key(Math.floor(x / C), Math.floor(z / C)));
+    depth = 0; if (!L) return 0;
+    let kind = 0;
+    for (let q = 0; q < L.length; q++) {
+      const id = L[q]; let cx, cz, need, t;
+      if (id >= 0) {
+        const o = id * 4, ax = seg[o], az = seg[o + 1], dx = seg[o + 2] - ax, dz = seg[o + 3] - az, l2 = dx * dx + dz * dz, u = l2 > 0 ? Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / l2)) : 0;
+        cx = ax + dx * u; cz = az + dz * u; t = mouth[id] > 0 ? 2 : 1; need = r + (t === 2 ? mouth[id] : 0.14);
+      } else { const o = (-1 - id) * 3; cx = P[o]; cz = P[o + 1]; need = r + P[o + 2]; t = 3; }
+      const ex = x - cx, ez = z - cz, d = Math.hypot(ex, ez);
+      if (d >= need) continue;
+      if (t === 2) { depth = need - d; return 2; }
+      if (need - d > depth) { depth = need - d; kind = t; if (d > 0.03) { nx = ex / d; nz = ez / d; } else { nx = 0; nz = 0; } }
+    }
+    return kind;
+  };
+  const settle = (x, z, r) => {
+    const x0 = x, z0 = z;
+    for (let turn = 0; turn < 4; turn++) {
+      const t = hit(x, z, r);
+      if (!t) return [x, z];
+      if (t === 2 || (nx === 0 && nz === 0)) return null; // in a gate's mouth, or right on the line: no side to keep
+      x += nx * (depth + 0.06); z += nz * (depth + 0.06);
+      if (Math.hypot(x - x0, z - z0) > 3) return null;
+    }
+    return hit(x, z, r) ? null : [x, z];
+  };
+  return { n: seg.length / 4 + P.length / 3, hit, settle };
+}
+
 export function hedgeRows({ ground, occ, clear = null }) {
-  const out = [], r = rng(29);
+  const out = [];
   for (const H of HEDGES) {
-    const h = H.h ? Math.min(1.8, Math.max(0.8, H.h * 0.7)) : 1.15 + 0.3 * r();
+    const h = Math.max(0.9, H.h + 0.06); // a touch over the fences' hedge face on the same line, which it wraps
     for (let i = 2; i < H.p.length; i += 2) {
       const ax = H.p[i - 2], az = H.p[i - 1], bx = H.p[i], bz = H.p[i + 1];
       if (Math.hypot(bx - ax, bz - az) < 0.6) continue;
@@ -64,7 +143,7 @@ export function shrubSpots(opts) {
   for (;;) { const q = job.next(); if (q.done) return q.value; }
 }
 
-export function* shrubSteps({ map, ground, footprints, occ, clear = null }) {
+export function* shrubSteps({ map, ground, footprints, occ, clear = null, obstacles = null }) {
   const t0 = performance.now(), R = map.region, r = rng(23);
   let work = 0, tick = 0; // work: the time spent inside the steps (the wall time includes the pauses between them)
   let tS = t0; const pause = () => { work += performance.now() - tS; }, resume = () => { tS = performance.now(); };
@@ -113,15 +192,28 @@ export function* shrubSteps({ map, ground, footprints, occ, clear = null }) {
   for (const rings of map.walks ?? []) { if (due()) { pause(); yield; resume(); } fillRings(rings); }
   for (const key of ['pitch', 'track', 'play', 'parking']) for (const rings of map.cover[key] ?? []) { if (due()) { pause(); yield; resume(); } fillRings(rings); }
 
+  // the fences and the street props, as they are when the layout starts (the city gives what has landed by then)
+  const O = typeof obstacles === 'function' ? obstacles() : obstacles, avoided = { moved: 0, dropped: 0 };
+  let obs = null;
+  if (O && (O.fences || O.props)) for (const job = obstacleSteps(O); ;) { const q = job.next(); if (q.done) { obs = q.value; break; } pause(); yield; resume(); }
   const out = [], counts = {};
   const mark = (name, n0) => { counts[name] = (out.length - n0) / SHRUB_STRIDE; };
   const free = (x, z) => x > R.x0 + 1 && x < R.x1 - 1 && z > R.z0 + 1 && z < R.z1 - 1 && no.get(x, z) !== 1 && occ.get(x, z) !== 1 && !ground.onAsphalt(x, z) && !ground.isWater(x, z);
   // a shrub of a mix at (x, z): its size, a 3 x 3 m claim in the raster so the next one keeps off; k: size factor
+  const built = (x, z) => occ.get(x + 0.9, z) === 1 || occ.get(x - 0.9, z) === 1 || occ.get(x, z + 0.9) === 1 || occ.get(x, z - 0.9) === 1;
   const put = (x, z, mix, k = 1, kind = -1) => {
-    if (!free(x, z) || occ.get(x + 0.9, z) === 1 || occ.get(x - 0.9, z) === 1 || occ.get(x, z + 0.9) === 1 || occ.get(x, z - 0.9) === 1 || (clear && clear(x, z))) return false;
+    if (!free(x, z) || built(x, z)) return false;
     if (kind < 0) { const q = r(); kind = mix[mix.length - 1][0]; for (const [id, acc] of mix) if (q < acc) { kind = id; break; } }
     const S = SIZE[KINDS[kind]], w = (S[0] + (S[1] - S[0]) * r()) * k, h = (S[2] + (S[3] - S[2]) * r()) * k;
-    out.push(x, ground.heightAt(x, z) - 0.06 * h, z, r() * 6.283, w, h, kind, r());
+    if (obs) { // off the fences, out of the gates' mouths, off the street props: pushed aside if there is room
+      const q = obs.settle(x, z, w * FOOT[kind]);
+      if (!q) { avoided.dropped++; return false; }
+      if (q[0] !== x || q[1] !== z) { x = q[0]; z = q[1]; avoided.moved++; if (!free(x, z) || built(x, z)) { avoided.dropped++; avoided.moved--; return false; } }
+    }
+    if (clear && clear(x, z)) return false;
+    // the lowest ground under the bush, so on a slope its downhill side still stands in the earth
+    const e = w * 0.35, y = Math.min(ground.heightAt(x, z), ground.heightAt(x + e, z), ground.heightAt(x - e, z), ground.heightAt(x, z + e), ground.heightAt(x, z - e));
+    out.push(x, y - 0.03 * h, z, r() * 6.283, w, h, kind, r());
     for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) cell(x + a, z + b);
     return true;
   };
@@ -264,5 +356,5 @@ export function* shrubSteps({ map, ground, footprints, occ, clear = null }) {
 
   const data = Float32Array.from(out);
   pause();
-  return { data, kinds: KINDS, stats: { ...counts, total: data.length / SHRUB_STRIDE, ms: Math.round(work), wallMs: Math.round(performance.now() - t0) } };
+  return { data, kinds: KINDS, stats: { ...counts, total: data.length / SHRUB_STRIDE, obstacles: obs ? obs.n : 0, ...avoided, ms: Math.round(work), wallMs: Math.round(performance.now() - t0) } };
 }

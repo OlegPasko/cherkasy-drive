@@ -3,7 +3,8 @@
 // by all. (nature/treegeo_legacy.js is the generator before the greenery upgrade, kept for the ?notreeplus A/B.)
 //   buildTreeGeometries() -> { variants: { [name]: { near, mid, far: 'round' | 'cone', fit: { hx, hz, top, cb },
 //                              trunk: { r, h }, bark: [r, g, b] } }, far: { round, cone } }
-//   buildShrubGeometries() -> { near, far }   one bush in a unit box (x, z in [-0.5, 0.5], y in [0, 1]); the shrub
+//   buildShrubGeometries() -> { near, far }   one bush in a unit box (x, z in [-0.5, 0.5], y from -0.1, a foot in the
+//     ground, to 1); the shrub
 //     shader tapers it into a cone (thuja, juniper) per instance and flecks it with the instance's second tint
 //     (flowers, or fresh tips), denser where aLeaf.y is high: up and out.
 //   RECIPES: the species table. A crown is a set of smooth lobed puffs on limbs that fork from the trunk: big ones at
@@ -337,6 +338,12 @@ export function buildShrubGeometries() {
       const az = (i / lumps) * 6.283 + 0.4, rr = 0.24 + 0.06 * r(), s = 0.19 + 0.07 * r();
       puff(S, [Math.cos(az) * rr, 0.22 + 0.3 * r(), Math.sin(az) * rr], [s, s * 1.25, s], 0, r, ctx, { lobe: 0.25, under: 1, sway: 0.4 });
     }
+    // The bush stands in the ground: the round undersides of the puffs end 0.05-0.15 above y = 0, which under a 3 m
+    // lilac is a bush floating half a metre over its shadow. The lower third is drawn out downward, so the mesh
+    // crosses y = 0 at its full girth and ends a little under it (the top is brought to 1).
+    const pos = S.buf[0]; let top = 0;
+    for (let i = 1; i < pos.length; i += 3) top = Math.max(top, pos[i]);
+    for (let i = 1; i < pos.length; i += 3) { const y = pos[i] / top; pos[i] = y < 0.34 ? Math.max(-0.1, 0.34 - (0.34 - y) * 2.1) : y; }
     return S.geometry();
   };
   return { near: make(true), far: make(false) };
