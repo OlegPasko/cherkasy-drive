@@ -5,6 +5,8 @@
 //   buildCherkasy({ scene, renderer, onProgress?(fraction 0..1, text), params? }) -> Promise<world>
 //     params: URLSearchParams (default location.search): notraffic, nopeds, blood (blood on pedestrian hits), coll (collision wireframe), cam=x,y,z,tx,ty,tz
 //       nostreet (no street furniture: the A/B switch for its cost)
+//       nodoorclear (street props, generated trees and shrubs stand in front of doors as they fall: the A/B switch
+//       for doorways.js; world.cherkasy.doorCensus() counts them either way)
 //
 // world (the shape legacy car.js and missions.js consume):
 //   raycast(origin, dir, max?) -> { distance, point, normal, id, kind } | null        (static solids + terrain)
@@ -27,7 +29,9 @@
 //   places: [{ id, kind ('sight' | 'ad'), name, note, icon, url, pitch, x, z, rings, door?, glow?(k) }]  map icons, highlighted
 //     footprints (places.js); door / glow come from the hand-built partner site (restinn.js, tors.js, urban.js: a site's `partners`)
 //     and feed game/partners.js
-//   textures, materials { facade, detail, ground }, cherkasy { map, ground, hf, B, sites, carParks (carparks.js), setCam([x,y,z,tx,ty,tz] | null) }
+//   textures, materials { facade, detail, ground }, cherkasy { map, ground, hf, B, sites, carParks (carparks.js), setCam([x,y,z,tx,ty,tz] | null),
+//     doorways (doorways.js doorIndex of B.doors: the generated buildings' entrances), doorCensus() -> { doors, props, trees, shrubs }
+//     what stands in a door's approach now (it asks every shrub cell: tests and A/B only) }
 //   bridgeLimit null, bridgeDeckY() null, propAnchors() / grabbables() [], grabProp() null, releaseProp()  (unused hooks)
 //   update(dt, camera)   everything per frame (water, trees, LOD, landmarks, traffic, people, debris)
 //   view(camera, relight?)   the photo mode's frame (ui/photomode.js): only what follows the camera (the river plane,
@@ -58,7 +62,8 @@ import { createPeople } from '../../npc/people.js';
 import { createHeightField, buildGroundAsync } from './ground.js';
 import { buildCityBuildings } from './buildings.js';
 import { treeSpots, footprintRaster } from './greenery.js';
-import { shrubSteps, hedgeRows } from './shrubbery.js';
+import { shrubSteps, hedgeRows, doorFoot } from './shrubbery.js';
+import { doorIndex, TREE_R } from './doorways.js';
 import { createTreeBreaker } from './treebreak.js';
 import { buildCherkasyTraffic } from './traffic.js';
 import { loadTrafficVehicles } from '../../npc/vehicles.js';
@@ -69,7 +74,6 @@ import { createSiteProxies } from './proxies.js';
 import { buildCarParks } from './carparks.js';
 import { buildStreet } from './street.js';
 import { startFences } from './fences.js';
-import { parseFences } from './fencework.js';
 
 // Oleg's site modules, resolved at build time; a file that does not exist yet is simply absent
 const SITE_MODULES = import.meta.glob(['./landmarks.js', './frame.js', './restinn.js', './yalynka.js', './pagorb.js', './rosevalley.js',
@@ -311,31 +315,42 @@ export async function buildCherkasy({ scene, renderer, onProgress = null, params
   const treePlus = !params.has('notreeplus');
   const cleared = [landmarks, ...sites].filter((s) => s.clear).map((s) => s.clear);
   const isCleared = (x, z) => { for (let i = 0; i < cleared.length; i++) if (cleared[i](x, z)) return true; return false; };
+  // the entrances the building pass built (doorways.js): no generated tree, shrub or street prop in a door's approach
+  // (?nodoorclear: they stand as they fall, the A/B switch)
+  const doorways = doorIndex(B.doors), doorClear = params.has('nodoorclear') ? null : doorways;
   const hedges = treePlus ? guard('hedges', () => hedgeRows({ ground, occ, clear: isCleared }), []) : []; // the OSM hedges (shrubbery.js)
-  const spots = treeSpots({ map, ground, footprints: B.footprints, occ, clear: cleared, plus: treePlus,
+  const spots = treeSpots({ map, ground, footprints: B.footprints, occ, clear: cleared, plus: treePlus, doors: doorClear,
     extra: sites.flatMap((s) => s.spots ?? []).concat(hedges), sparse: shore ? (x, z) => shore.lowK(x, heightAt(x, z), z) : null });
   // floorY: the lowest terrain (carved ravines included) bounds how far a tree shadow can fall
   const trees = buildTrees({ scene: root, T, spots, plus: treePlus, maxScale: 3.2, heightAt, floorY: hf.data.grid.reduce((m, h) => Math.min(m, h), Infinity) - 5 });
   // The shrub layer (shrubbery.js: bushes by the houses, front gardens, park belts) is not waited for: it is laid
-  // out once the world is up, in the frames' idle time (~1 s of work, most of it the sites' clear tests) and joins
-  // the trees a few seconds after the start (trees.shrubJob). A machine with no idle time gives it a tenth of its
-  // time (2-8 ms slices), so it gets there too, later. The shrubs keep off the fences (their lines are read here
-  // again, parsed on this thread: the fences' worker keeps its own copy) and the street props; the job waits for
-  // both files, six seconds at most, and goes with what has landed by then.
+  // out once the world is up, in slices between the frames (~0.3 s of work, 5-12 ms a slice: it is in about a
+  // second after the start, sooner while nothing renders yet) and joins the trees then, dithering in over a second
+  // and a half (trees.shrubJob's fadeIn) instead of popping. The sites' clear tests – three quarters of the old
+  // layout's time, which a busy frame loop stretched to ten seconds – and the doors' approaches are left to the
+  // layer: it drops those shrubs cell by cell as the camera comes near (`drop`). The shrubs keep off the fences
+  // (their lines come with the fence worker's first reply, fences.js job.lines) and the street props; the job
+  // starts as soon as both are in, and after six seconds with what has landed by then.
   let shrubStats = null, startShrubs = null;
-  if (treePlus) startShrubs = (fences, streetP, street) => {
+  if (treePlus) startShrubs = (linesP, streetP, street) => {
+    const tStart = performance.now();
     let fenceLines = null;
-    const linesP = fences && typeof fetch === 'function' ? fetch(url('map_fences.json')).then((r) => (r.ok ? r.json() : null)).then((j) => { fenceLines = j ? parseFences(j) : null; }).catch(() => {}) : null;
+    const got = linesP ? linesP.then((F) => { fenceLines = F; }, () => {}) : null;
+    const drop = (x, z, w, taper) => isCleared(x, z) || (!!doorClear && doorClear.at(x, z, doorFoot(w, taper)) >= 0);
+    let began = 0;
     const job = (function* () {
-      const sh = yield* shrubSteps({ map, ground, footprints: B.footprints, occ, clear: isCleared, obstacles: () => ({ fences: fenceLines, props: street()?.props() ?? null }) });
-      yield* trees.shrubJob(sh);
-      shrubStats = sh.stats;
+      began = performance.now();
+      const sh = yield* shrubSteps({ map, ground, footprints: B.footprints, occ, obstacles: () => ({ fences: fenceLines, props: street()?.props() ?? null }) });
+      yield* trees.shrubJob(sh, { drop, fadeIn: 1.4 });
+      shrubStats = { ...sh.stats, waitMs: Math.round(began - tStart), doneMs: Math.round(performance.now() - tStart) }; // from the end of the load
     })();
     const later = typeof requestIdleCallback === 'function' ? (f) => requestIdleCallback(f, { timeout: 16 }) : (f) => setTimeout(f, 0);
     let prev = performance.now();
     const slice = (idle) => {
       try {
-        const now = performance.now(), room = Math.min(8, Math.max(2, idle && !idle.didTimeout ? idle.timeRemaining() : (now - prev) * 0.1));
+        // what the frame leaves, and never under 5 ms or 0.3 of the time since the last slice (12 ms at most): a
+        // machine with no idle time gives it a third of a second's frames and has the bushes in about a second
+        const now = performance.now(), room = Math.min(12, Math.max(5, idle && !idle.didTimeout ? idle.timeRemaining() : 0, (now - prev) * 0.3));
         for (const until = now + room; ;) {
           if (job.next().done) return;
           if (performance.now() > until) break;
@@ -344,7 +359,7 @@ export async function buildCherkasy({ scene, renderer, onProgress = null, params
         later(slice);
       } catch (e) { console.error('[cherkasy] shrubs failed', e); }
     };
-    Promise.race([Promise.all([linesP, streetP]), new Promise((res) => setTimeout(res, 6000))]).then(() => later(slice));
+    Promise.race([Promise.all([got, streetP]), new Promise((res) => setTimeout(res, 6000))]).then(() => later(slice));
   };
   const trunks = new Map();
   trees.addSolids((c) => { trunks.set(c.item, collision.cyl(c.x, c.z, c.y0, c.y1, c.r, c.r, 'tree')); });
@@ -354,7 +369,7 @@ export async function buildCherkasy({ scene, renderer, onProgress = null, params
   // off the sites' own ground (their clear areas and decks), buildings and trunks; the poles join the collision world
   // The file is a 25th of the map's size, so it is here by now; on a link where it is not, the game starts without it
   // and the furniture is built when it lands (below; the collision grid rebuilds itself on the next query).
-  const mkStreet = (d) => (d ? guard('street furniture', () => buildStreet({ scene: root, data: d, map, heightAt, ground, solids: collision, occ, spots,
+  const mkStreet = (d) => (d ? guard('street furniture', () => buildStreet({ scene: root, data: d, map, heightAt, ground, solids: collision, occ, spots, doors: doorClear,
     clear: [landmarks, ...sites].filter((s) => s.clear).map((s) => s.clear), decks: sites.filter((s) => s.deckAt).map((s) => s.deckAt), detailMat })) : null);
   let street = mkStreet(streetData), streetDetail = null;
 
@@ -438,7 +453,15 @@ export async function buildCherkasy({ scene, renderer, onProgress = null, params
       return resolvePlaces(map, geo).map((q) => Object.assign(q, partners[q.id]));
     }, []),
     textures: T, materials: { facade: facadeMat, detail: detailMat, ground: ground.root.children[0]?.material ?? null },
-    cherkasy: { map, ground, hf, B, sites, landmarks, carParks, setCam: (c) => { forced = c; } },
+    cherkasy: { map, ground, hf, B, sites, landmarks, carParks, setCam: (c) => { forced = c; }, doorways,
+      doorCensus() { // what stands in a door's approach now; the shrub layer is asked whole first (slow: tests, A/B)
+        trees.shrubCheckAll(); world.street?.checkAll(); // and the street's cells: a prop a site drops is not counted
+        const sp = trees.shrubSpots() ?? [], gen = spots.length - (spots.stats?.extra ?? 0);
+        let nt = 0, ns = 0;
+        for (let i = 0; i < gen; i++) if (doorways.at(spots[i].x, spots[i].z, TREE_R) >= 0) nt++;
+        for (let i = 0; i < sp.length; i += 4) if (doorways.at(sp[i], sp[i + 1], doorFoot(sp[i + 2], sp[i + 3])) >= 0) ns++;
+        return { doors: doorways.n, clearing: !!doorClear, props: world.street?.doorHits(doorways) ?? 0, trees: nt, shrubs: ns };
+      } },
     update(dt, camera) {
       water.update(dt, camera); wet.update?.(dt); ponds.update?.(dt);
       if (!camera) return;
@@ -488,7 +511,7 @@ export async function buildCherkasy({ scene, renderer, onProgress = null, params
   if (streetP && streetData === undefined) streetP.then((d) => { world.street = street = mkStreet(d); if (streetDetail) street?.setDetail(streetDetail); });
   { const stats = world.stats; world.stats = () => Object.assign(stats(), { street: street?.stats() ?? null }); }
   world.cherkasy.fences = fences;
-  startShrubs?.(fences, streetP, () => street); // the shrub layer's layout (see the trees above): now that the fences and the street props are on their way
+  startShrubs?.(fenceJob?.lines ?? null, streetP, () => street); // the shrub layer's layout (see the trees above): now that the fences and the street props are on their way
   { const plain = world.stats; world.stats = () => ({ ...plain(), fences: fences?.stats() ?? null }); }
   world.loadMs = Math.round(performance.now() - t0);
   console.log(`[cherkasy] built in ${world.loadMs} ms: ${B.footprints.length} buildings, ${collision.count} solids, ${spots.length} trees, ${sites.length} sites | ${Object.entries(stages).map(([k, v]) => k + ' ' + v).join(', ')}`);

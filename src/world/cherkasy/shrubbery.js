@@ -14,22 +14,32 @@
 // Nothing stands on a building, a carriageway, a footway, a railway track, paving, a pitch, a playground, water, or
 // where a hand-built site keeps the ground clear; nothing touches a fence or a street prop or blocks a gate.
 //
-//   shrubSpots({ map, ground, footprints, occ, clear = null, obstacles = null }) -> { data, kinds, stats }
+//   shrubSpots({ map, ground, footprints, occ, clear = null, doors = null, obstacles = null }) -> { data, kinds, stats }
 //     ground: { heightAt, onAsphalt, isWater };  occ: the buildings' 1 m raster (greenery.js footprintRaster);
-//     clear(x, z) -> bool: no shrub there (the hand-built sites' clear tests)
+//     clear(x, z) -> bool: no shrub there (the hand-built sites' clear tests); doors: the entrances' index
+//       (doorways.js doorIndex): no shrub in a door's approach, asked with doorFoot of its width as its radius.
+//       Either takes a shrub out, not its place in the layout (it keeps its random draws and its claim on the
+//       ground), so the result is the layout without them minus those shrubs: the city gives neither here and has
+//       the shrub layer drop them cell by cell near the camera (nature/shrubs.js `drop`), since the sites' tests
+//       are three quarters of this job's time
 //     obstacles: { fences?, props? } | () -> that, asked when the layout starts (see obstacleSteps below): a shrub
 //       that would touch a fence or a street prop is pushed off it, one in a gate's mouth is left out
 //       (stats.moved / stats.dropped)
 //     data: Float32Array of nature/shrubs.js records; kinds: the names its kind indices point at (trees.js SHRUBS);
 //     stats: counts per rule and the time
 //   shrubSteps(same) -> generator of the same work in small steps (it yields about every 3 ms of work; the last
-//     value is the result): the city runs it in slices after the world is up, since ~100 thousand shrubs with the
-//     sites' clear tests take about a second and nobody waits for a bush
+//     value is the result): the city runs it in slices after the world is up (~0.3 s of work for ~109 thousand
+//     shrubs without the sites' clear tests, over a second with them) – nobody waits for a bush
 //   hedgeRows({ ground, occ, clear = null }) -> tree spots of kind 'hedge' for the OSM hedges (they join the trees)
+//   doorFoot(width, taper) -> a shrub's radius in the doors' test (the city's `drop` and its census use the same): the
+//     foliage's reach on the ground, wider than FOOT (the stem's room by a fence) – the bush mesh's lumps reach ~0.52
+//     of a width, the layer stretches a bush up to 1.18 in depth, the shader spreads a cone's foot 1.48 times
 import { SHRUB_STRIDE } from '../nature/shrubs.js';
-import { hedgeSpots } from '../trees.js';
+import { hedgeSpots, SHRUBS } from '../trees.js';
 import { ringPts, BitRaster, rng, inPoly, bboxOf, areaOf } from './geo.js';
 import { HEDGES } from './hedges_data.js';
+
+export const doorFoot = (w, taper = 0) => w * (0.62 + 0.3 * taper);
 
 const KINDS = ['bush', 'lilac', 'olive', 'bloom', 'rose', 'pink', 'yellow', 'thuja', 'juniper'];
 // [width range, height range] in metres
@@ -143,7 +153,7 @@ export function shrubSpots(opts) {
   for (;;) { const q = job.next(); if (q.done) return q.value; }
 }
 
-export function* shrubSteps({ map, ground, footprints, occ, clear = null, obstacles = null }) {
+export function* shrubSteps({ map, ground, footprints, occ, clear = null, doors = null, obstacles = null }) {
   const t0 = performance.now(), R = map.region, r = rng(23);
   let work = 0, tick = 0; // work: the time spent inside the steps (the wall time includes the pauses between them)
   let tS = t0; const pause = () => { work += performance.now() - tS; }, resume = () => { tS = performance.now(); };
@@ -193,7 +203,7 @@ export function* shrubSteps({ map, ground, footprints, occ, clear = null, obstac
   for (const key of ['pitch', 'track', 'play', 'parking']) for (const rings of map.cover[key] ?? []) { if (due()) { pause(); yield; resume(); } fillRings(rings); }
 
   // the fences and the street props, as they are when the layout starts (the city gives what has landed by then)
-  const O = typeof obstacles === 'function' ? obstacles() : obstacles, avoided = { moved: 0, dropped: 0 };
+  const O = typeof obstacles === 'function' ? obstacles() : obstacles, avoided = { moved: 0, dropped: 0, cleared: 0, doors: 0 };
   let obs = null;
   if (O && (O.fences || O.props)) for (const job = obstacleSteps(O); ;) { const q = job.next(); if (q.done) { obs = q.value; break; } pause(); yield; resume(); }
   const out = [], counts = {};
@@ -210,11 +220,14 @@ export function* shrubSteps({ map, ground, footprints, occ, clear = null, obstac
       if (!q) { avoided.dropped++; return false; }
       if (q[0] !== x || q[1] !== z) { x = q[0]; z = q[1]; avoided.moved++; if (!free(x, z) || built(x, z)) { avoided.dropped++; avoided.moved--; return false; } }
     }
-    if (clear && clear(x, z)) return false;
+    // a site's cleared ground, a door's approach: the shrub is left out but keeps its place (see the header)
+    const yaw = r() * 6.283, tone = r();
+    for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) cell(x + a, z + b);
+    if (clear && clear(x, z)) { avoided.cleared++; return true; }
+    if (doors && doors.at(x, z, doorFoot(w, SHRUBS[KINDS[kind]].taper)) >= 0) { avoided.doors++; return true; }
     // the lowest ground under the bush, so on a slope its downhill side still stands in the earth
     const e = w * 0.35, y = Math.min(ground.heightAt(x, z), ground.heightAt(x + e, z), ground.heightAt(x - e, z), ground.heightAt(x, z + e), ground.heightAt(x, z - e));
-    out.push(x, y - 0.03 * h, z, r() * 6.283, w, h, kind, r());
-    for (let a = -1; a <= 1; a++) for (let b = -1; b <= 1; b++) cell(x + a, z + b);
+    out.push(x, y - 0.03 * h, z, yaw, w, h, kind, tone);
     return true;
   };
   const near = (x, z, d) => { // a carriageway about d away: eight probes round the spot

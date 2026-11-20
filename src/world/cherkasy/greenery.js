@@ -10,9 +10,12 @@
 //   footprintRaster(footprints, region) -> BitRaster (1 m) of the building footprints (also people.js isBuilding)
 //   BARE_ROADS: Set of OSM road names with no generated street rows
 //   roundaboutIslands(map) -> [{ c: [x, z], r }]   the roundabouts' central islands (closed rings of road pieces)
-//   treeSpots({ map, ground, footprints, occ?, y = 0.15, clear = [], extra = [], sparse = null, plus = true }) -> spots
+//   treeSpots({ map, ground, footprints, occ?, y = 0.15, clear = [], extra = [], sparse = null, plus = true, doors = null }) -> spots
 //     ground: { heightAt, onAsphalt, isWater, wetSegs? };  clear: [(x, z) -> bool] | (x, z) -> bool: no generated tree
 //     there (hand-built sites);
+//     doors: the entrances' index (doorways.js doorIndex) – no generated tree in a door's approach (stats.doors: how
+//     many that took out); an OSM-mapped tree is a real one: it steps along the wall to the approach's side, at
+//     most 3.5 m (stats.doorsMoved), and stays put where there is no room for that (stats.doorsOsm);
 //     extra: hand-placed spots appended as given;  sparse(x, z) -> 0..1 thinning of generated trees (the sandy shore)
 //     spot: { x, z, y, kind: 'street' | 'park' | 'elm' | 'small' | 'conifer', sc, pal, s3?, variant?, wash? }
 //     plus (the greenery upgrade; off = the planting before it, tree for tree, for the ?notreeplus A/B): a street is
@@ -23,6 +26,7 @@
 //     ponds; fruit trees in the private yards are limewashed in places. Shrubs are shrubbery.js.
 import { PARK_GREENS, PARK_PINE, PAL } from '../trees.js';
 import { ringPts, triangulate, BitRaster, rng, bboxOf, inPoly } from './geo.js';
+import { TREE_R } from './doorways.js';
 
 // Country roads with no planted rows (issue #34): the road out of Lunacharka to Heronymivka runs between fields and
 // the dachas with bare verges; the village's own trees start past the map's edge. Their OSM-mapped trees still grow.
@@ -104,7 +108,7 @@ function alleyOf(rd) {
   return [h < 0.36 ? 'linden' : h < 0.58 ? 'chestnut' : h < 0.72 ? 'maple' : h < 0.8 ? 'elm' : 'mix', wash, false];
 }
 
-export function treeSpots({ map, ground, footprints, occ = null, y = 0.15, clear = [], extra = [], sparse = null, plus = true }) {
+export function treeSpots({ map, ground, footprints, occ = null, y = 0.15, clear = [], extra = [], sparse = null, plus = true, doors = null }) {
   const t0 = performance.now();
   const R = map.region, r = rng(7);
   occ ??= footprintRaster(footprints, R);
@@ -294,8 +298,33 @@ export function treeSpots({ map, ground, footprints, occ = null, y = 0.15, clear
   const grown = spots.filter((s, i) => !lawn(s, i));
   counts.islands = spots.length - grown.length;
   const cleared = typeof clear === 'function' ? clear : clear.length ? (x, z) => clear.some((f) => f(x, z)) : null;
-  const kept = cleared ? grown.filter((s) => !cleared(s.x, s.z)) : grown;
+  let kept = cleared ? grown.filter((s) => !cleared(s.x, s.z)) : grown;
   counts.cleared = grown.length - kept.length;
+  // nothing planted in front of a door (the last filter, like the two above: the other trees keep their places).
+  // A mapped tree is a real one, the door is ours: it steps along the wall to the nearer side of the approach, else
+  // to the other, if the spot is free; else it stays
+  if (doors?.n) {
+    const mapped = new Set(spots.slice(0, nOsm)), n = kept.length;
+    counts.doorsOsm = counts.doorsMoved = 0;
+    const aside = (s, d) => {
+      const q = doors.door(d), tx = -q.nz, tz = q.nx, a = (s.x - q.x) * tx + (s.z - q.z) * tz, half = q.hw + doors.side + TREE_R + 0.05;
+      for (const sg of a >= 0 ? [1, -1] : [-1, 1]) {
+        const step = sg * half - a, x = s.x + tx * step, z = s.z + tz * step;
+        if (Math.abs(step) > 3.5 || blocked(x, z, 0.8) || doors.at(x, z, TREE_R) >= 0 || (cleared && cleared(x, z))) continue; // not onto a site's ground either
+        s.x = x; s.z = z; s.y = ground.heightAt(x, z) + y;
+        return true;
+      }
+      return false;
+    };
+    kept = kept.filter((s) => {
+      const d = doors.at(s.x, s.z, TREE_R);
+      if (d < 0) return true;
+      if (!mapped.has(s)) return false;
+      if (aside(s, d)) counts.doorsMoved++; else counts.doorsOsm++;
+      return true;
+    });
+    counts.doors = n - kept.length;
+  }
   counts.extra = extra.length;
   const out = kept.concat(extra);
   out.stats = { ...counts, total: out.length, ms: Math.round(performance.now() - t0) };

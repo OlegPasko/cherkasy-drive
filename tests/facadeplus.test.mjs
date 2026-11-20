@@ -109,6 +109,20 @@ const plusVerts = (res) => { let n = 0; for (const t of res.tiles.values()) { co
   ok([...Rh.tiles.values()].every((t) => { const P = t.near.v ? t.near.build({ part: true }).attributes.position.array : []; for (let i = 0; i < P.length; i += 3) if (P[i + 2] > 12.9 && P[i + 1] < 3.5) return false; return true; }), 'no entrance where the ground drops a storey below the floor line (it would hang in the air)');
 }
 
+// ---- the old kit's shop porches keep off the carriageways too: a doorstep by a driveway, none on the asphalt
+{
+  const shop = { id: 6205, k: 'apt', lv: 5, p: [0, 0, 130, 0, 130, 12, 0, 12], f: '0020' }; // the z = 12 side is a main street front
+  const run = (road) => {
+    const m = mkSinks();
+    buildBuildings({ map: { buildings: [shop] }, solids: m.S, heightAt: () => 0, roadAt: road ? roadIndex(roadSegs({ roads: [road] })) : null, dress: dressBuilding });
+    return m.solids.filter((s) => s.kind === 'ledge' && s.flags === 2).map((s) => Math.max(...s.poly.filter((v, i) => i % 2)) - 12); // how far each porch reaches out of the wall
+  };
+  const free = run(null), drive = run({ p: [-10, 14, 140, 14], w: 2, c: 'service', k: 'm' }), tight = run({ p: [-10, 13.2, 140, 13.2], w: 2, c: 'service', k: 'm' });
+  ok(free.length >= 3 && free.every((d) => Math.abs(d - 1.3) < 1e-6), `shop porches on a 130 m main-street front (${free.length}, landing 1.3 m deep and a step)`);
+  ok(drive.length === free.length && drive.every((d) => Math.abs(d - 0.55) < 1e-6), 'with a driveway a metre off the wall each is a doorstep, 0.55 m deep');
+  ok(tight.length === 0, 'with the asphalt at the wall there is none');
+}
+
 // ---- the real map: every planned entrance sits on its edge, the kit emits nothing broken, the budget holds
 {
   const buildings = JSON.parse(readFileSync(new URL('../public/assets/cherkasy/map_buildings.json', import.meta.url)));

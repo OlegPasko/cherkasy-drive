@@ -89,6 +89,14 @@ plain door; with a driveway right along the wall the door keeps only a doorstep 
 or where the ground is more than 1.5 m over the floor line or 2.2 m under it, the stair column stays without a door
 (about 5 % of the planned ones). Doors follow the terrain along a sloping block.
 
+The main-street shop porches of the older kit follow the same carriageway rule: one that would reach a carriageway is a
+0.55 m doorstep, or nothing where even that would. A townhouse row's door stands in the pier between its unit's two
+windows.
+
+Every entrance the kit builds is handed out as a record (place on the wall line, outward normal, half width, reach of
+its approach: 4 m, 5 m for the deep `N` porch, 5.5 m for a public stair, 8 m for a gate; `doorways.js`). The street
+furniture, the generated trees and the shrubs keep that approach clear (the door's width plus 0.5 m each side).
+
 ## Not covered
 
 No balcony glazing styles by series, no real house numbers, no loading docks. Apartment entrances are on the yard side by

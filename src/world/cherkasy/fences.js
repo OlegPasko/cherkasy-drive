@@ -7,6 +7,8 @@
 //
 //   startFences({ url, root, params? }) -> job | null      call once `root` exists and before the sites build
 //     (its group must be among root's children by then, so it is not taken for a hand-built site); ?nofences -> null
+//   job.lines: Promise<F | null>   the pieces' lines (fencework.js parseFences: n, kinds, kind, start, count, pts) as
+//     soon as the file is read, for the shrub layout (shrubbery.js obstacleSteps); null if it failed
 //   job.place({ hf, collision, sites, skip, map }) -> fences      once the sites are built: fences on a hand-built
 //     site's lot are dropped (a site's clear(x, z), its footprints, the OSM buildings it replaces + 4 m, the railway
 //     cutting's overlay), the rest is built and lands when the worker answers – normally still during the load
@@ -58,7 +60,7 @@ export function startFences({ url, root, params = new URLSearchParams(globalThis
       worker.onerror = (e) => rej(e.error || new Error(e.message || 'fence worker failed'));
       worker.postMessage({ url: new URL(url, globalThis.location?.href).href });
     } else {
-      fetch(url).then((r) => r.json()).then((json) => { F = parseFences(json); res({ samples: samplePoints(F), n: F.n, atlas: makeFenceAtlas() }); }).catch(rej);
+      fetch(url).then((r) => r.json()).then((json) => { F = parseFences(json); res({ samples: samplePoints(F), n: F.n, atlas: makeFenceAtlas(), lines: F }); }).catch(rej);
     }
   });
   loaded.catch(() => {}); // reported in place()
@@ -207,5 +209,5 @@ export function startFences({ url, root, params = new URLSearchParams(globalThis
     }).then((res) => { absorb(res, collision); return api; }).catch((e) => { stats.state = 'failed'; console.error('[cherkasy] fences failed', e); worker?.terminate(); group.remove(warm); return api; });
     return api;
   }
-  return { place };
+  return { place, lines: loaded.then((first) => first.lines ?? null, () => null) };
 }

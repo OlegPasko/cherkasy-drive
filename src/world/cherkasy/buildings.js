@@ -6,12 +6,15 @@
 //   buildBuildings({ map, solids, zips, heightAt, skip, dress? }) -> { tiles, footprints, boxes: [{ min: [x,y,z], max, id }], landmarks, stats }
 //     the legacy call shape (sync); solids: collision world (box / prism / cyl), zips: anchor store (edge / add)
 //   buildCityBuildings({ root, map, hf, solids, zips, skip, facadeMat, detailMat, useWorkers?, workers?, onProgress?(f), plus? })
-//     -> Promise<{ B: { footprints, boxes, landmarks, stats }, facade, detail (kit/batch.js batches), meshes, update(camPos),
+//     -> Promise<{ B: { footprints, boxes, landmarks, doors, stats }, facade, detail (kit/batch.js batches), meshes, update(camPos),
 //        setDetail({ detailFar?, detailShadow?, facadeShadow? }) (the graphics quality's distances below), stats() }>
 //     plus (default: on unless the page has ?nofacadeplus, the A/B flag): the generator's type detail and entrances
 //     (src/world/buildings.js `plus`, docs/cherkasy-facades.md).
 //     With it the kit also gets roadAt(x, z) (roadSegs / roadIndex below: the map's carriageways), so no porch or
 //     stair is built on a driveway.
+//     B.doors: Float32Array of the entrances the kit built, six numbers each (facadekit.js DOOR_STRIDE: x, z, the
+//     outward normal, the door's half width, the reach of its approach), in the generator's order share by share –
+//     the same list from the workers and from the single-thread pass; doorways.js indexes it for the other layers.
 //     With useWorkers and Worker support the footprints are split into 256 m stripes over `workers` module workers
 //     (each is posted only its share of the already parsed map.buildings – one JSON parse in all, no worker holds the
 //     whole list –, builds it with the facade kit, and sends back packed tile geometry plus
@@ -131,8 +134,9 @@ if (inWorker()) {
       const rec = R.take();
       res.stats.fetchMs = Math.round(tb - tf); res.stats.buildMs = Math.round(performance.now() - tb); res.stats.startMs = Math.round(tf);
       transfer.push(rec.num.buffer);
-      const boxes = plainBoxes(res.boxes);
-      self.postMessage({ tiles, rec, footprints: res.footprints, boxes, landmarks: res.landmarks, stats: res.stats }, [...new Set(transfer)]);
+      const boxes = plainBoxes(res.boxes), doors = Float32Array.from(res.doors);
+      transfer.push(doors.buffer);
+      self.postMessage({ tiles, rec, footprints: res.footprints, boxes, landmarks: res.landmarks, doors, stats: res.stats }, [...new Set(transfer)]);
     } catch (err) { self.postMessage({ error: String(err?.stack || err) }); }
   };
 }
@@ -172,9 +176,10 @@ export async function buildCityBuildings({ root, map, hf, solids, zips, skip = n
     const stats = { buildings: 0, skipped: 0, invalid: 0, solids: 0, kinds: {}, workers, perWorker: [] };
     const ready = [];
     let next = 0, done = 0;
-    B = { footprints: [], boxes: [], landmarks: [], stats };
+    B = { footprints: [], boxes: [], landmarks: [], doors: [], stats };
     const absorb = (o) => {
       if (o.rec) replay(o.rec, solids, zips);
+      if (o.doors?.length) B.doors.push(o.doors);
       for (const t of o.tiles) addTile(t.key, t.cx, t.cz, t.fac, t.det, t.near);
       for (const f of o.footprints) B.footprints.push(f);
       for (const b of o.boxes) B.boxes.push(b);
@@ -193,9 +198,14 @@ export async function buildCityBuildings({ root, map, hf, solids, zips, skip = n
     else if (failed.length) { // the lost shares, here, then the shares after them (same generator, same numbers)
       const res = generate({ map: { buildings: map.buildings.filter((b) => failed.some((p) => inShare(b, p, workers))) }, solids, zips, heightAt: hf.heightAt, skip, dress: await loadDress(), plus, roadAt: roadIndex(roads) });
       absorb({ tiles: [...res.tiles.values()].map((t) => ({ ...t, fac: t.fac.build(), ...detOf(t) })),
-        footprints: res.footprints, boxes: plainBoxes(res.boxes), landmarks: res.landmarks, stats: res.stats });
+        footprints: res.footprints, boxes: plainBoxes(res.boxes), landmarks: res.landmarks, doors: res.doors, stats: res.stats });
       for (; next < workers; next++) if (ready[next]) absorb(ready[next]);
       stats.failed = failed;
+    }
+    if (B) { // the shares' entrance lists, joined in share order
+      const all = new Float32Array(B.doors.reduce((n, d) => n + d.length, 0));
+      let o = 0; for (const d of B.doors) { all.set(d, o); o += d.length; }
+      B.doors = all;
     }
   }
   const all = (list) => (list.length ? mergeGeometries(list) : null);
@@ -203,7 +213,7 @@ export async function buildCityBuildings({ root, map, hf, solids, zips, skip = n
   else {
     const res = await buildBuildingsAsync({ map, solids, zips, heightAt: hf.heightAt, skip, dress: await loadDress(), sliceMs: 30, onProgress, plus, roadAt: roadIndex(roads) });
     parts = [...res.tiles.values()].map((t) => ({ cx: t.cx, cz: t.cz, fac: t.fac.build(), ...detOf(t) }));
-    B = { footprints: res.footprints, boxes: plainBoxes(res.boxes), landmarks: res.landmarks, stats: res.stats };
+    B = { footprints: res.footprints, boxes: plainBoxes(res.boxes), landmarks: res.landmarks, doors: Float32Array.from(res.doors), stats: res.stats };
   }
   const t1 = performance.now();
   const centres = parts.map((t) => [t.cx, t.cz]);
@@ -251,5 +261,5 @@ export async function buildCityBuildings({ root, map, hf, solids, zips, skip = n
     Object.assign(D, { detailFar, detailShadow, facadeShadow, near: NEAR * detailShadow / DETAIL_SHADOW }); lx = lz = Infinity;
   }
   const nearStats = () => ({ triangles: dInfo.reduce((n, g) => n + g.nearTris, 0), drawn: dInfo.reduce((n, g) => n + (g.near && detail.meshes[g.i].visible ? g.nearTris : 0), 0), within: D.near });
-  return { B, facade, detail, meshes, update, setDetail, stats: () => ({ ...B.stats, plus, tiles: info.length, ms, facade: facade.stats(), detail: detail.stats(), near: nearStats() }) };
+  return { B, facade, detail, meshes, update, setDetail, stats: () => ({ ...B.stats, plus, entrances: B.doors.length / 6, tiles: info.length, ms, facade: facade.stats(), detail: detail.stats(), near: nearStats() }) };
 }

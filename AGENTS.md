@@ -60,7 +60,9 @@ See `ARCHITECTURE.md` for the module map. Where things live:
   - `facade.js` and `materials.js` – the facade shader, lit windows and the `DP` part ids;
   - `buildings.js` – OSM building extrusion; townhouse rows (OSM `terrace`, or `row` from the map build: untagged outlines
     in a cottage quarter, which also gets no borrowed nine storeys – issue #45, вул. Руставі) are gabled two-storey rows
-    that the facade kit gives doors, canopies and party-wall ribs (`tests/townhouses.test.mjs`);
+    that the facade kit gives doors, canopies and party-wall ribs (`tests/townhouses.test.mjs`); a unit is two of
+    the facade shader's window bays and its door stands in the pier between them (`dressRow`, `piers`), never across a
+    window;
     - Building types and entrances (`docs/cherkasy-facades.md` is the reference; `tests/facadeplus.test.mjs`): with
       `plus` (only the city pass sets it, `cherkasy/buildings.js`; `?nofacadeplus` turns it off) `typify` gives an
       apartment, public or industrial building a type and plans its entrances (`A.entr`: one per section on the yard
@@ -72,6 +74,17 @@ See `ARCHITECTURE.md` for the module map. Where things live:
       with canopies, porches, glazed lobbies, public stairs under a slab on piers, industrial gates, lamps, plates,
       benches. That small geometry goes to the tile's `near` builder, merged behind the detail of its 512 m group
       and drawn through the draw range only within 220 m (less on the lower levels), so it adds no mesh.
+    - Where the entrances are (`cherkasy/doorways.js`, `tests/doorways.test.mjs`): the kit hands out every entrance
+      it builds – apartment entrances, public doors, industrial gates, row and house doors that face a street – as
+      six numbers (`doors`: x, z on the wall line, the outward normal, the door's half width, the reach of its
+      approach: 4 m, more for a deep porch, 8 m for a gate), `generate` returns them, the city pass packs them through
+      the workers and the single-thread path alike (`B.doors`, ~23 thousand), and `doorIndex` answers "is this spot
+      in a door's approach" (the door's width plus 0.5 m each side). Nothing generated stands there: `street.js`
+      steps a prop along its street or drops it, `greenery.js treeSpots` plants no tree (an OSM-mapped one steps to
+      the approach's side), the shrub layer drops its bushes (`drop`, below). The hand-built sites' plantings and
+      props are theirs. `?nodoorclear` turns the three off; `world.cherkasy.doorCensus()` counts what stands in an
+      approach. A main-street shop porch (the old kit, `dressApt`) follows the entrances' carriageway rule too
+      (`roadAt`): a porch that would reach a carriageway becomes a 0.55 m doorstep, or nothing where even that would.
   - `trees.js` – procedural trees with LODs and breakable items;
     - The species (`nature/treegeo.js RECIPES`): crowns are smooth lobed puffs on limbs, a near and a mid mesh from one
       layout; linden, chestnut and Scots pine come in two shapes, plus maple, oak, elm, birch, fruit, a young street tree
@@ -86,17 +99,21 @@ See `ARCHITECTURE.md` for the module map. Where things live:
       one to the layer's reach), tapered and flecked per instance. Scenery only: no items, no colliders, nothing to
       break, nothing the people know of. Its own short draw distances per graphics level (`DETAIL.trees.shrubNear` /
       `shrubOut` / `shrubShadow` in `city.js`, through `trees.setDetail`): 160 / 105 / 62 m. The city lays the shrubs
-      out after the load, in the frames' idle time (`shrubSteps`, then `trees.shrubJob`: generators run in slices), so
-      they join the picture a few seconds after the start; most of that work is the sites' `clear` tests.
+      out after the load (`shrubSteps`, then `trees.shrubJob`: generators run in slices of 5–12 ms a frame, ~0.3 s of
+      work), so they are in a second or two after the start, and the layer fades them in over 1.4 s (`fadeIn`, the
+      `uGrow` uniform: the LOD fade's own dither, a shadow that grows with it) instead of popping. The layout does not
+      ask the sites' `clear` functions (they were most of its time): a bush on a site's ground or in a door's approach
+      keeps its place in the layout and is dropped by the layer, per 32 m cell, when the cell first comes into reach
+      (`createShrubLayer({ drop })`).
       Where they grow (`shrubbery.js`): by the walls and in the gardens of private houses (behind the lot's street
       fence: 3.5 m off a carriageway, 5.3 m off a main street), front gardens of the blocks of flats, thuja rows along
       public buildings, belts inside park edges, groups on lawns, OSM scrub / flowerbeds / allotments, clipped lines on
       some main-street verges. A bush's mesh foot reaches below its origin and it is set into the lowest ground under
       it, so none floats on a slope; the flower flecks dim with `daylight.state.night`.
       The shrubs keep off the other layers (`obstacleIndex` in `shrubbery.js`): one that would touch a fence
-      (`map_fences.json`, which the shrub job fetches and parses itself) or a street prop (`street.props()`) is pushed
-      off it by up to 3 m, one in a gate's mouth is left out; the job waits up to 6 s for both to land and uses what is
-      there. The hedges are hedge blocks of the tree system on the fences' own `hedge` pieces, cut where a block would
+      (`map_fences.json`: the fence worker's first reply carries the parsed lines, `fenceJob.lines`) or a street prop
+      (`street.props()`) is pushed off it by up to 3 m, one in a gate's mouth is left out; the job starts as soon as
+      both have landed (6 s at most, then it uses what is there). The hedges are hedge blocks of the tree system on the fences' own `hedge` pieces, cut where a block would
       touch another fence, a gate's mouth or a street prop (`hedges_data.js`, made by
       `node tools/cherkasy/build_hedges.mjs` from `map_fences.json` and `map_street.json`: run it again after
       `build_fences.mjs` or `build_street.mjs`).
@@ -458,7 +475,9 @@ See `ARCHITECTURE.md` for the module map. Where things live:
     compiler reads `map_fences.json` (run `build_fences.mjs` first when the fences change) and steps a prop clear of a
     fence line, to the road's side, or drops it; in the game the same cell check drops what still has a `wall` solid
     across its foot (a site's wall, a pole that stepped round a trunk) and leaves out a wire span that would pass
-    through a solid, and asks again when the collision world grows (the fences land from a worker). `?nostreet` turns it all off.
+    through a solid, and asks again when the collision world grows (the fences land from a worker). No prop stands in a
+    door's approach (`doorways.js`): at the build one that would is stepped along its street (a bench or a shelter
+    sideways) by up to 6 m onto free ground, or left out with its wires. `?nostreet` turns it all off.
   - `fences.js` + `fencework.js` – the city's fences, walls, hedges and gates (~620 km): the private sector's street
     fronts (profiled sheet between brick or steel posts, old plank, picket and slate, concrete panels, forged bars; a
     gate and a wicket per lot, open gates over driveways), the fences between lots, and the concrete / bar / mesh fences
@@ -670,6 +689,7 @@ See `ARCHITECTURE.md` for the module map. Where things live:
   - `?nofacadeplus` – the generated buildings without their type detail and entrances (the A/B switch for `plus`);
   - `?stilltime` – the clock stands still (the game runs a day per hour of play and skips the night, `startGame` in `main.js`);
   - `?nostreet` – no street furniture (`street.js`): the A/B switch for its cost;
+  - `?nodoorclear` – props, trees and shrubs may stand in front of the generated buildings' doors again (`doorways.js`; A/B);
   - `?nosound` – no sound at all (no AudioContext, nothing fetched, the radio muted); use it for every dev and test run;
   - `?mobile` / `?desktop` – force the phone map page or the game (`src/mapview.js`).
   - `?roadster` – dev builds only (`import.meta.env.DEV`): the Roadster counts as unlocked (V switches to it).
