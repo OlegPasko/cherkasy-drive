@@ -114,6 +114,18 @@ ok(fronts > 20000 && gen > 5000 && gen < fronts, `${fronts} street-front pieces,
   ok(orphans === 0, `no orphan stub among the ${G.size} groups of joined pieces (${orphans} pieces in groups too small to stand alone)`);
   ok(json.stats.orphans > 100, `the compiler dropped ${json.stats.orphans} of them (${json.stats.orphanKm} km)`);
 }
+// the hedges: the shrub layer's hedge blocks (hedges_data.js, compiled from this file's hedge pieces) stand on a hedge
+// piece's face and solid. The compiler once read OSM ids out of hedges_data.js as "a site draws these" and left every
+// hedge out; a hedge run with no piece under it means the two files are out of step (run build_hedges.mjs).
+{
+  const { HEDGES } = await import('../src/world/cherkasy/hedges_data.js');
+  const H = []; let m = 0;
+  for (let k = 0; k < F.n; k++) if (F.kind[k] === K.hedge) { m += lenOf(k); for (let j = F.start[k] + 1; j < F.start[k] + F.count[k]; j++) H.push([F.pts[2 * j - 2], F.pts[2 * j - 1], F.pts[2 * j], F.pts[2 * j + 1]]); }
+  const off = (x, z) => Math.min(...H.map(([ax, az, bx, bz]) => { const dx = bx - ax, dz = bz - az, t = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / (dx * dx + dz * dz || 1))); return Math.hypot(x - ax - dx * t, z - az - dz * t); }));
+  const astray = HEDGES.filter(({ p }) => off(p[0], p[1]) > 0.3 || off(p[2], p[3]) > 0.3).length;
+  ok(m > 800, `${m.toFixed(0)} m of hedges in ${H.length} segments`);
+  ok(HEDGES.length > 100 && astray === 0, `each of the ${HEDGES.length} hedge runs of hedges_data.js lies on a hedge piece (${astray} do not)`);
+}
 // an open gate's leaves swing into the lot and never stand over a road
 {
   const C = 64, grid = new Map(), key = (i, j) => i * 100003 + j;

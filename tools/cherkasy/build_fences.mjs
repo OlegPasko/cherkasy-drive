@@ -19,13 +19,23 @@
 //   3. Generated fronts: where a house (not a townhouse row) stands by a street and OSM has no fence along it, a
 //      fence line on the pavement's edge across the house's lot, cut the same way (and by car parks and rails).
 //   4. Lots: a private front is split into lots at the side fences that join it (else between the houses behind it);
-//      each lot gets its own fence type, colour seed and height, and a gate with a wicket where there is room.
+//      each lot gets its own fence type, colour seed and height, and a gate with a wicket where there is room (at
+//      least 0.7 m of fence each side of them, so neither ends in a gap).
+//   5. Open gates: the two leaves (fencework.js openLeaves) swing into the lot and must stand clear of every
+//      carriageway, pavement band, footway and building. An inner gate (a plant's, a school's) may turn to its other
+//      side; a gate with no clear side keeps its posts only (flag 4).
+//   6. Orphans: pieces are joined into groups (an end within 0.8 m of another piece). A group that holds under 4 m of
+//      fence is dropped, unless it closes a gap between two buildings or runs 2.5 m from one: no metre of fence by a
+//      house wall, no gate with nothing beside it.
+// The hedge pieces are also what tools/cherkasy/build_hedges.mjs compiles the shrub layer's hedge blocks from: run it
+// after this one (tests/fences.test.mjs checks that the two agree).
 //
 // Output: { attribution, frame, region, unit: 0.1, kinds: [names], stats, d: [flat integers] }
 //   d holds the pieces one after another: kind, seed (0..255), height (dm), flags, n, x0, z0, then n - 1 (dx, dz)
 //   pairs; coordinates in decimetres from the region's (x0, z0) corner. flags: 1 = a street front (posts are built in
-//   3D), 2 = generated (not in OSM). A front runs so that the lot is on its left; 'gateopen' is the 2-point opening of
-//   a driveway (posts and two open leaves), 'gate' / 'oldgate' a closed double gate, 'wicket' / 'oldwicket' a door.
+//   3D), 2 = generated (not in OSM), 4 = an open gate with no room for its leaves (posts only). A front runs so that
+//   the lot is on its left; 'gateopen' is the 2-point opening of a driveway (posts and two open leaves on its left),
+//   'gate' / 'oldgate' a closed double gate, 'wicket' / 'oldwicket' a door.
 import { readFileSync, writeFileSync, readdirSync } from 'node:fs';
 import { simplify, pointInRing, GridIndex, boundsOf } from './geom2d.mjs';
 import { openLeaves } from '../../src/world/cherkasy/fencework.js';
@@ -99,10 +109,10 @@ function bldsAround(x0, z0, x1, z1, m) {
 const ringDist = (P, x, z) => { let d = Infinity, q = P[P.length - 1]; for (const p of P) { const e = segNear(x, z, q[0], q[1], p[0], p[1])[0]; if (e < d) d = e; q = p; } return d; };
 
 // ------------------------------------------------------------------------------------------------ OSM barriers
-// ids a hand-built site names (it draws that fence itself)
+// ids a hand-built site names (it draws that fence itself). Not hedges_data.js: it is compiled from this tool's output
 const SITE_IDS = (() => {
   const dir = here('../../src/world/cherkasy/'), ids = new Set();
-  for (const f of readdirSync(dir)) if (f.endsWith('.js')) for (const m of readFileSync(new URL(f, dir), 'utf8').matchAll(/\b\d{7,11}\b/g)) ids.add(+m[0]);
+  for (const f of readdirSync(dir)) if (f.endsWith('.js') && f !== 'hedges_data.js') for (const m of readFileSync(new URL(f, dir), 'utf8').matchAll(/\b\d{7,11}\b/g)) ids.add(+m[0]);
   return ids;
 })();
 const num = (v) => { const f = parseFloat(String(v ?? '').replace(',', '.')); return Number.isFinite(f) ? f : null; };
